@@ -1,7 +1,7 @@
 from dash import Dash, Input, Output, html, dcc
 import plotly.express as px
 import pandas as pd
-from morpc.census import api
+from morpc_census import api
 app = Dash()
 
 # assume you have a "long-form" data frame

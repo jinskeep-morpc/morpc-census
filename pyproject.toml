@@ -1,7 +1,7 @@
 [project]
-name = "morpc"
+name = "morpc-census"
 dynamic = ["version"]
-description = "Data managment tools used by MORPC"
+description = "Census data tools used by MORPC"
 authors = [
     {name = "MORPC data team", email = "dataandmaps@morpc.org"}
 ]
@@ -13,14 +13,12 @@ classifiers = [
     "Intended Audience :: Developers",
 ]
 dependencies = [
+    "morpc",
     "requests",
     "pandas",
     "geopandas",
     "frictionless",
-    "shapely",
-    "IPython",
-    "xlsxwriter",
-    "plotnine"
+    "shapely"
 ]
 
 [build-system]
@@ -28,7 +26,7 @@ requires = ["setuptools>=61.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "morpc.__version__"}
+version = {attr = "morpc_census.__version__"}
 
 [project.optional-dependencies]
 dev = [
@@ -36,7 +34,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-exclude = ["demo"] 
+exclude = ["demo"]
 namespaces = false
 
 [tool.setuptools.package-data]

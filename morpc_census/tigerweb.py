@@ -216,7 +216,7 @@ def outfields_from_scale(scale):
     return ",".join(['GEOID','NAME'] + [x[0].upper() for x in fields])
 
 def where_from_scope(scope):
-    from morpc.census.geos import SCOPES
+    from morpc_census.geos import SCOPES
     if scope == 'us':
         where = '1=1'
     else:

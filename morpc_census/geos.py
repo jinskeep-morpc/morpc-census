@@ -263,7 +263,7 @@ def geoinfo_for_hierarchical_geos(scope, scale):
     Parameters:
 
     """
-    from morpc.census.geos import geoinfo_from_params, geoids_from_scope, get_query_req, SCOPES
+    from morpc_census.geos import geoinfo_from_params, geoids_from_scope, get_query_req, SCOPES
     import pandas as pd
 
     # Get the query requirements
@@ -527,7 +527,7 @@ def fetch_geos_from_geoids(geoidfqs, year:int|None=None, survey:Literal['current
         The survey to return the geos for, "ACS" or "DEC"
     """
 
-    from morpc.census.tigerweb import get_layer_url
+    from morpc_census.tigerweb import get_layer_url
     import pandas as pd
     import geopandas as gpd
     
