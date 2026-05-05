@@ -1,19 +1,15 @@
-"""Tests for GeoIDFQ.
-
-Note: morpc.SUMLEVEL_DESCRIPTIONS geoidfq_format strings are inaccurate for
-sumlevels 140 (tract) and 150 (block group) — they omit the COUNTY(3) component
-that appears in real GEOIDFQs.  Tests here use only sumlevels with accurate
-format strings: 040 (state), 050 (county), 160 (place), 310 (CBSA).
-"""
 import pytest
 from morpc_census.geos import GeoIDFQ
 
 
-COUNTY_GEOIDFQ    = "0500000US39049"          # Franklin County, Ohio
-STATE_GEOIDFQ     = "0400000US39"             # Ohio
-PLACE_GEOIDFQ     = "1600000US3918000"        # Columbus city, Ohio
-CBSA_GEOIDFQ      = "3100000US18140"          # Columbus CBSA
-CD_GEOIDFQ        = "5001900US3912"           # Ohio 12th congressional district, 119th Congress
+COUNTY_GEOIDFQ   = "0500000US39049"               # Franklin County, Ohio
+STATE_GEOIDFQ    = "0400000US39"                  # Ohio
+PLACE_GEOIDFQ    = "1600000US3918000"             # Columbus city, Ohio
+CBSA_GEOIDFQ     = "3100000US18140"               # Columbus CBSA
+CD_GEOIDFQ       = "5001900US3912"                # Ohio 12th CD, 119th Congress
+TRACT_GEOIDFQ    = "1400000US39041010100"         # Census tract 101, Delaware County
+BLKGRP_GEOIDFQ   = "1500000US390410101001"        # Block group 1, tract 101, Delaware County
+BLOCK_GEOIDFQ    = "1000000US390410101001000"     # Block 1000, block group 1, tract 101
 
 
 class TestParse:
@@ -45,6 +41,21 @@ class TestParse:
         assert g.variant == "19"        # 119th Congress (19 + 100)
         assert g.parts == {"state": "39", "cd": "12"}
 
+    def test_tract_fields(self):
+        g = GeoIDFQ.parse(TRACT_GEOIDFQ)
+        assert g.sumlevel == "140"
+        assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
+
+    def test_block_group_fields(self):
+        g = GeoIDFQ.parse(BLKGRP_GEOIDFQ)
+        assert g.sumlevel == "150"
+        assert g.parts == {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1"}
+
+    def test_block_fields(self):
+        g = GeoIDFQ.parse(BLOCK_GEOIDFQ)
+        assert g.sumlevel == "100"
+        assert g.parts == {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1", "block": "000"}
+
     def test_unknown_sumlevel_raises(self):
         with pytest.raises((KeyError, ValueError)):
             GeoIDFQ.parse("9990000US99")
@@ -56,6 +67,18 @@ class TestBuild:
         assert g.sumlevel == "050"
         assert g.variant == "00"
         assert g.parts == {"state": "39", "county": "049"}
+
+    def test_tract(self):
+        g = GeoIDFQ.build("140", {"state": "39", "county": "041", "tract": "010100"})
+        assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
+
+    def test_block_group(self):
+        g = GeoIDFQ.build("150", {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1"})
+        assert g.sumlevel == "150"
+
+    def test_block(self):
+        g = GeoIDFQ.build("100", {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1", "block": "000"})
+        assert g.sumlevel == "100"
 
     def test_variant_passthrough(self):
         g = GeoIDFQ.build("500", {"state": "39", "cd": "12"}, variant="19")
@@ -94,6 +117,15 @@ class TestStrAndGeoid:
     def test_str_cd_roundtrip(self):
         assert str(GeoIDFQ.parse(CD_GEOIDFQ)) == CD_GEOIDFQ
 
+    def test_str_tract_roundtrip(self):
+        assert str(GeoIDFQ.parse(TRACT_GEOIDFQ)) == TRACT_GEOIDFQ
+
+    def test_str_block_group_roundtrip(self):
+        assert str(GeoIDFQ.parse(BLKGRP_GEOIDFQ)) == BLKGRP_GEOIDFQ
+
+    def test_str_block_roundtrip(self):
+        assert str(GeoIDFQ.parse(BLOCK_GEOIDFQ)) == BLOCK_GEOIDFQ
+
     def test_geoid_county(self):
         assert GeoIDFQ.parse(COUNTY_GEOIDFQ).geoid == "39049"
 
@@ -103,7 +135,19 @@ class TestStrAndGeoid:
     def test_geoid_cbsa(self):
         assert GeoIDFQ.parse(CBSA_GEOIDFQ).geoid == "18140"
 
+    def test_geoid_tract(self):
+        assert GeoIDFQ.parse(TRACT_GEOIDFQ).geoid == "39041010100"
+
+    def test_geoid_block_group(self):
+        assert GeoIDFQ.parse(BLKGRP_GEOIDFQ).geoid == "390410101001"
+
+    def test_geoid_block(self):
+        assert GeoIDFQ.parse(BLOCK_GEOIDFQ).geoid == "390410101001000"
+
     def test_build_str_matches_parse(self):
         built = GeoIDFQ.build("050", {"state": "39", "county": "049"})
-        parsed = GeoIDFQ.parse(COUNTY_GEOIDFQ)
-        assert str(built) == str(parsed)
+        assert str(built) == str(GeoIDFQ.parse(COUNTY_GEOIDFQ))
+
+    def test_build_tract_str_matches_parse(self):
+        built = GeoIDFQ.build("140", {"state": "39", "county": "041", "tract": "010100"})
+        assert str(built) == TRACT_GEOIDFQ
