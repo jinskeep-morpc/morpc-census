@@ -1,5 +1,21 @@
 # morpc-census dev notes
 
+## 2026-05-05 16:30 — Rename 'scale' to 'sumlevel' throughout geos.py (closes #33)
+
+Removed every use of the term "scale" from `morpc_census/geos.py` and replaced with "sumlevel":
+
+- `valid_scale` → `valid_sumlevel`; parameter `scale` → `sumlevel`; log messages and error text updated
+- `get_query_req`: parameter `scale` → `sumlevel`; internal variable `sumlevel` → `sumlevel_code` to avoid shadowing
+- `geoinfo_for_hierarchical_geos`: parameter `scale` → `sumlevel`; updated internal call and format string
+- `geoinfo_from_scope_scale` → `geoinfo_from_scope_sumlevel`: parameter `scale` → `sumlevel`; local variable `scale_sumlevel` → `query_sumlevel`; all log messages and comments updated
+- `pseudos_from_scale_scope` → `pseudos_from_sumlevel_scope`: parameter `scale` → `sumlevel`; local variable `sumlevel` (parent code) → `parent_sumlevel` to avoid shadowing
+- `fetch_geos_from_scale_scope` → `fetch_geos_from_sumlevel_scope`: parameter `scale` → `sumlevel`; internal call updated
+
+Updated `morpc_census/__init__.py` exports to match new names.
+Updated `doc/01-morpc-geos-demo.ipynb`: import, function calls, and keyword argument `scale=` → `sumlevel=`.
+
+All 50 tests pass.
+
 ## 2026-05-05 16:00 — Add type hints and docstrings to geos.py (closes #31)
 
 Added type annotations and short docstrings to all public functions in `morpc_census/geos.py`:
