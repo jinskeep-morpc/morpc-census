@@ -1,5 +1,16 @@
 # morpc-census dev notes
 
+## 2026-05-05 15:30 — Rewrite 01-morpc-geos-demo.ipynb — add GeoIDFQ, usage-first framing (closes #29)
+
+Rewrote `doc/01-morpc-geos-demo.ipynb` with a usage-first structure. Replaced the previous version (which led with dataclass field tables and internal implementation details) with a workflow-oriented narrative covering four topics:
+
+- **Scopes** — lists `SCOPES.keys()`, looks up individual scopes, notes the 15-county region's multi-county `for_param`
+- **Scales** — calls `valid_scale()` on recognized names, shows the returned `SumLevel` fields, demonstrates the `ValueError` for unrecognized names
+- **Fetching geometries** — `fetch_geos_from_scale_scope(scope, scale)` with county and tract examples; `.plot()` calls; network note at section header
+- **GEOIDFQs** — `GeoIDFQ.parse()`, `.parts`, `.geoid`, `GeoIDFQ.build()`, `str()`, and a worked example parsing the `GEO_ID` column from a prior fetch
+
+Also added a `test_geoidfq_class.py` expansion (closes #27) covering sumlevels 100, 140, 150 in the same PR #28 cycle (previously noted at 2026-05-05 11:02).
+
 ## 2026-05-05 11:02 — Add GeoIDFQ class, refactor geoidfq_to_columns / columns_to_geoidfq (closes #25)
 
 Added `GeoIDFQ` dataclass to `morpc_census/geos.py` to encapsulate GEOIDFQ parsing and construction:
