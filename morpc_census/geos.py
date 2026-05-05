@@ -26,8 +26,8 @@ class Scope:
 
 
 @dataclass(frozen=True)
-class Scale:
-    """A Census geography scale, pairing a query name with its summary level code."""
+class SumLevel:
+    """A Census geography summary level, pairing a query name with its summary level code."""
     name: str      # censusQueryName, e.g. "county"
     sumlevel: str  # e.g. "050"
 
@@ -194,13 +194,13 @@ PSEUDOS = {'010': [
  }
 
 
-def valid_scale(scale) -> Scale:
+def valid_scale(scale) -> SumLevel:
     from morpc import SUMLEVEL_DESCRIPTIONS
 
     logger.debug(f"Validating scale {scale} against implemented morpc.SUMLEVEL_DESCRIPTIONS.")
     for sumlevel, desc in SUMLEVEL_DESCRIPTIONS.items():
         if desc['censusQueryName'] == scale:
-            return Scale(name=scale, sumlevel=sumlevel)
+            return SumLevel(name=scale, sumlevel=sumlevel)
 
     available = [d['censusQueryName'] for d in SUMLEVEL_DESCRIPTIONS.values() if d['censusQueryName'] is not None]
     logger.error(f"Scale '{scale}' is not recognized. Available scales: {available}")
