@@ -2,6 +2,7 @@
 import logging
 logger  = logging.getLogger(__name__)
 
+import re
 from dataclasses import dataclass
 from pandas import DataFrame, Series
 from typing import Literal
@@ -30,6 +31,79 @@ class SumLevel:
     """A Census geography summary level, pairing a query name with its summary level code."""
     name: str      # censusQueryName, e.g. "county"
     sumlevel: str  # e.g. "050"
+
+
+def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
+    """Return the geo-specific (name, width) pairs for a sumlevel's geoidfq_format."""
+    from morpc import SUMLEVEL_DESCRIPTIONS
+    fmt = SUMLEVEL_DESCRIPTIONS[sumlevel].get("geoidfq_format")
+    if fmt is None:
+        raise ValueError(f"Sumlevel {sumlevel!r} has no geoidfq_format")
+    return [
+        (y[0].lower(), int(y[1]))
+        for y in [x.split(":") for x in re.findall(r"\{(.+?)\}", fmt)]
+        if y[0] not in ("SUMLEVEL", "VARIANT", "GEOCOMP")
+    ]
+
+
+@dataclass
+class GeoIDFQ:
+    """A parsed Census fully-qualified geographic identifier (GEOIDFQ).
+
+    Structure: {SUMLEVEL:3}{VARIANT:2}{GEOCOMP:2}US{geo-specific fields...}
+
+    Variant codes (Census geo-variant system):
+      "00"        standard/default — most geography types
+      "01"–"59"   Congressional districts (add 100 for Congress number)
+      "Ux"        upper-chamber state legislative districts
+      "Lx"        lower-chamber state legislative districts
+      "Mx"        CBSAs, metro divisions, combined statistical areas
+      "Cx"        urban areas
+      "Px"        public use microdata areas (PUMAs)
+      "Zx"        ZIP Code tabulation areas
+    """
+    sumlevel: str
+    variant: str
+    geocomp: str
+    parts: dict[str, str]
+
+    @classmethod
+    def parse(cls, geoidfq: str) -> "GeoIDFQ":
+        """Parse a GEOIDFQ string into its components."""
+        sumlevel = geoidfq[0:3]
+        variant = geoidfq[3:5]
+        geocomp = geoidfq[5:7]
+        parts = {}
+        pos = 9  # skip SUMLEVEL(3) + VARIANT(2) + GEOCOMP(2) + "US"(2)
+        for name, width in _geoidfq_geo_fields(sumlevel):
+            parts[name] = geoidfq[pos:pos + width]
+            pos += width
+        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
+
+    @classmethod
+    def build(cls, sumlevel: str, parts: dict[str, str],
+              variant: str = "00", geocomp: str = "00") -> "GeoIDFQ":
+        """Construct a GeoIDFQ from components.
+
+        Raises ValueError if the sumlevel has no geoidfq_format (MORPC sumlevels)
+        or if parts keys do not match the expected geo fields.
+        """
+        expected = [name for name, _ in _geoidfq_geo_fields(sumlevel)]
+        if list(parts.keys()) != expected:
+            raise ValueError(
+                f"parts keys {list(parts.keys())} do not match expected {expected} "
+                f"for sumlevel {sumlevel!r}"
+            )
+        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
+
+    def __str__(self) -> str:
+        return self.sumlevel + self.variant + self.geocomp + "US" + "".join(self.parts.values())
+
+    @property
+    def geoid(self) -> str:
+        """Short-form ID after 'US' — used in REST API and Census API queries."""
+        return "".join(self.parts.values())
+
 
 # TODO (jinskeep_morpc): Develop function for fetching census geographies leveraging scopes
 # Issue URL: https://github.com/morpc/morpc-py/issues/102
@@ -1094,10 +1168,9 @@ def morpc_geoid_to_census(geoidSeries, validateTranslation=True, gitRootPath="..
 def geoidfq_to_columns(geoidfqs: Series | DataFrame):
     import pandas as pd
     import geopandas as gpd
-    import re
 
     if isinstance(geoidfqs, pd.Series):
-        logger.debug(f"Converting GEOIDFQs from Series")
+        logger.debug("Converting GEOIDFQs from Series")
         df = pd.DataFrame(geoidfqs, columns=['geoidfq']).set_index('geoidfq')
     else:
         df = geoidfqs
@@ -1105,68 +1178,52 @@ def geoidfq_to_columns(geoidfqs: Series | DataFrame):
             df = df.reset_index()
         df.columns = [x.lower() for x in df.columns]
         if 'geoidfq' not in df.columns:
-            logger.error(f"GEOIDFQs not in DataFrame.")
+            logger.error("GEOIDFQs not in DataFrame.")
             raise ValueError
         df = df.set_index('geoidfq')
-        
-    df['sumlevel'] = [x[0:3] for x in df.reset_index()['geoidfq']]
-    df['variant'] = [x[3:5] for x in df.reset_index()['geoidfq']]
-    df['geocomp'] = [x[5:7] for x in df.reset_index()['geoidfq']]
 
-    sumlevel_dfs=[]
-    sumlevels = list(set(df['sumlevel']))
-    for sumlevel in sumlevels:
-        logger.debug(f"Converting SUMLEVEL {sumlevel}")
-        temp = df.loc[df['sumlevel']==sumlevel]
-        temp = temp.drop(columns=temp.columns)
-        template = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['geoidfq_format']
-        columns = [[y[0].lower(), y[1]] for y in [x.split(':') for x in re.findall(r'\{(.+?)\}', template)] if y[0] not in ['SUMLEVEL', 'VARIANT', 'GEOCOMP']]
-        start = 9
-        for column in columns:
-            name = column[0]
-            end = start + int(column[1])
-            temp[name] = [x[start:end] for x in temp.reset_index()['geoidfq']]
-            start = end
-        sumlevel_dfs.append(temp)
-    sumlevel_dfs = pd.concat(sumlevel_dfs)
-    overlap = df.columns.intersection(sumlevel_dfs.columns)
+    parsed = {g: GeoIDFQ.parse(g) for g in df.index}
+    df['sumlevel'] = [parsed[g].sumlevel for g in df.index]
+    df['variant'] = [parsed[g].variant for g in df.index]
+    df['geocomp'] = [parsed[g].geocomp for g in df.index]
+
+    parts_df = pd.DataFrame([parsed[g].parts for g in df.index], index=df.index)
+    overlap = df.columns.intersection(parts_df.columns)
     if len(overlap) > 0:
         logger.warning(f"Columns overlap: using columns from new columns {overlap}")
-        df = df.drop(columns = overlap)
-    df = df.join(sumlevel_dfs)
+        df = df.drop(columns=overlap)
+    df = df.join(parts_df)
+
     if 'geometry' in df.columns:
         geo_col = df.pop('geometry')
-        df.insert(len(df.columns),'geometry', geo_col)
+        df.insert(len(df.columns), 'geometry', geo_col)
         df = gpd.GeoDataFrame(df, crs='epsg:4326')
 
     return df
 
-def columns_to_geoidfq(df:DataFrame) -> DataFrame:
-    import re   
-    df = df.reset_index().drop(columns='index')
+def columns_to_geoidfq(df: DataFrame, variant: str = "00", geocomp: str = "00") -> DataFrame:
+    df = df.reset_index()
+    if 'index' in df.columns:
+        df = df.drop(columns='index')
 
     if 'sumlevel' not in df.columns:
-        logger.error(f"Dataframe must contain sumlevel column")
+        logger.error("Dataframe must contain sumlevel column")
         raise ValueError
 
-    sumlevels = [x for x in df['sumlevel'].unique()]
-    logger.debug(f"Sumlevels ({",".join(sumlevels)}) in data")
+    sumlevels = list(df['sumlevel'].unique())
+    logger.debug(f"Sumlevels ({','.join(sumlevels)}) in data")
 
     for sumlevel in sumlevels:
-        template = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['geoidfq_format']
-        columns = [y[0].lower() for y in [x.split(':') for x in re.findall(r'\{(.+?)\}', template)] if y[0] not in ['SUMLEVEL', 'VARIANT', 'GEOCOMP']]
+        geo_fields = [name for name, _ in _geoidfq_geo_fields(sumlevel)]
+        mask = df['sumlevel'] == sumlevel
+        df.loc[mask, 'geoidfq'] = df.loc[mask].apply(
+            lambda row: str(GeoIDFQ.build(
+                sumlevel=sumlevel,
+                parts={f: str(row[f]) for f in geo_fields},
+                variant=variant,
+                geocomp=geocomp,
+            )),
+            axis=1,
+        )
 
-        temp = df.loc[df['sumlevel']==sumlevel]
-
-        drop_cols = [x for x in df.columns if x not in columns]
-        temp = temp.drop(columns=drop_cols)
-
-        prefix = str(sumlevel) + morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['current_variant'] + '00' + 'US'
-        temp['prefix'] = prefix
-        temp = temp.astype(str)
-
-        temp['geoidfq'] = temp['prefix'].str.cat(temp[columns], sep="")
-
-        df.update(temp.drop(columns='prefix'))
-    
     return df

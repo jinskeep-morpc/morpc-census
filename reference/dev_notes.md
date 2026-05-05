@@ -1,5 +1,21 @@
 # morpc-census dev notes
 
+## 2026-05-05 11:02 — Add GeoIDFQ class, refactor geoidfq_to_columns / columns_to_geoidfq (closes #25)
+
+Added `GeoIDFQ` dataclass to `morpc_census/geos.py` to encapsulate GEOIDFQ parsing and construction:
+
+- `GeoIDFQ.parse(geoidfq_str)` — slices a GEOIDFQ string into `sumlevel`, `variant`, `geocomp`, and `parts` using field widths from `SUMLEVEL_DESCRIPTIONS[sumlevel]["geoidfq_format"]`
+- `GeoIDFQ.build(sumlevel, parts, variant="00", geocomp="00")` — constructs from components; raises `ValueError` for MORPC sumlevels (no `geoidfq_format`) or mismatched parts keys
+- `__str__()` — reconstructs the full GEOIDFQ string
+- `geoid` property — short-form ID after `"US"` (used in REST API queries)
+- Variant codes documented in class docstring per Census geo-variant system (`"00"` default; `"01"`–`"59"` CDs; `"Ux"`/`"Lx"` SLDs; `"Mx"` CBSAs; `"Cx"` UAs; `"Px"` PUMAs; `"Zx"` ZCTAs)
+
+Refactored `geoidfq_to_columns` to use `GeoIDFQ.parse()` instead of inline regex + slicing. Fixed `columns_to_geoidfq` — it referenced `SUMLEVEL_DESCRIPTIONS[sumlevel]['current_variant']` (a key that does not exist), causing a `KeyError` at runtime; replaced with `GeoIDFQ.build()` and an explicit `variant` parameter (default `"00"`).
+
+Note: `SUMLEVEL_DESCRIPTIONS` format strings for sumlevels `140` (tract) and `150` (block group) omit the `COUNTY:3` component present in real GEOIDFQs — a pre-existing morpc-py data issue that affects both the old and new code equally. Tests cover only sumlevels with accurate format strings.
+
+21 new tests in `tests/test_geoidfq_class.py`; all 41 tests pass.
+
 ## 2026-05-05 10:39 — Rename Scale class to SumLevel (closes #23)
 
 Renamed the `Scale` dataclass to `SumLevel` everywhere it appeared:

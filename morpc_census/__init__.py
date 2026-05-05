@@ -34,6 +34,7 @@ from .census import (
 
 # Geography query and translation utilities
 from .geos import (
+    GeoIDFQ,
     SumLevel,
     Scope,
     SCOPES,
