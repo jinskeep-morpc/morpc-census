@@ -12,9 +12,7 @@ Added `GeoIDFQ` dataclass to `morpc_census/geos.py` to encapsulate GEOIDFQ parsi
 
 Refactored `geoidfq_to_columns` to use `GeoIDFQ.parse()` instead of inline regex + slicing. Fixed `columns_to_geoidfq` — it referenced `SUMLEVEL_DESCRIPTIONS[sumlevel]['current_variant']` (a key that does not exist), causing a `KeyError` at runtime; replaced with `GeoIDFQ.build()` and an explicit `variant` parameter (default `"00"`).
 
-Note: `SUMLEVEL_DESCRIPTIONS` format strings for sumlevels `140` (tract) and `150` (block group) omit the `COUNTY:3` component present in real GEOIDFQs — a pre-existing morpc-py data issue that affects both the old and new code equally. Tests cover only sumlevels with accurate format strings.
-
-21 new tests in `tests/test_geoidfq_class.py`; all 41 tests pass.
+34 new tests in `tests/test_geoidfq_class.py` covering sumlevels 040, 050, 100, 140, 150, 160, 310, and 500; all 54 tests pass.
 
 ## 2026-05-05 10:39 — Rename Scale class to SumLevel (closes #23)
 
