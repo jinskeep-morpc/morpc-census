@@ -536,20 +536,15 @@ def fetch_geos_from_geoids(geoidfqs, year:int|None=None, survey:Literal['current
 
     if len(geoidfqs) > chunk_size:
         start = 0
-        offset = chunk_size-1
         while start < len(all_geoidfqs):
-            if start+offset > len(all_geoidfqs):
-                offset = len(all_geoidfqs)-start
-            logger.info(f"Fetching geoids {start} - {start+offset}")
-            geoidfqs = all_geoidfqs[start:start+offset+1]
-        
-        # Get sum levels in the data
-            sumlevels = set([x[0:3] for x in geoidfqs])
+            offset = min(chunk_size, len(all_geoidfqs) - start)
+            logger.info(f"Fetching geoids {start} - {start + offset - 1}")
+            geoidfqs = all_geoidfqs[start:start + offset]
 
+            sumlevels = set([x[0:3] for x in geoidfqs])
             logger.info(f"Sum levels {', '.join(sumlevels)} are in data.")
 
-            for sumlevel in sumlevels: # Get geometries for each sumlevel iteratively
-                # Get rest api layer name and get url
+            for sumlevel in sumlevels:
                 layerName = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername']
                 if layerName == None:
                     logger.error(f"Sumlevel {sumlevel} does not have a layer in TigerWeb REST API.")
@@ -558,21 +553,15 @@ def fetch_geos_from_geoids(geoidfqs, year:int|None=None, survey:Literal['current
                 url = get_layer_url(layer_name=layerName, year=year, survey=survey)
                 logger.info(f"Fetching geometries for {layerName} ({sumlevel}) from {url}")
 
-                # Construct a list of geoids from data to us to query API
                 geoids = ",".join([f"'{x.split('US')[-1]}'" for x in geoidfqs if x.startswith(sumlevel)])
-
                 logger.info(f"There are {len(geoids)} geographies in {layerName}")
                 logger.debug(f"{geoids}")
 
-                # Build resource file and query API
-                logger.info(f"Building resource file to fetch from RestAPI.")
                 resource = morpc.rest_api.resource(name='temp', url=url, where=f"GEOID in ({geoids})", outfields='GEOID', max_record_count=chunk_size)
-
-                logger.info(f"Fetching geographies from RestAPI.")
                 geos = morpc.rest_api.gdf_from_resource(resource)
+                all_geometries.append(geos)
 
-            all_geometries.append(geos)
-            start += offset+1
+            start += offset
     else:
         sumlevels = set([x[0:3] for x in geoidfqs])
 
