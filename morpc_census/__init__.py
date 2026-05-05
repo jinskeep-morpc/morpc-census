@@ -34,7 +34,7 @@ from .census import (
 
 # Geography query and translation utilities
 from .geos import (
-    Scale,
+    SumLevel,
     Scope,
     SCOPES,
     PSEUDOS,

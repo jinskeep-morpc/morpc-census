@@ -1,5 +1,13 @@
 # morpc-census dev notes
 
+## 2026-05-05 10:39 — Rename Scale class to SumLevel (closes #23)
+
+Renamed the `Scale` dataclass to `SumLevel` everywhere it appeared:
+- Class definition and `-> SumLevel` return type in `morpc_census/geos.py`
+- Export in `morpc_census/__init__.py`
+- `TestScale` → `TestSumLevel` and all constructor calls in `tests/test_geos_classes.py`
+- Import and cell source in `doc/01-morpc-geos-demo.ipynb`
+
 ## 2026-05-05 10:15 — Rewrite 01-morpc-geos-demo.ipynb for Scale and Scope (closes #18)
 
 Deleted the old notebook (which documented morpc-py's `load_spatial_data` / `assign_geo_identifiers` — unrelated to morpc-census) and replaced it with a focused demo of the new `Scope` and `Scale` classes. The new notebook covers:

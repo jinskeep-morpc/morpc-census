@@ -1,5 +1,5 @@
 import pytest
-from morpc_census.geos import Scale, Scope, SCOPES
+from morpc_census.geos import SumLevel, Scope, SCOPES
 
 
 class TestScope:
@@ -24,22 +24,22 @@ class TestScope:
         assert "in" not in s.params
 
 
-class TestScale:
+class TestSumLevel:
     def test_fields(self):
-        s = Scale(name="county", sumlevel="050")
+        s = SumLevel(name="county", sumlevel="050")
         assert s.name == "county"
         assert s.sumlevel == "050"
 
     def test_frozen(self):
-        s = Scale(name="county", sumlevel="050")
+        s = SumLevel(name="county", sumlevel="050")
         with pytest.raises(Exception):
             s.name = "tract"
 
     def test_equality(self):
-        assert Scale(name="county", sumlevel="050") == Scale(name="county", sumlevel="050")
+        assert SumLevel(name="county", sumlevel="050") == SumLevel(name="county", sumlevel="050")
 
     def test_inequality(self):
-        assert Scale(name="county", sumlevel="050") != Scale(name="tract", sumlevel="140")
+        assert SumLevel(name="county", sumlevel="050") != SumLevel(name="tract", sumlevel="140")
 
 
 class TestScopesDict:
