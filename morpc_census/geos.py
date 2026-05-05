@@ -269,18 +269,18 @@ PSEUDOS = {'010': [
  }
 
 
-def valid_scale(scale: str) -> SumLevel:
+def valid_sumlevel(sumlevel: str) -> SumLevel:
     from morpc import SUMLEVEL_DESCRIPTIONS
 
-    """Validate a scale name and return its SumLevel. Raises ValueError for unrecognized names."""
-    logger.debug(f"Validating scale {scale} against implemented morpc.SUMLEVEL_DESCRIPTIONS.")
-    for sumlevel, desc in SUMLEVEL_DESCRIPTIONS.items():
-        if desc['censusQueryName'] == scale:
-            return SumLevel(name=scale, sumlevel=sumlevel)
+    """Validate a sumlevel name and return its SumLevel. Raises ValueError for unrecognized names."""
+    logger.debug(f"Validating sumlevel {sumlevel} against implemented morpc.SUMLEVEL_DESCRIPTIONS.")
+    for sl, desc in SUMLEVEL_DESCRIPTIONS.items():
+        if desc['censusQueryName'] == sumlevel:
+            return SumLevel(name=sumlevel, sumlevel=sl)
 
     available = [d['censusQueryName'] for d in SUMLEVEL_DESCRIPTIONS.values() if d['censusQueryName'] is not None]
-    logger.error(f"Scale '{scale}' is not recognized. Available scales: {available}")
-    raise ValueError(f"Scale '{scale}' is not recognized. Available scales: {available}")
+    logger.error(f"Sumlevel '{sumlevel}' is not recognized. Available sumlevels: {available}")
+    raise ValueError(f"Sumlevel '{sumlevel}' is not recognized. Available sumlevels: {available}")
         
 def valid_scope(scope: str) -> bool | None:
     """Validate a scope name against SCOPES. Raises ValueError for unrecognized names."""
@@ -292,21 +292,21 @@ def valid_scope(scope: str) -> bool | None:
         else:
             return True
 
-def get_query_req(scale: str, year: str = '2023') -> dict:
-    """Fetch Census API requirements for the given scale (required 'in' parameters and wildcards)."""
+def get_query_req(sumlevel: str, year: str = '2023') -> dict:
+    """Fetch Census API requirements for the given sumlevel (required 'in' parameters and wildcards)."""
     from morpc import SUMLEVEL_FROM_CENSUSQUERY
     from morpc.req import get_json_safely
 
-    logger.debug(f"Getting required 'in' parameters for {scale}")
+    logger.debug(f"Getting required 'in' parameters for {sumlevel}")
 
-    sumlevel = SUMLEVEL_FROM_CENSUSQUERY[scale]
+    sumlevel_code = SUMLEVEL_FROM_CENSUSQUERY[sumlevel]
 
     url = f"https://api.census.gov/data/{year}/geoinfo/geography.json"
     json = get_json_safely(url)
 
     query_requirements = {}
     for item in json['fips']:
-        if item['geoLevelDisplay'] in sumlevel:
+        if item['geoLevelDisplay'] in sumlevel_code:
             if 'requires' in item.keys():
                 query_requirements['requires'] = item['requires']
             else:
@@ -315,17 +315,17 @@ def get_query_req(scale: str, year: str = '2023') -> dict:
                 query_requirements['wildcard'] = item['wildcard']
             else:
                 query_requirements['wildcard'] = None
-    
-    logger.info(f"{scale} requires {query_requirements}")
+
+    logger.info(f"{sumlevel} requires {query_requirements}")
     return query_requirements
 
-def geoinfo_for_hierarchical_geos(scope: str, scale: str) -> DataFrame:
-    """Build a geoinfo table for scale/scope combinations that cannot be expressed as ucgid pseudos."""
+def geoinfo_for_hierarchical_geos(scope: str, sumlevel: str) -> DataFrame:
+    """Build a geoinfo table for sumlevel/scope combinations that cannot be expressed as ucgid pseudos."""
     from morpc_census.geos import geoinfo_from_params, geoids_from_scope, get_query_req, SCOPES
     import pandas as pd
 
     # Get the query requirements
-    query_req = get_query_req(scale)
+    query_req = get_query_req(sumlevel)
 
     # Get all the geos in the scope
     scope_params = list(SCOPES[scope].params.values())
@@ -381,7 +381,7 @@ def geoinfo_for_hierarchical_geos(scope: str, scale: str) -> DataFrame:
             in_param_str.append(f"{x}:{",".join(row[x]) if isinstance(row[x],list) else row[x]}")
 
         # Call this list of GEOIDFQs this time
-        geoinfo = geoinfo_from_params({"in": in_param_str, "for": f"{scale}:*"}, output='table')
+        geoinfo = geoinfo_from_params({"in": in_param_str, "for": f"{sumlevel}:*"}, output='table')
 
         # Add to list
         geoinfos.append(geoinfo)
@@ -389,14 +389,14 @@ def geoinfo_for_hierarchical_geos(scope: str, scale: str) -> DataFrame:
     # combine and return
     return pd.concat(geoinfos)
 
-def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Literal['list','table','json','params']='list') -> list | DataFrame | dict:
-    """Return GEOIDFQs for all geographies at scale within scope.
+def geoinfo_from_scope_sumlevel(scope: str, sumlevel: str | None = None, output: Literal['list','table','json','params']='list') -> list | DataFrame | dict:
+    """Return GEOIDFQs for all geographies at sumlevel within scope.
 
     Parameters
     ----------
     scope : str
         A key from SCOPES (e.g. ``"franklin"``, ``"region15"``).
-    scale : str, optional
+    sumlevel : str, optional
         Census query name (e.g. ``"tract"``). Defaults to the scope's own level.
     output : {'list', 'table', 'json', 'params'}
         Return format: list of GEO_ID strings, DataFrame, JSON dict, or raw params dict.
@@ -404,41 +404,41 @@ def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Liter
     Raises
     ------
     ValueError
-        When scale and scope are an invalid combination.
+        When sumlevel and scope are an invalid combination.
     """
-    logger.debug(f"Building parameters to pass for geographies Scope: {scope} and Scale: {scale}")
+    logger.debug(f"Building parameters to pass for geographies Scope: {scope} and SumLevel: {sumlevel}")
     params = {}
     scope_sumlevel = list(set([x[0:3] for x in geoids_from_scope(scope)]))[0]
 
-    # If there is no scale, just use scope.
-    if scale == None:
+    # If there is no sumlevel, just use scope.
+    if sumlevel == None:
         if scope.startswith('region'):
-            scale = 'county'
-        logger.info(f"No scale specified. Using {scope} parameters. {SCOPES[scope].params}")
+            sumlevel = 'county'
+        logger.info(f"No sumlevel specified. Using {scope} parameters. {SCOPES[scope].params}")
         params.update(SCOPES[scope].params)
         if output == 'params':
             return params
         geoinfo = geoinfo_from_params(params, output='table')
 
-    # If there is a scale...
+    # If there is a sumlevel...
     else:
-        logger.info(f"Scale {scale} specified for scope {scope}.")
-        scale_sumlevel = morpc.SUMLEVEL_FROM_CENSUSQUERY[scale]
+        logger.info(f"SumLevel {sumlevel} specified for scope {scope}.")
+        query_sumlevel = morpc.SUMLEVEL_FROM_CENSUSQUERY[sumlevel]
 
-        # Check to make sure scope and scale are different sumlevels...
+        # Check to make sure scope and sumlevel are different sumlevels...
         # If it is, just use scope.
-        if scope_sumlevel == scale_sumlevel:
-            logger.warning(f"Scope and Scale have same sumlevel, using Scope {scope}.")
+        if scope_sumlevel == query_sumlevel:
+            logger.warning(f"Scope and SumLevel have same sumlevel, using Scope {scope}.")
             params.update(SCOPES[scope].params)
             if output == 'params':
                 return params
             geoinfo = geoinfo_from_params(params, output='table')
 
-        # If we need to use scale
+        # If we need to use sumlevel
         else:
             # First try to use psuedos
             try:
-                pseudos = pseudos_from_scale_scope(scale, scope)
+                pseudos = pseudos_from_sumlevel_scope(sumlevel, scope)
                 params.update({'ucgid': f"pseudo({','.join(pseudos)})"})
                 if output == 'params':
                     return params
@@ -446,17 +446,17 @@ def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Liter
 
             except ValueError as e:
                 logger.info(f"Manually building list of all geoids.")
-            
+
             # If geography combination is not valid combination for psuedos...
 
-                            # (see list of available combinations 
+                            # (see list of available combinations
                             # at https://www.census.gov/data/developers/guidance/api-user-guide/ucgid-predicate.html
                             # in the "List of Available Collections of Geographies.")
 
             # try to build "in" and "for" parameters to meet requirements. (see https://api.census.gov/data/2023/acs/acs5/geography.json)
                 if output == 'params':
-                    return {'ucgid': ",".join(geoinfo_for_hierarchical_geos(scope, scale)['GEO_ID'])}
-                geoinfo = geoinfo_for_hierarchical_geos(scope, scale)
+                    return {'ucgid': ",".join(geoinfo_for_hierarchical_geos(scope, sumlevel)['GEO_ID'])}
+                geoinfo = geoinfo_for_hierarchical_geos(scope, sumlevel)
 
     if output == 'table':
         return geoinfo
@@ -482,22 +482,22 @@ def geoids_from_scope(scope: str, output: Literal['list','table','json'] = 'list
         if output == 'json':
             return json
     
-def pseudos_from_scale_scope(scale: str, scope: str) -> list[str]:
-    """Build ucgid pseudo predicates for each parent GEOID in scope at the given child scale."""
+def pseudos_from_sumlevel_scope(sumlevel: str, scope: str) -> list[str]:
+    """Build ucgid pseudo predicates for each parent GEOID in scope at the given child sumlevel."""
     from morpc import SUMLEVEL_FROM_CENSUSQUERY
 
-    logger.debug(f"Getting psuedo combinations for parents in {scope} at scale {scale}")
+    logger.debug(f"Getting psuedo combinations for parents in {scope} at sumlevel {sumlevel}")
     parents = geoids_from_scope(scope)
 
-    sumlevel = parents[0][0:3]
+    parent_sumlevel = parents[0][0:3]
 
-    child = f"{SUMLEVEL_FROM_CENSUSQUERY[scale]}0000"
+    child = f"{SUMLEVEL_FROM_CENSUSQUERY[sumlevel]}0000"
 
-    if child in PSEUDOS[sumlevel]:
+    if child in PSEUDOS[parent_sumlevel]:
         logger.info(f"Returning pseudos for {child} in {parents}")
         pseudos = [f"{parent}${child}" for parent in parents]
     else:
-        logger.error(f"{child} is not allowed child for parent sumlevel {sumlevel}")
+        logger.error(f"{child} is not allowed child for parent sumlevel {parent_sumlevel}")
         raise ValueError
 
     return pseudos
@@ -637,10 +637,10 @@ def fetch_geos_from_geoids(geoidfqs: list[str], year: int | None = None, survey:
 
     return gpd.GeoDataFrame(geometries, geometry='geometry')
 
-def fetch_geos_from_scale_scope(scope: str, scale: str | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
-    """Fetch a GeoDataFrame of geometries for all geographies at scale within scope."""
+def fetch_geos_from_sumlevel_scope(scope: str, sumlevel: str | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+    """Fetch a GeoDataFrame of geometries for all geographies at sumlevel within scope."""
 
-    geoinfo = geoinfo_from_scope_scale(scope, scale, output='table')
+    geoinfo = geoinfo_from_scope_sumlevel(scope, sumlevel, output='table')
     geoinfo['GEOIDFQ'] = geoinfo['GEO_ID']
     geoinfo['GEO_ID'] = [x.split('US')[-1] for x in geoinfo['GEO_ID']]
     geos = fetch_geos_from_geoids(geoinfo['GEOIDFQ'].to_list(), year, survey, chunk_size=chunk_size)
