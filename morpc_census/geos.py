@@ -2,11 +2,34 @@
 import logging
 logger  = logging.getLogger(__name__)
 
+from dataclasses import dataclass
 from pandas import DataFrame, Series
 from typing import Literal
 
 import morpc
 import morpc.req
+
+
+@dataclass
+class Scope:
+    """A named Census API geography scope with its query parameters."""
+    name: str
+    for_param: str
+    in_param: str | None = None
+
+    @property
+    def params(self) -> dict:
+        d = {"for": self.for_param}
+        if self.in_param is not None:
+            d["in"] = self.in_param
+        return d
+
+
+@dataclass(frozen=True)
+class Scale:
+    """A Census geography scale, pairing a query name with its summary level code."""
+    name: str      # censusQueryName, e.g. "county"
+    sumlevel: str  # e.g. "050"
 
 # TODO (jinskeep_morpc): Develop function for fetching census geographies leveraging scopes
 # Issue URL: https://github.com/morpc/morpc-py/issues/102
@@ -16,82 +39,49 @@ import morpc.req
 #   [ ]: Consider storing the data as a remote frictionless resource similar to the acs data class.
 #   [ ]: Define scale and scopes that are used. Possibly lists for benchmarking (i.e. Most populous cities)
 
-STATE_SCOPES = [
-    {
-        key: {"for": f"state:{int(value):02d}"}
-    } 
+STATE_SCOPES: list[Scope] = [
+    Scope(name=key, for_param=f"state:{int(value):02d}")
     for key, value in morpc.CONST_STATE_NAME_TO_ID.items()
-    ]
-
-COUNTY_SCOPES = [
-    {
-    key.lower(): {
-        "in": "state:39", 
-        "for": f"county:{int(value[2:6]):03d}"
-        }
-    }
-    for key, value in morpc.CONST_COUNTY_NAME_TO_ID.items()
-    ]
-
-MORPC_REGION_SCOPES = [
-    {"region15": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['15-County Region']])}"
-        }
-        },
-    {"region10": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['10-County Region']])}"
-        }
-        },
-    {"region7": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['7-County Region']])}"
-        }
-        },
-    {"regioncorpo": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CORPO Region']])}"
-        }
-        },
-    {"regionceds": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CEDS Region']])}"
-        }
-        },
-    {"regioncbsa": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CBSA']])}"
-        }
-        },
-    {"regionmobility": {
-        "in": "state:39", 
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['Mobility Region']])}"
-        }
-        },
-    {"regionmpo":{
-        "in": "state:39",
-        "for": f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['MPO Region']])}"
-    }}
 ]
 
-SCOPES = {
-    "us": {
-        'for': 'us:1'
-        },
-    "columbuscbsa": {
-        "for": f"metropolitan statistical area/micropolitan statistical area:{morpc.CONST_COLUMBUS_CBSA_ID}"
-    }
+COUNTY_SCOPES: list[Scope] = [
+    Scope(name=key.lower(), for_param=f"county:{int(value[2:6]):03d}", in_param="state:39")
+    for key, value in morpc.CONST_COUNTY_NAME_TO_ID.items()
+]
+
+MORPC_REGION_SCOPES: list[Scope] = [
+    Scope(name="region15", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['15-County Region']])}"),
+    Scope(name="region10", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['10-County Region']])}"),
+    Scope(name="region7", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['7-County Region']])}"),
+    Scope(name="regioncorpo", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CORPO Region']])}"),
+    Scope(name="regionceds", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CEDS Region']])}"),
+    Scope(name="regioncbsa", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CBSA']])}"),
+    Scope(name="regionmobility", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['Mobility Region']])}"),
+    Scope(name="regionmpo", in_param="state:39",
+          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['MPO Region']])}"),
+]
+
+SCOPES: dict[str, Scope] = {
+    "us": Scope(name="us", for_param="us:1"),
+    "columbuscbsa": Scope(name="columbuscbsa",
+                          for_param=f"metropolitan statistical area/micropolitan statistical area:{morpc.CONST_COLUMBUS_CBSA_ID}"),
 }
 
-for x in STATE_SCOPES:
-    SCOPES.update(x)
+for _scope in STATE_SCOPES:
+    SCOPES[_scope.name] = _scope
 
-for x in COUNTY_SCOPES:
-    SCOPES.update(x)
+for _scope in COUNTY_SCOPES:
+    SCOPES[_scope.name] = _scope
 
-for x in MORPC_REGION_SCOPES:
-    SCOPES.update(x)
+for _scope in MORPC_REGION_SCOPES:
+    SCOPES[_scope.name] = _scope
 
 ## These are the available children sumelevels for the various parent level sumlevels when using the ucgid=psuedo() predicate.
 ## https://www.census.gov/data/developers/guidance/api-user-guide/ucgid-predicate.html
@@ -204,19 +194,17 @@ PSEUDOS = {'010': [
  }
 
 
-def valid_scale(scale):
+def valid_scale(scale) -> Scale:
     from morpc import SUMLEVEL_DESCRIPTIONS
 
     logger.debug(f"Validating scale {scale} against implemented morpc.SUMLEVEL_DESCRIPTIONS.")
-    # Get available scales from morpc SUMLEVEL_DESCRIPTIONS
-    available_scales = [SUMLEVEL_DESCRIPTIONS[x]['censusQueryName'] for x in SUMLEVEL_DESCRIPTIONS if SUMLEVEL_DESCRIPTIONS[x]['censusQueryName'] != None]
+    for sumlevel, desc in SUMLEVEL_DESCRIPTIONS.items():
+        if desc['censusQueryName'] == scale:
+            return Scale(name=scale, sumlevel=sumlevel)
 
-    # Validate inputs
-    if scale not in available_scales:
-        logger.error(f"Scale '{scale}' is not recognized. Available scales: {available_scales}")
-        raise ValueError(f"Scale '{scale}' is not recognized. Available scales: {available_scales}")
-    else:
-        return True
+    available = [d['censusQueryName'] for d in SUMLEVEL_DESCRIPTIONS.values() if d['censusQueryName'] is not None]
+    logger.error(f"Scale '{scale}' is not recognized. Available scales: {available}")
+    raise ValueError(f"Scale '{scale}' is not recognized. Available scales: {available}")
         
 def valid_scope(scope):
 
@@ -270,7 +258,7 @@ def geoinfo_for_hierarchical_geos(scope, scale):
     query_req = get_query_req(scale)
 
     # Get all the geos in the scope
-    scope_params = [x for x in SCOPES[scope].values()]
+    scope_params = list(SCOPES[scope].params.values())
     in_scope = [x.split(":")[0] for x in scope_params if x.split(":")[0] in query_req['requires']]
 
     # Get the difference
@@ -357,8 +345,8 @@ def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Liter
     if scale == None:
         if scope.startswith('region'):
             scale = 'county'
-        logger.info(f"No scale specified. Using {scope} parameters. {SCOPES[scope]}")
-        params.update(SCOPES[scope])
+        logger.info(f"No scale specified. Using {scope} parameters. {SCOPES[scope].params}")
+        params.update(SCOPES[scope].params)
         if output == 'params':
             return params
         geoinfo = geoinfo_from_params(params, output='table')
@@ -372,7 +360,7 @@ def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Liter
         # If it is, just use scope.
         if scope_sumlevel == scale_sumlevel:
             logger.warning(f"Scope and Scale have same sumlevel, using Scope {scope}.")
-            params.update(SCOPES[scope])
+            params.update(SCOPES[scope].params)
             if output == 'params':
                 return params
             geoinfo = geoinfo_from_params(params, output='table')
@@ -416,7 +404,7 @@ def geoids_from_scope(scope, output: Literal['list','table','json']='list'):
     logger.debug(f"Fetching geoids from scope parameters {SCOPES[scope]}.")
     if valid_scope(scope):
         baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
-        json = get_json_safely(baseurl, params = SCOPES[scope])
+        json = get_json_safely(baseurl, params = SCOPES[scope].params)
         if output == 'list':
             return [row[0] for row in json[1:]]
         if output == 'table':
