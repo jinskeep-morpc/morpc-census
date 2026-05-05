@@ -72,6 +72,20 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   `create_description_table()` rewritten to avoid integer-index fragility.
 - Added `_VALUE_FIELD_DEFS` module-level dict for schema field definitions.
 
+## 2026-05-05 — Add pytest infrastructure (PR #13, closes #12)
+
+No tests were written for existing code. Infrastructure only:
+
+- `tests/__init__.py` — empty package marker
+- `tests/conftest.py` — registers `network` marker; skips network tests by
+  default. Use `pytest -m network` to run them.
+- `tests/test_smoke.py` — four import-only smoke tests: package version,
+  api submodule, census submodule, tigerweb submodule.
+- `pyproject.toml` — added `[tool.pytest.ini_options]`: `testpaths=tests`,
+  short tracebacks, `-m 'not network'` default filter, marker registration.
+
+Run tests: `pytest` (no network) or `pytest -m network` (live API tests).
+
 ## 2026-05-05 — Remove non-census notebooks from doc/
 
 Deleted notebooks and log files from `doc/` that covered morpc-py features
