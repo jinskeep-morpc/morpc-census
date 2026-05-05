@@ -71,3 +71,11 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
 - Added `_VALUE_FIELD_DEFS` module-level dict for schema field definitions.
+
+## 2026-05-05 — Remove non-census notebooks from doc/
+
+Deleted notebooks and log files from `doc/` that covered morpc-py features
+unrelated to census (countylookup, varlookup, REST API, frictionless, plot,
+color, and the general morpc-py demo log). Kept:
+- `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
+- `07-morpc-census-demo.ipynb` and its rendered HTML
