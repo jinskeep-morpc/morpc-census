@@ -79,3 +79,11 @@ unrelated to census (countylookup, varlookup, REST API, frictionless, plot,
 color, and the general morpc-py demo log). Kept:
 - `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
 - `07-morpc-census-demo.ipynb` and its rendered HTML
+
+## 2026-05-05 — Rewrite README.md and doc/index.md
+
+Both files were copied from morpc-py and described the full morpc-py package.
+Rewrote to describe morpc-census: its purpose (Census API access, long-format
+tables, frictionless metadata), its four modules (api, geos, census, tigerweb),
+installation instructions using the correct package name and import path
+(`morpc_census`), and links to the remaining notebooks.
