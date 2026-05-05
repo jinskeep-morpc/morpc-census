@@ -1,5 +1,18 @@
 # morpc-census dev notes
 
+## 2026-05-05 10:09 — Add Scale and Scope dataclasses to geos module (closes #16)
+
+Replaced the plain `dict[str, dict]` pattern in `SCOPES` with two dataclasses:
+
+- **`Scope(name, for_param, in_param=None)`** — represents a named Census API geography scope. The `.params` property returns the `{"for": ..., "in": ...}` dict consumed by Census API calls.
+- **`Scale(name, sumlevel)`** — frozen dataclass pairing a Census query name (e.g. `"county"`) with its summary level code (e.g. `"050"`).
+
+`STATE_SCOPES`, `COUNTY_SCOPES`, and `MORPC_REGION_SCOPES` now produce `list[Scope]` instead of lists of dicts. `SCOPES` is now typed `dict[str, Scope]`. All internal call sites that accessed `SCOPES[scope]` as a raw dict were updated to use `.params`.
+
+`valid_scale()` now returns a `Scale` object instead of `True`, giving callers the resolved sumlevel without a second lookup into `morpc.SUMLEVEL_DESCRIPTIONS`.
+
+Both classes exported from `morpc_census/__init__.py`. 16 new tests in `tests/test_geos_classes.py`; all pass.
+
 ## 2026-05-05 09:41 — dev_notes.md: add times to headers, reorder descending (closes #14)
 
 Added times to all section headers (format `YYYY-MM-DD HH:MM — Title`).
