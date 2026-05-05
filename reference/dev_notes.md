@@ -1,6 +1,28 @@
 # morpc-census dev notes
 
-## 2026-05-05 — Split from morpc-py, refactor api module
+## 2026-05-05 09:41 — dev_notes.md: add times to headers, reorder descending (closes #14)
+
+Added times to all section headers (format `YYYY-MM-DD HH:MM — Title`).
+Reordered sections descending so the most recent entry is always at the top.
+Times for historical entries back-filled from git commit timestamps.
+
+## 2026-05-05 08:54 — Rewrite README.md and doc/index.md
+
+Both files were copied from morpc-py and described the full morpc-py package.
+Rewrote to describe morpc-census: its purpose (Census API access, long-format
+tables, frictionless metadata), its four modules (api, geos, census, tigerweb),
+installation instructions using the correct package name and import path
+(`morpc_census`), and links to the remaining notebooks.
+
+## 2026-05-05 08:49 — Remove non-census notebooks from doc/
+
+Deleted notebooks and log files from `doc/` that covered morpc-py features
+unrelated to census (countylookup, varlookup, REST API, frictionless, plot,
+color, and the general morpc-py demo log). Kept:
+- `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
+- `07-morpc-census-demo.ipynb` and its rendered HTML
+
+## 2026-05-04 18:00 — Split from morpc-py, refactor api module
 
 ### Context
 morpc-census was a direct fork of morpc-py, meaning both repos contained identical
@@ -67,71 +89,7 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   of `if column ==` blocks.
 - `CensusAPI.save()` creates output directory automatically; uses `pathlib.Path`.
 - `CensusAPI.create_resource()` builds a frictionless `Resource` descriptor directly.
-- `DimensionTable`: fixed `!= None` → `is not None`; removed `wraping_func` (text
+- `DimensionTable`: fixed `!= None` → `is not None`; removed `wrapping_func` (text
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
 - Added `_VALUE_FIELD_DEFS` module-level dict for schema field definitions.
-
-## 2026-05-05 — Add pytest infrastructure (PR #13, closes #12)
-
-No tests were written for existing code. Infrastructure only:
-
-- `tests/__init__.py` — empty package marker
-- `tests/conftest.py` — registers `network` marker; skips network tests by
-  default. Use `pytest -m network` to run them.
-- `tests/test_smoke.py` — four import-only smoke tests: package version,
-  api submodule, census submodule, tigerweb submodule.
-- `pyproject.toml` — added `[tool.pytest.ini_options]`: `testpaths=tests`,
-  short tracebacks, `-m 'not network'` default filter, marker registration.
-
-Run tests: `pytest` (no network) or `pytest -m network` (live API tests).
-
-## 2026-05-05 — Remove non-census notebooks from doc/
-
-Deleted notebooks and log files from `doc/` that covered morpc-py features
-unrelated to census (countylookup, varlookup, REST API, frictionless, plot,
-color, and the general morpc-py demo log). Kept:
-- `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
-- `07-morpc-census-demo.ipynb` and its rendered HTML
-
-## 2026-05-05 — Refactor: five targeted fixes across the package
-
-Five issues filed, branched, and PR'd (all pending merge):
-
-**PR #3 — app/app.py: fix ALL\_AVAIL\_ENDPOINTS / AVAIL\_VINTAGES (closes #2)**
-Both names were removed in the api.py refactor. Replaced with
-`get_all_avail_endpoints()` calls. Added None-guard on vintage callback.
-
-**PR #5 — census.py: remove broken stubs (closes #4)**
-Removed `acs_variables_by_group` (superseded by `api.get_group_variables`),
-`acs_schema` (references undefined constants; broken), `acs_resource` (empty
-stub), and `acs_generate_DimensionTable` (calls `morpc.frictionless.name_to_desc_map`
-which is no longer bundled). Kept `acs_label_to_dimensions`,
-`acs_generate_universe_table`, `acs_flatten_category`. Moved top-level imports
-out of function bodies; tightened docstrings.
-
-**PR #7 — geos.py: fix fetch\_geos\_from\_geoids chunking loop (closes #6)**
-`all_geometries.append(geos)` was outside the inner `for sumlevel` loop,
-discarding all but the last sumlevel's geometries per chunk. Moved inside the
-loop to match the non-chunking branch. Simplified offset calculation to
-`min(chunk_size, remaining)`.
-
-**PR #9 — tigerweb.py: remove redundant request in get\_layer\_url (closes #8)**
-`get_layer_url` made a second HTTP request to the same MapServer URL just to
-verify HTTP 200 — redundant since `get_tigerweb_layers_map` already succeeded
-against the same endpoint. Removed the verification block and unused `import requests`.
-
-**PR #11 — morpc\_census/\_\_init\_\_.py: explicit exports (closes #10)**
-Replaced `from .module import *` with explicit import lists. Broken stubs
-from census.py are not re-exported. Low-level internal helpers
-(`get_params`, `get_query_url`, `censusapi_name`, `find_replace_variable_map`,
-`valid_*`) and intermediate scope-building lists (`STATE_SCOPES` etc.) are
-excluded from the top-level namespace; still importable from their submodules.
-
-## 2026-05-05 — Rewrite README.md and doc/index.md
-
-Both files were copied from morpc-py and described the full morpc-py package.
-Rewrote to describe morpc-census: its purpose (Census API access, long-format
-tables, frictionless metadata), its four modules (api, geos, census, tigerweb),
-installation instructions using the correct package name and import path
-(`morpc_census`), and links to the remaining notebooks.
