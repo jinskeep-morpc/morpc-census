@@ -12,7 +12,7 @@ app.layout = html.Div([
 
     html.Div([
         dcc.Dropdown(
-            options=api.ALL_AVAIL_ENDPOINTS,
+            options=list(api.get_all_avail_endpoints().keys()),
             value=None,
             id='survey_table_dropdown'
         ),
@@ -26,9 +26,11 @@ app.layout = html.Div([
 
 @app.callback(
     Output('vintage_dropdown', 'options'),
-    Input('survey_table_dropdown','value'))
+    Input('survey_table_dropdown', 'value'))
 def set_vintage_options(selected_survey_table):
-    return [api.AVAIL_VINTAGES[selected_survey_table]]
+    if selected_survey_table is None:
+        return []
+    return api.get_all_avail_endpoints().get(selected_survey_table, [])
 
 if __name__ == '__main__':
     app.run(debug=True)

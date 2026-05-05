@@ -130,78 +130,53 @@ def get_tigerweb_layers_map(year: int = 2023, survey:Literal['ACS','DEC']='ACS')
     return layers
     
 def get_layer_url(layer_name, year:int|None=None, survey:Literal['current', 'ACS', 'DEC']='current'):
-    """Constructs the URL for a specific TIGERweb layer based on the year, layer name, and survey type.
-    Parameters:
-    -----------
-    year : int
-        The year of the TIGERweb layer (e.g., 2024).
-    layer_name : str
-        The name of the layer to retrieve (e.g., 'tracts', 'counties').
-    survey : str, optional
-        The survey type, either 'current', 'ACS' (American Community Survey) or 'DEC' for Decennial Census.
-        Default is 'ACS'.
-        
-    Returns:
-    --------
-    str : str
-        The URL of the specified TIGERweb layer.
+    """Construct the MapServer URL for a specific TIGERweb layer.
 
-    Example:
-    --------
-    >>> url = get_layer_url(2024, 'tracts', survey='ACS')
+    Parameters
+    ----------
+    layer_name : str
+        Layer name, e.g. ``'tracts'``, ``'counties'``.
+    year : int, optional
+        Vintage year (e.g. ``2024``).  Required for ``'ACS'`` and ``'DEC'``.
+    survey : {'current', 'ACS', 'DEC'}
+        Survey type.  Defaults to ``'current'`` (most recent geometries).
+
+    Returns
+    -------
+    str
+        MapServer endpoint URL for the layer.
+
+    Example
+    -------
+    >>> url = get_layer_url('tracts', year=2024, survey='ACS')
     >>> print(url)
     https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/8
-
-    Raises:
-    -------
-    ValueError: If the survey type or year is invalid, or if the layer name does not exist for the specified year and survey.
-    RuntimeError: If there is an error fetching data from the constructed URL.
-
-    
     """
-    
-    import requests
     import pandas as pd
-    
+
     logger.info(f"Validating Survey {survey} and Year {year}")
-    # Validate inputs
     if survey not in ['ACS', 'DEC', 'current']:
-        raise ValueError("Invalid survey type. Must be 'current','ACS' or 'DEC'.")
+        raise ValueError("Invalid survey type. Must be 'current', 'ACS' or 'DEC'.")
     if survey == 'DEC' and year not in ['2010', '2020']:
         raise ValueError("Invalid year for Decennial Census. Must be 2010 or 2020.")
     if survey == 'ACS' and pd.to_numeric(year) < 2012:
-        raise ValueError("Invalid year for ACS. Must be 2012 or later.")    
+        raise ValueError("Invalid year for ACS. Must be 2012 or later.")
     if survey == 'DEC':
         survey = 'Census'
-    
+
+    layer_name = layer_name.lower()
+
+    baseurl = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/"
     if survey != 'current':
         layers = get_tigerweb_layers_map(year, survey)
-        # Check if the layer name exists in the layers dictionary
         if layer_name not in layers:
             logger.error(f"Layer '{layer_name}' not found for year {year} and survey '{survey}'. Available layers: {list(layers.keys())}")
             raise ValueError(f"Layer '{layer_name}' not found for year {year} and survey '{survey}'. Available layers: {list(layers.keys())}")
-        
-    # Normalize the layer name to lowercase
-    layer_name = layer_name.lower()
-
-    baseurl = f"https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/"
-    if survey != 'current':
-        mapserver_path = f"tigerWMS_{survey}{year}/MapServer/{layers[layer_name]}"
+        mapserver_url = f"{baseurl}tigerWMS_{survey}{year}/MapServer/{layers[layer_name]}"
     else:
-        mapserver_path = f"tigerWMS_Current/MapServer/{current_endpoints[layer_name]}"
-
-    mapserver_url = baseurl + mapserver_path
+        mapserver_url = f"{baseurl}tigerWMS_Current/MapServer/{current_endpoints[layer_name]}"
 
     logger.info(f"url: {mapserver_url}")
-
-    # Verify the constructed URL
-    r = requests.get(f"{mapserver_url}?f=pjson")
-    if r.status_code != 200:
-        print(f"Error fetching data from {mapserver_url}: {r.status_code}")
-        raise RuntimeError(f"Failed to fetch data from {mapserver_url}")
-    r.close()
-    
-    # Return the constructed URL
     return mapserver_url
 
 def outfields_from_scale(scale):
