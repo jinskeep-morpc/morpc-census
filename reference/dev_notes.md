@@ -1,6 +1,28 @@
 # morpc-census dev notes
 
-## 2026-05-05 — Split from morpc-py, refactor api module
+## 2026-05-05 09:41 — dev_notes.md: add times to headers, reorder descending (closes #14)
+
+Added times to all section headers (format `YYYY-MM-DD HH:MM — Title`).
+Reordered sections descending so the most recent entry is always at the top.
+Times for historical entries back-filled from git commit timestamps.
+
+## 2026-05-05 08:54 — Rewrite README.md and doc/index.md
+
+Both files were copied from morpc-py and described the full morpc-py package.
+Rewrote to describe morpc-census: its purpose (Census API access, long-format
+tables, frictionless metadata), its four modules (api, geos, census, tigerweb),
+installation instructions using the correct package name and import path
+(`morpc_census`), and links to the remaining notebooks.
+
+## 2026-05-05 08:49 — Remove non-census notebooks from doc/
+
+Deleted notebooks and log files from `doc/` that covered morpc-py features
+unrelated to census (countylookup, varlookup, REST API, frictionless, plot,
+color, and the general morpc-py demo log). Kept:
+- `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
+- `07-morpc-census-demo.ipynb` and its rendered HTML
+
+## 2026-05-04 18:00 — Split from morpc-py, refactor api module
 
 ### Context
 morpc-census was a direct fork of morpc-py, meaning both repos contained identical
@@ -67,23 +89,7 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   of `if column ==` blocks.
 - `CensusAPI.save()` creates output directory automatically; uses `pathlib.Path`.
 - `CensusAPI.create_resource()` builds a frictionless `Resource` descriptor directly.
-- `DimensionTable`: fixed `!= None` → `is not None`; removed `wraping_func` (text
+- `DimensionTable`: fixed `!= None` → `is not None`; removed `wrapping_func` (text
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
 - Added `_VALUE_FIELD_DEFS` module-level dict for schema field definitions.
-
-## 2026-05-05 — Remove non-census notebooks from doc/
-
-Deleted notebooks and log files from `doc/` that covered morpc-py features
-unrelated to census (countylookup, varlookup, REST API, frictionless, plot,
-color, and the general morpc-py demo log). Kept:
-- `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
-- `07-morpc-census-demo.ipynb` and its rendered HTML
-
-## 2026-05-05 — Rewrite README.md and doc/index.md
-
-Both files were copied from morpc-py and described the full morpc-py package.
-Rewrote to describe morpc-census: its purpose (Census API access, long-format
-tables, frictionless metadata), its four modules (api, geos, census, tigerweb),
-installation instructions using the correct package name and import path
-(`morpc_census`), and links to the remaining notebooks.
