@@ -1,5 +1,25 @@
 # morpc-census dev notes
 
+## 2026-05-05 16:00 — Add type hints and docstrings to geos.py (closes #31)
+
+Added type annotations and short docstrings to all public functions in `morpc_census/geos.py`:
+
+- Added `from geopandas import GeoDataFrame` to top-level imports for use in return types
+- `valid_scale`, `valid_scope` — added `str` param types, `SumLevel` / `bool | None` returns, one-line docstrings
+- `get_query_req` — annotated `scale: str`, `year: str`, `-> dict`; added docstring
+- `geoinfo_for_hierarchical_geos` — replaced empty multi-line docstring stub with signature `(str, str) -> DataFrame` and one-line docstring
+- `geoinfo_from_scope_scale` — added `-> list | DataFrame | dict` return type; tightened existing docstring to standard NumPy style
+- `geoids_from_scope` — added `scope: str`, `-> list | DataFrame`; added docstring
+- `pseudos_from_scale_scope` — added `(str, str) -> list[str]`; added docstring
+- `geoinfo_from_params` — corrected return type from `-> list` to `-> list | DataFrame`; collapsed verbose docstring to one line
+- `fetch_geos_from_geoids` — added `geoidfqs: list[str]`, `chunk_size: int`, `-> GeoDataFrame`; collapsed docstring to one line
+- `fetch_geos_from_scale_scope` — fully annotated `(str, str | None, int | None, Literal, int) -> GeoDataFrame`; collapsed docstring
+- `morpc_juris_part_to_full`, `census_geoid_to_morpc`, `morpc_geoid_to_census` — added param types and `-> DataFrame` returns; preserved existing verbose docstrings
+- `geoidfq_to_columns` — added `-> DataFrame | GeoDataFrame`; added docstring
+- `columns_to_geoidfq` — added docstring
+
+All 50 existing tests pass.
+
 ## 2026-05-05 15:30 — Rewrite 01-morpc-geos-demo.ipynb — add GeoIDFQ, usage-first framing (closes #29)
 
 Rewrote `doc/01-morpc-geos-demo.ipynb` with a usage-first structure. Replaced the previous version (which led with dataclass field tables and internal implementation details) with a workflow-oriented narrative covering four topics:

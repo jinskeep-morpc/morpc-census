@@ -4,6 +4,7 @@ logger  = logging.getLogger(__name__)
 
 import re
 from dataclasses import dataclass
+from geopandas import GeoDataFrame
 from pandas import DataFrame, Series
 from typing import Literal
 
@@ -268,9 +269,10 @@ PSEUDOS = {'010': [
  }
 
 
-def valid_scale(scale) -> SumLevel:
+def valid_scale(scale: str) -> SumLevel:
     from morpc import SUMLEVEL_DESCRIPTIONS
 
+    """Validate a scale name and return its SumLevel. Raises ValueError for unrecognized names."""
     logger.debug(f"Validating scale {scale} against implemented morpc.SUMLEVEL_DESCRIPTIONS.")
     for sumlevel, desc in SUMLEVEL_DESCRIPTIONS.items():
         if desc['censusQueryName'] == scale:
@@ -280,8 +282,8 @@ def valid_scale(scale) -> SumLevel:
     logger.error(f"Scale '{scale}' is not recognized. Available scales: {available}")
     raise ValueError(f"Scale '{scale}' is not recognized. Available scales: {available}")
         
-def valid_scope(scope):
-
+def valid_scope(scope: str) -> bool | None:
+    """Validate a scope name against SCOPES. Raises ValueError for unrecognized names."""
     logger.debug(f"Validating scope {scope} against implemented morpc.census.geos.SCOPES")
     if scope != None:
         if scope not in SCOPES:
@@ -290,7 +292,8 @@ def valid_scope(scope):
         else:
             return True
 
-def get_query_req(scale, year='2023'):
+def get_query_req(scale: str, year: str = '2023') -> dict:
+    """Fetch Census API requirements for the given scale (required 'in' parameters and wildcards)."""
     from morpc import SUMLEVEL_FROM_CENSUSQUERY
     from morpc.req import get_json_safely
 
@@ -316,15 +319,8 @@ def get_query_req(scale, year='2023'):
     logger.info(f"{scale} requires {query_requirements}")
     return query_requirements
 
-def geoinfo_for_hierarchical_geos(scope, scale):
-    """
-    For geographic calls that are more complex than can be handled with psuedo(). 
-    
-    Creates a list of geoids from iterating through hierarchy and constructing manually. 
-
-    Parameters:
-
-    """
+def geoinfo_for_hierarchical_geos(scope: str, scale: str) -> DataFrame:
+    """Build a geoinfo table for scale/scope combinations that cannot be expressed as ucgid pseudos."""
     from morpc_census.geos import geoinfo_from_params, geoids_from_scope, get_query_req, SCOPES
     import pandas as pd
 
@@ -393,23 +389,22 @@ def geoinfo_for_hierarchical_geos(scope, scale):
     # combine and return
     return pd.concat(geoinfos)
 
-def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Literal['list','table','json','params']='list'):
-    """
-    Creates a dictionary with 'for' and 'in' or 'ucgid' parameters that conforms to Census API query requirements.
+def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Literal['list','table','json','params']='list') -> list | DataFrame | dict:
+    """Return GEOIDFQs for all geographies at scale within scope.
 
     Parameters
     ----------
     scope : str
-        see morpc.census.geos.SCOPES
+        A key from SCOPES (e.g. ``"franklin"``, ``"region15"``).
     scale : str, optional
-        see morpc.SUMLEVEL_DESCRIPTION['censusQueryName'], by default None
+        Census query name (e.g. ``"tract"``). Defaults to the scope's own level.
     output : {'list', 'table', 'json', 'params'}
-        The type of geoinfo to return
+        Return format: list of GEO_ID strings, DataFrame, JSON dict, or raw params dict.
 
     Raises
     ------
     ValueError
-        When the defined scale and scope are invalid combinations. 
+        When scale and scope are an invalid combination.
     """
     logger.debug(f"Building parameters to pass for geographies Scope: {scope} and Scale: {scale}")
     params = {}
@@ -471,7 +466,8 @@ def geoinfo_from_scope_scale(scope: str, scale: str | None = None, output: Liter
         return geoinfo['GEO_ID'].to_list()
 
 
-def geoids_from_scope(scope, output: Literal['list','table','json']='list'):
+def geoids_from_scope(scope: str, output: Literal['list','table','json'] = 'list') -> list | DataFrame:
+    """Return GEOIDFQs for all geographies in scope from the Census geoinfo API."""
     from morpc.req import get_json_safely
     import pandas as pd
 
@@ -486,7 +482,8 @@ def geoids_from_scope(scope, output: Literal['list','table','json']='list'):
         if output == 'json':
             return json
     
-def pseudos_from_scale_scope(scale, scope):
+def pseudos_from_scale_scope(scale: str, scope: str) -> list[str]:
+    """Build ucgid pseudo predicates for each parent GEOID in scope at the given child scale."""
     from morpc import SUMLEVEL_FROM_CENSUSQUERY
 
     logger.debug(f"Getting psuedo combinations for parents in {scope} at scale {scale}")
@@ -505,16 +502,8 @@ def pseudos_from_scale_scope(scale, scope):
 
     return pseudos
 
-def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json']='table') -> list:
-    """
-    returns a list of GEOIDFQs from psuedo ucgids, or for and in parameters. 
-
-    Parameters
-    ----------
-    param_dict : dict
-        A dictionary of the parameters for the query, including for and in, or ucgid.
-    
-    """
+def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
+    """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
     import pandas as pd
     url = f"https://api.census.gov/data/{year}/geoinfo"
     params = {
@@ -574,20 +563,8 @@ def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['lis
 #     ucgids = [x[0] for x in json[1:]]
 #     return ucgids
 
-def fetch_geos_from_geoids(geoidfqs, year:int|None=None, survey:Literal['current', 'ACS', 'DEC']='current', chunk_size=500):
-    """
-    Fetches a table of geometries from a list of Census GEOIDFQs using the Rest API.
-
-    Parameters:
-    geoidfqs : list
-        A list of fully qualified Census GEOIDs, i.e. ['0550000US39049', '0550000US39045']
-
-    year : str
-        The year of the data to return
-
-    survey : str
-        The survey to return the geos for, "ACS" or "DEC"
-    """
+def fetch_geos_from_geoids(geoidfqs: list[str], year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+    """Fetch geometries from the TIGERweb REST API for a list of Census GEOIDFQs."""
 
     from morpc_census.tigerweb import get_layer_url
     import pandas as pd
@@ -660,22 +637,8 @@ def fetch_geos_from_geoids(geoidfqs, year:int|None=None, survey:Literal['current
 
     return gpd.GeoDataFrame(geometries, geometry='geometry')
 
-def fetch_geos_from_scale_scope(scope, scale=None, year=None, survey='current', chunk_size=500):
-    """
-    Returns a geodataframe of with geoids and and geometries from scales and scope.
-
-    Parameters
-    ----------
-    scope : 
-        se morpc.census.geos.SCOPES
-    scale : str, optional
-        see morpc.SUMLEVEL_DESCRIPTIONS.CensusQueryName
-    year : str, optional
-        The year of the geometries to return, by default '2023'
-        Available options are determined by census API, currently 2020 and 2023
-    survey : str, optional
-        The survey to retrive the data for, ACS or DEC
-    """
+def fetch_geos_from_scale_scope(scope: str, scale: str | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+    """Fetch a GeoDataFrame of geometries for all geographies at scale within scope."""
 
     geoinfo = geoinfo_from_scope_scale(scope, scale, output='table')
     geoinfo['GEOIDFQ'] = geoinfo['GEO_ID']
@@ -690,7 +653,7 @@ def fetch_geos_from_scale_scope(scope, scale=None, year=None, survey='current', 
 
     return geos
 
-def morpc_juris_part_to_full(geoidSeries, validateTranslation=True, gitRootPath="../"):
+def morpc_juris_part_to_full(geoidSeries: Series, validateTranslation: bool = True, gitRootPath: str = "../") -> DataFrame:
     """Given a series of fully-qualified MORPC GEOIDs representing county parts of MORPC jurisdictions (i.e. SUMLEVEL
     M11 or M25), this function provides a dataframe which maps each part to its parent jurisdiction (M10 or M24, respectively).
 
@@ -829,7 +792,7 @@ def morpc_juris_part_to_full(geoidSeries, validateTranslation=True, gitRootPath=
     
     return mappingDataFrame
     
-def census_geoid_to_morpc(geoidSeries, targetSumlevel, validateTranslation=True, gitRootPath="../", verbose=False):
+def census_geoid_to_morpc(geoidSeries: Series, targetSumlevel: str, validateTranslation: bool = True, gitRootPath: str = "../", verbose: bool = False) -> DataFrame:
     """Given a series of fully-qualified Census GEOIDs and a target MORPC SUMLEVEL, this function translates each GEOID in 
     the series to its equivalent MORPC GEOID.  MORPC maintains a set of fully-qualified geographic identifiers (GEOIDFQs) 
     that mimic the fully qualified GEOIDs used by the Census Bureau. Similar to Census GEOIDFQs, MORPC GEOIDFQs have the form 
@@ -985,7 +948,7 @@ def census_geoid_to_morpc(geoidSeries, targetSumlevel, validateTranslation=True,
     
     return mappingDataFrame
     
-def morpc_geoid_to_census(geoidSeries, validateTranslation=True, gitRootPath="../", verbose=False):
+def morpc_geoid_to_census(geoidSeries: Series, validateTranslation: bool = True, gitRootPath: str = "../", verbose: bool = False) -> DataFrame:
     """Given a series of fully-qualified MORPC GEOIDs, this function translates each GEOID in the series to its equivalent
     Census GEOID.  MORPC maintains a set of fully-qualified geographic identifiers (GEOIDFQs) that mimic the fully qualified 
     GEOIDs used by the Census Bureau. Similar to Census GEOIDFQs, MORPC GEOIDFQs have the form XXX0000USYYYYYYYY, where XXX 
@@ -1165,7 +1128,8 @@ def morpc_geoid_to_census(geoidSeries, validateTranslation=True, gitRootPath="..
     
     return mappingDataFrame
 
-def geoidfq_to_columns(geoidfqs: Series | DataFrame):
+def geoidfq_to_columns(geoidfqs: Series | DataFrame) -> DataFrame | GeoDataFrame:
+    """Explode a GEOIDFQ Series or DataFrame into sumlevel, variant, geocomp, and geo-field columns."""
     import pandas as pd
     import geopandas as gpd
 
@@ -1202,6 +1166,7 @@ def geoidfq_to_columns(geoidfqs: Series | DataFrame):
     return df
 
 def columns_to_geoidfq(df: DataFrame, variant: str = "00", geocomp: str = "00") -> DataFrame:
+    """Build a GEOIDFQ string for each row from sumlevel and geo-field columns; stores result in 'geoidfq'."""
     df = df.reset_index()
     if 'index' in df.columns:
         df = df.drop(columns='index')
