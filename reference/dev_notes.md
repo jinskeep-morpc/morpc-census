@@ -1,15 +1,5 @@
 # morpc-census dev notes
 
-## 2026-05-05 10:15 — Rewrite 01-morpc-geos-demo.ipynb for Scale and Scope (closes #18)
-
-Deleted the old notebook (which documented morpc-py's `load_spatial_data` / `assign_geo_identifiers` — unrelated to morpc-census) and replaced it with a focused demo of the new `Scope` and `Scale` classes. The new notebook covers:
-- Constructing a `Scope` directly and reading `.params`
-- Browsing the built-in `SCOPES` dict
-- Constructing a `Scale` directly and using `valid_scale()`
-- Using `fetch_geos_from_scale_scope()` with scope and scale name strings
-
-Network-dependent cells are marked with a note. No new unit tests added — the classes are tested in `tests/test_geos_classes.py`.
-
 ## 2026-05-05 10:09 — Add Scale and Scope dataclasses to geos module (closes #16)
 
 Replaced the plain `dict[str, dict]` pattern in `SCOPES` with two dataclasses:
