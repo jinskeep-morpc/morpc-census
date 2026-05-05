@@ -80,6 +80,40 @@ color, and the general morpc-py demo log). Kept:
 - `05-morpc-geos-demo.ipynb` — geos is part of morpc-census
 - `07-morpc-census-demo.ipynb` and its rendered HTML
 
+## 2026-05-05 — Refactor: five targeted fixes across the package
+
+Five issues filed, branched, and PR'd (all pending merge):
+
+**PR #3 — app/app.py: fix ALL\_AVAIL\_ENDPOINTS / AVAIL\_VINTAGES (closes #2)**
+Both names were removed in the api.py refactor. Replaced with
+`get_all_avail_endpoints()` calls. Added None-guard on vintage callback.
+
+**PR #5 — census.py: remove broken stubs (closes #4)**
+Removed `acs_variables_by_group` (superseded by `api.get_group_variables`),
+`acs_schema` (references undefined constants; broken), `acs_resource` (empty
+stub), and `acs_generate_DimensionTable` (calls `morpc.frictionless.name_to_desc_map`
+which is no longer bundled). Kept `acs_label_to_dimensions`,
+`acs_generate_universe_table`, `acs_flatten_category`. Moved top-level imports
+out of function bodies; tightened docstrings.
+
+**PR #7 — geos.py: fix fetch\_geos\_from\_geoids chunking loop (closes #6)**
+`all_geometries.append(geos)` was outside the inner `for sumlevel` loop,
+discarding all but the last sumlevel's geometries per chunk. Moved inside the
+loop to match the non-chunking branch. Simplified offset calculation to
+`min(chunk_size, remaining)`.
+
+**PR #9 — tigerweb.py: remove redundant request in get\_layer\_url (closes #8)**
+`get_layer_url` made a second HTTP request to the same MapServer URL just to
+verify HTTP 200 — redundant since `get_tigerweb_layers_map` already succeeded
+against the same endpoint. Removed the verification block and unused `import requests`.
+
+**PR #11 — morpc\_census/\_\_init\_\_.py: explicit exports (closes #10)**
+Replaced `from .module import *` with explicit import lists. Broken stubs
+from census.py are not re-exported. Low-level internal helpers
+(`get_params`, `get_query_url`, `censusapi_name`, `find_replace_variable_map`,
+`valid_*`) and intermediate scope-building lists (`STATE_SCOPES` etc.) are
+excluded from the top-level namespace; still importable from their submodules.
+
 ## 2026-05-05 — Rewrite README.md and doc/index.md
 
 Both files were copied from morpc-py and described the full morpc-py package.
