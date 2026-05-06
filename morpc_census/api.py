@@ -668,9 +668,6 @@ class CensusAPI:
         valid_survey_table(self.SURVEY)
         valid_vintage(self.SURVEY, self.YEAR)
         valid_group(self.GROUP, self.SURVEY, self.YEAR)
-        valid_scope(self.SCOPE)
-        if self.SUMLEVEL is not None:
-            self._sumlevel = valid_sumlevel(self.SUMLEVEL)
         if self.VARIABLES is not None:
             valid_variables(self.SURVEY, self.YEAR, self.GROUP, self.VARIABLES)
 

@@ -32,8 +32,6 @@ from .geos import (
     Scope,
     SCOPES,
     PSEUDOS,
-    valid_sumlevel,
-    valid_scope,
     geoinfo_from_scope_sumlevel,
     geoinfo_from_params,
     geoids_from_scope,

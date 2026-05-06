@@ -38,6 +38,19 @@ class Scope:
         if self.in_param is not None:
             d["in"] = self.in_param
         return d
+    
+    @property
+    def sql(self) -> str:
+        if self.name == 'us':
+            where = '1=1'
+        else:
+            scope_params = self.params
+            wheres = []
+            for param in scope_params:
+                geo, ids = scope_params[param].split(':')
+                wheres.append(f"{geo.upper()} in ({",".join([f"'{str(x)}'" for x in ids.split(',')])})")
+            where = " and ".join(wheres)
+        return where
 
 
 @dataclass(frozen=True)
@@ -49,11 +62,12 @@ class SumLevel:
     - ``SumLevel("050")``   — looks up the query name from ``SUMLEVEL_DESCRIPTIONS``
     """
     name: str
-    sumlevel: str = ""           # three-digit code, e.g. "050"; auto-filled when omitted
-    singular: str | None = None  # singular display name, e.g. "county"
-    plural: str | None = None    # plural display name, e.g. "counties"
-    hierarchy_string: str | None = None  # hierarchical label, e.g. "COUNTY"
-    tigerweb_name: str | None = None     # TIGERweb REST API layer name, e.g. "counties"
+    sumlevel: str = ""                  # three-digit code, e.g. "050"; auto-filled when omitted
+    singular: str | None = None         # singular display name, e.g. "county"
+    plural: str | None = None           # plural display name, e.g. "counties"
+    hierarchy_string: str | None = None # hierarchical label, e.g. "COUNTY"
+    tigerweb_name: str | None = None    # TIGERweb REST API layer name, e.g. "counties"
+    current_variant: str | None = None  # The variant current used by the Census. e.g. "00", "M7"
 
     def __post_init__(self) -> None:
         if self.sumlevel:
@@ -66,12 +80,12 @@ class SumLevel:
                 raise ValueError(f"Sumlevel code {key!r} not found in SUMLEVEL_DESCRIPTIONS")
             desc = SUMLEVEL_DESCRIPTIONS[key]
             object.__setattr__(self, "name", desc["censusQueryName"])
-            object.__setattr__(self, "sumlevel", key)
+            object.__setattr__(self, "sumlevel", str(key))
         else:
             # Query name — look up the three-digit code
             for code, desc in SUMLEVEL_DESCRIPTIONS.items():
                 if desc["censusQueryName"] == key:
-                    object.__setattr__(self, "sumlevel", code)
+                    object.__setattr__(self, "sumlevel", str(code))
                     break
             else:
                 available = [
@@ -80,12 +94,16 @@ class SumLevel:
                     if d["censusQueryName"] is not None
                 ]
                 raise ValueError(f"Sumlevel {key!r} not recognized. Available: {available}")
+            
         object.__setattr__(self, "singular", desc["singular"])
         object.__setattr__(self, "plural", desc["plural"])
         object.__setattr__(self, "hierarchy_string", desc["hierarchy_string"])
         object.__setattr__(self, "tigerweb_name", desc["censusRestAPI_layername"])
-
-
+        object.__setattr__(self, "current_variant", desc["current_variant"])
+    
+    def __repr__(self):
+        return f"{self.sumlevel!r}"
+        
 
 def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     """Return the geo-specific (name, width) pairs for a sumlevel's geoidfq_format."""
@@ -116,7 +134,7 @@ class GeoIDFQ:
       "Px"        public use microdata areas (PUMAs)
       "Zx"        ZIP Code tabulation areas
     """
-    sumlevel: str
+    sumlevel: str | SumLevel
     variant: str
     geocomp: str
     parts: dict[str, str]
@@ -124,19 +142,18 @@ class GeoIDFQ:
     @classmethod
     def parse(cls, geoidfq: str) -> "GeoIDFQ":
         """Parse a GEOIDFQ string into its components."""
-        sumlevel = geoidfq[0:3]
+        sumlevel = SumLevel(geoidfq[0:3])
         variant = geoidfq[3:5]
         geocomp = geoidfq[5:7]
         parts = {}
         pos = 9  # skip SUMLEVEL(3) + VARIANT(2) + GEOCOMP(2) + "US"(2)
-        for name, width in _geoidfq_geo_fields(sumlevel):
+        for name, width in _geoidfq_geo_fields(sumlevel.sumlevel):
             parts[name] = geoidfq[pos:pos + width]
             pos += width
         return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
 
     @classmethod
-    def build(cls, sumlevel: str, parts: dict[str, str],
-              variant: str = "00", geocomp: str = "00") -> "GeoIDFQ":
+    def build(cls, sumlevel: str | SumLevel, parts: dict[str, str], variant: str | None = None, geocomp: str = "00") -> "GeoIDFQ":
         """Construct a GeoIDFQ from components.
 
         Raises ValueError if the sumlevel has no geoidfq_format (MORPC sumlevels)
@@ -334,21 +351,6 @@ PSEUDOS = {'010': [
  '970': ['1000000']
  }
 
-
-def valid_sumlevel(sumlevel: str) -> SumLevel:
-    """Validate a sumlevel name and return its SumLevel. Raises ValueError for unrecognized names."""
-    logger.debug(f"Validating sumlevel {sumlevel!r}")
-    return SumLevel(sumlevel)
-        
-def valid_scope(scope: str) -> bool | None:
-    """Validate a scope name against SCOPES. Raises ValueError for unrecognized names."""
-    logger.debug(f"Validating scope {scope} against implemented morpc.census.geos.SCOPES")
-    if scope != None:
-        if scope not in SCOPES:
-            logger.error(f"Scope '{scope}' is not recognized. Available scopes: {list(SCOPES.keys())}")
-            raise ValueError(f"Scope '{scope}' is not recognized. Available scopes: {list(SCOPES.keys())}")
-        else:
-            return True
 
 def get_query_req(sumlevel: str, year: str = '2023') -> dict:
     """Fetch Census API requirements for the given sumlevel (required 'in' parameters and wildcards)."""
@@ -551,15 +553,14 @@ def geoids_from_scope(scope: str, output: Literal['list','table','json'] = 'list
     import pandas as pd
 
     logger.debug(f"Fetching geoids from scope parameters {SCOPES[scope]}.")
-    if valid_scope(scope):
-        baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
-        json = get_json_safely(baseurl, params = SCOPES[scope].params)
-        if output == 'list':
-            return [row[0] for row in json[1:]]
-        if output == 'table':
-            return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
-        if output == 'json':
-            return json
+    baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
+    json = get_json_safely(baseurl, params = SCOPES[scope].params)
+    if output == 'list':
+        return [row[0] for row in json[1:]]
+    if output == 'table':
+        return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
+    if output == 'json':
+        return json
 
 def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
     """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
