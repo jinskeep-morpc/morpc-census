@@ -12,6 +12,36 @@ Updated `doc/01-morpc-geos-demo.ipynb` to reflect the `SumLevel` changes from PR
 - Added cell showing optional metadata fields default to `None` when constructing by name/code alone
 - Added cell showing a fully-specified `SumLevel` with all metadata fields supplied explicitly
 - Updated ValueError cell to use `SumLevel("neighborhood")` instead of `valid_sumlevel`
+## 2026-05-06 — Add optional metadata fields to SumLevel (closes #37)
+
+Added four optional fields to the `SumLevel` dataclass sourced from `morpc.SUMLEVEL_DESCRIPTIONS`:
+
+- `singular: str | None` — singular display name (e.g. `"county"`)
+- `plural: str | None` — plural display name (e.g. `"counties"`)
+- `hierarchy_string: str | None` — hierarchical label (e.g. `"COUNTY"`)
+- `tigerweb_name: str | None` — TIGERweb REST API layer name (renamed from `censusRestAPI_layername`; e.g. `"counties"`)
+
+All fields default to `None` and are not auto-filled in `__post_init__` — callers supply them explicitly when needed. Being part of a frozen dataclass, they are immutable after construction.
+
+Added 3 new tests in `tests/test_geos_classes.py`: defaults to `None`, explicit values stored correctly, frozen after construction.
+
+## 2026-05-06 — Allow Scope and SumLevel to be constructed from name or code alone (closes #37)
+
+Added `__post_init__` lookup to both dataclasses so they can be constructed from a single identifier without needing to know all fields upfront:
+
+- `Scope("franklin")` — `for_param` and `in_param` are looked up from the built-in `SCOPES` registry; fully-explicit construction unchanged
+- `SumLevel("county")` — three-digit code looked up from `morpc.SUMLEVEL_DESCRIPTIONS`; fills `sumlevel` field
+- `SumLevel("050")` — query name looked up from `morpc.SUMLEVEL_DESCRIPTIONS`; fills `name` field
+- Both raise `ValueError` with a helpful message for unrecognized names or codes
+
+Implementation notes:
+- `Scope.for_param` changed from required (`str`) to optional (`str | None = None`); `__post_init__` triggers the lookup when `None`
+- `SumLevel.sumlevel` changed from required to optional (`str = ""`); `__post_init__` detects whether the `name` argument is a three-digit code (regex `^\d{3}$`) or a query name and fills the missing field using `object.__setattr__` (required for frozen dataclasses)
+- `valid_sumlevel()` simplified to a one-line wrapper around `SumLevel()` since the validation logic now lives in `__post_init__`
+
+Added 12 new tests in `tests/test_geos_classes.py` (total now 28):
+- `TestSumLevel`: 8 new tests — lookup by name, lookup by code, equality with explicit form, invalid name/code raise `ValueError`
+- `TestScopeFromName`: 4 new tests — lookup by name for county/region/national scope, invalid name raises `ValueError`
 
 ## 2026-05-06 — Align api.py with geos.py: sumlevel rename, type hints, tests, notebook rewrite (closes #35)
 
