@@ -18,8 +18,6 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-from morpc.req import get_json_safely, get_text_safely
-
 # ---------------------------------------------------------------------------
 # Census subject-area constants
 # ---------------------------------------------------------------------------
@@ -284,6 +282,7 @@ def get_all_avail_endpoints():
     """
     global _avail_endpoints_cache
     if _avail_endpoints_cache is None:
+        from morpc.req import get_json_safely
         result = {}
         for dataset in get_json_safely(CENSUS_DATA_BASE_URL)['dataset']:
             if 'c_vintage' in dataset:
@@ -330,6 +329,7 @@ def get_query_url(survey_table: str, year: int) -> str:
 
 def get_table_groups(survey_table: str, year: int) -> dict:
     """Return {group_name: {description, variables}} for all groups in the survey."""
+    from morpc.req import get_json_safely
     logger.debug(f"Fetching groups for {year} {survey_table}")
     data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups.json")
     groups = {
@@ -351,6 +351,7 @@ def valid_group(group: str, survey_table: str, year: int) -> bool:
 
 def get_group_variables(survey_table: str, year: int, group: str) -> dict:
     """Return variable metadata dict for *group*, sorted by variable name."""
+    from morpc.req import get_json_safely
     data = get_json_safely(
         f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups/{group}.json"
     )
@@ -363,6 +364,7 @@ def get_group_variables(survey_table: str, year: int, group: str) -> dict:
 
 def get_group_universe(survey_table: str, year: int, group: str) -> str:
     """Return the universe string for a variable group from the Census API."""
+    from morpc.req import get_json_safely
     data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups")
     match = [x for x in data['groups'] if x['name'] == group.upper()]
     if not match:
@@ -428,6 +430,7 @@ def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
         Variables per request batch.  Capped at 49 to leave one slot for
         GEO_ID.  Defaults to 20.
     """
+    from morpc.req import get_json_safely, get_text_safely
     is_group_query = bool(re.findall(r'group\((.+)\)', params['get']))
 
     if is_group_query:
