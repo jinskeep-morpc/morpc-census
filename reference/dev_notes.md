@@ -1,5 +1,18 @@
 # morpc-census dev notes
 
+## 2026-05-06 — Update geos demo notebook to show updated SumLevel usage (closes #39)
+
+Updated `doc/01-morpc-geos-demo.ipynb` to reflect the `SumLevel` changes from PR #38:
+
+- Intro: "Scale" → "SumLevel" in the two-bullet summary
+- Imports: replaced `valid_sumlevel` with `SumLevel`
+- Section 2 heading: "Scales — choosing resolution" → "Summary levels — choosing resolution"; updated prose to describe the name/code lookup and optional metadata fields
+- Replaced `valid_sumlevel("county")` cell with `SumLevel("county")` — shows auto-fill of the three-digit code
+- Replaced `valid_sumlevel("tract")` cell with `SumLevel("050")` — shows auto-fill of the query name from the code
+- Added cell showing optional metadata fields default to `None` when constructing by name/code alone
+- Added cell showing a fully-specified `SumLevel` with all metadata fields supplied explicitly
+- Updated ValueError cell to use `SumLevel("neighborhood")` instead of `valid_sumlevel`
+
 ## 2026-05-06 — Align api.py with geos.py: sumlevel rename, type hints, tests, notebook rewrite (closes #35)
 
 Updated `morpc_census/api.py` to match the geos.py changes made in PRs #31–#34:
