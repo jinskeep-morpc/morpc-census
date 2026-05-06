@@ -14,10 +14,25 @@ import morpc.req
 
 @dataclass
 class Scope:
-    """A named Census API geography scope with its query parameters."""
+    """A named Census API geography scope with its query parameters.
+
+    Can be constructed fully (``Scope(name, for_param, in_param)``) or by name alone
+    (``Scope("franklin")``), in which case ``for_param`` and ``in_param`` are looked up
+    from the built-in ``SCOPES`` registry.
+    """
     name: str
-    for_param: str
+    for_param: str | None = None
     in_param: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.for_param is None:
+            if self.name not in SCOPES:
+                raise ValueError(
+                    f"Scope {self.name!r} not recognized. Available: {list(SCOPES.keys())}"
+                )
+            s = SCOPES[self.name]
+            self.for_param = s.for_param
+            self.in_param = s.in_param
 
     @property
     def params(self) -> dict:
@@ -29,9 +44,39 @@ class Scope:
 
 @dataclass(frozen=True)
 class SumLevel:
-    """A Census geography summary level, pairing a query name with its summary level code."""
-    name: str      # censusQueryName, e.g. "county"
-    sumlevel: str  # e.g. "050"
+    """A Census geography summary level, pairing a query name with its summary level code.
+
+    Can be constructed fully (``SumLevel(name, sumlevel)``) or by a single argument:
+    - ``SumLevel("county")`` — looks up the three-digit code from ``SUMLEVEL_DESCRIPTIONS``
+    - ``SumLevel("050")``   — looks up the query name from ``SUMLEVEL_DESCRIPTIONS``
+    """
+    name: str
+    sumlevel: str = ""  # auto-filled when only name or code is passed
+
+    def __post_init__(self) -> None:
+        if self.sumlevel:
+            return  # fully specified — nothing to do
+        from morpc import SUMLEVEL_DESCRIPTIONS
+        key = self.name
+        if re.match(r"^\d{3}$", key):
+            # Three-digit code passed as the only argument — look up the query name
+            if key not in SUMLEVEL_DESCRIPTIONS:
+                raise ValueError(f"Sumlevel code {key!r} not found in SUMLEVEL_DESCRIPTIONS")
+            resolved_name = SUMLEVEL_DESCRIPTIONS[key]["censusQueryName"]
+            object.__setattr__(self, "name", resolved_name)
+            object.__setattr__(self, "sumlevel", key)
+        else:
+            # Query name — look up the three-digit code
+            for code, desc in SUMLEVEL_DESCRIPTIONS.items():
+                if desc["censusQueryName"] == key:
+                    object.__setattr__(self, "sumlevel", code)
+                    return
+            available = [
+                d["censusQueryName"]
+                for d in SUMLEVEL_DESCRIPTIONS.values()
+                if d["censusQueryName"] is not None
+            ]
+            raise ValueError(f"Sumlevel {key!r} not recognized. Available: {available}")
 
 
 
@@ -271,17 +316,9 @@ PSEUDOS = {'010': [
 
 
 def valid_sumlevel(sumlevel: str) -> SumLevel:
-    from morpc import SUMLEVEL_DESCRIPTIONS
-
     """Validate a sumlevel name and return its SumLevel. Raises ValueError for unrecognized names."""
-    logger.debug(f"Validating sumlevel {sumlevel} against implemented morpc.SUMLEVEL_DESCRIPTIONS.")
-    for sl, desc in SUMLEVEL_DESCRIPTIONS.items():
-        if desc['censusQueryName'] == sumlevel:
-            return SumLevel(name=sumlevel, sumlevel=sl)
-
-    available = [d['censusQueryName'] for d in SUMLEVEL_DESCRIPTIONS.values() if d['censusQueryName'] is not None]
-    logger.error(f"Sumlevel '{sumlevel}' is not recognized. Available sumlevels: {available}")
-    raise ValueError(f"Sumlevel '{sumlevel}' is not recognized. Available sumlevels: {available}")
+    logger.debug(f"Validating sumlevel {sumlevel!r}")
+    return SumLevel(sumlevel)
         
 def valid_scope(scope: str) -> bool | None:
     """Validate a scope name against SCOPES. Raises ValueError for unrecognized names."""
