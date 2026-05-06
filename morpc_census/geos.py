@@ -34,6 +34,7 @@ class SumLevel:
     sumlevel: str  # e.g. "050"
 
 
+
 def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     """Return the geo-specific (name, width) pairs for a sumlevel's geoidfq_format."""
     from morpc import SUMLEVEL_DESCRIPTIONS
@@ -388,6 +389,26 @@ def geoinfo_for_hierarchical_geos(scope: str, sumlevel: str) -> DataFrame:
 
     # combine and return
     return pd.concat(geoinfos)
+    
+def pseudos_from_sumlevel_scope(sumlevel: str, scope: str) -> list[str]:
+    """Build ucgid pseudo predicates for each parent GEOID in scope at the given child sumlevel."""
+    from morpc import SUMLEVEL_FROM_CENSUSQUERY
+
+    logger.debug(f"Getting psuedo combinations for parents in {scope} at sumlevel {sumlevel}")
+    parents = geoids_from_scope(scope)
+
+    parent_sumlevel = parents[0][0:3]
+
+    child = f"{SUMLEVEL_FROM_CENSUSQUERY[sumlevel]}0000"
+
+    if child in PSEUDOS[parent_sumlevel]:
+        logger.info(f"Returning pseudos for {child} in {parents}")
+        pseudos = [f"{parent}${child}" for parent in parents]
+    else:
+        logger.error(f"{child} is not allowed child for parent sumlevel {parent_sumlevel}")
+        raise ValueError
+
+    return pseudos
 
 def geoinfo_from_scope_sumlevel(scope: str, sumlevel: str | None = None, output: Literal['list','table','json','params']='list') -> list | DataFrame | dict:
     """Return GEOIDFQs for all geographies at sumlevel within scope.
@@ -481,26 +502,6 @@ def geoids_from_scope(scope: str, output: Literal['list','table','json'] = 'list
             return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
         if output == 'json':
             return json
-    
-def pseudos_from_sumlevel_scope(sumlevel: str, scope: str) -> list[str]:
-    """Build ucgid pseudo predicates for each parent GEOID in scope at the given child sumlevel."""
-    from morpc import SUMLEVEL_FROM_CENSUSQUERY
-
-    logger.debug(f"Getting psuedo combinations for parents in {scope} at sumlevel {sumlevel}")
-    parents = geoids_from_scope(scope)
-
-    parent_sumlevel = parents[0][0:3]
-
-    child = f"{SUMLEVEL_FROM_CENSUSQUERY[sumlevel]}0000"
-
-    if child in PSEUDOS[parent_sumlevel]:
-        logger.info(f"Returning pseudos for {child} in {parents}")
-        pseudos = [f"{parent}${child}" for parent in parents]
-    else:
-        logger.error(f"{child} is not allowed child for parent sumlevel {parent_sumlevel}")
-        raise ValueError
-
-    return pseudos
 
 def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
     """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
