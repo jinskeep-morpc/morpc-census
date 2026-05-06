@@ -297,7 +297,8 @@ def get_all_avail_endpoints():
 # Parameter validation helpers
 # ---------------------------------------------------------------------------
 
-def valid_survey_table(survey_table):
+def valid_survey_table(survey_table: str) -> bool:
+    """Validate survey_table against IMPLEMENTED_ENDPOINTS. Raises ValueError if not recognized."""
     if survey_table in IMPLEMENTED_ENDPOINTS:
         logger.info(f"{survey_table} is valid.")
         return True
@@ -305,7 +306,7 @@ def valid_survey_table(survey_table):
     raise ValueError(f"{survey_table} not available or not yet implemented.")
 
 
-def valid_vintage(survey_table, year):
+def valid_vintage(survey_table: str, year: int) -> bool:
     """Validate that *year* is an available vintage for *survey_table*.
 
     Makes a network call to the Census discovery endpoint on first use
@@ -320,13 +321,14 @@ def valid_vintage(survey_table, year):
     raise ValueError(f"{year} is not an available vintage for {survey_table}.")
 
 
-def get_query_url(survey_table, year):
+def get_query_url(survey_table: str, year: int) -> str:
+    """Build the base Census API query URL for a survey and vintage year."""
     url = f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}?"
     logger.info(f"Base URL: {url}")
     return url
 
 
-def get_table_groups(survey_table, year):
+def get_table_groups(survey_table: str, year: int) -> dict:
     """Return {group_name: {description, variables}} for all groups in the survey."""
     logger.debug(f"Fetching groups for {year} {survey_table}")
     data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups.json")
@@ -337,7 +339,8 @@ def get_table_groups(survey_table, year):
     return dict(sorted(groups.items()))
 
 
-def valid_group(group, survey_table, year):
+def valid_group(group: str, survey_table: str, year: int) -> bool:
+    """Validate that group exists in survey_table for year. Raises ValueError if not found."""
     groups = get_table_groups(survey_table, year)
     if group in groups:
         logger.info(f"{group} is valid for {year} {survey_table}.")
@@ -346,7 +349,7 @@ def valid_group(group, survey_table, year):
     raise ValueError(f"{group} is not a valid group in {year} {survey_table}.")
 
 
-def get_group_variables(survey_table, year, group):
+def get_group_variables(survey_table: str, year: int, group: str) -> dict:
     """Return variable metadata dict for *group*, sorted by variable name."""
     data = get_json_safely(
         f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups/{group}.json"
@@ -358,7 +361,8 @@ def get_group_variables(survey_table, year, group):
     }
 
 
-def get_group_universe(survey_table, year, group):
+def get_group_universe(survey_table: str, year: int, group: str) -> str:
+    """Return the universe string for a variable group from the Census API."""
     data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups")
     match = [x for x in data['groups'] if x['name'] == group.upper()]
     if not match:
@@ -366,7 +370,8 @@ def get_group_universe(survey_table, year, group):
     return match[0]['universe ']  # trailing space is present in the Census API response
 
 
-def valid_variables(survey_table, year, group, variables):
+def valid_variables(survey_table: str, year: int, group: str, variables: list[str]) -> bool:
+    """Validate that all variables exist in group. Raises ValueError on first missing variable."""
     avail = get_group_variables(survey_table, year, group)
     for var in variables:
         if var not in avail:
@@ -379,18 +384,20 @@ def valid_variables(survey_table, year, group, variables):
 # Request building
 # ---------------------------------------------------------------------------
 
-def get_params(group, variables=None):
+def get_params(group: str, variables: list[str] | None = None) -> str:
+    """Build the Census API 'get' parameter string for a group or variable list."""
     if variables is not None:
         return ",".join(variables)
     return f"group({group})"
 
 
-def get_api_request(survey_table, year, group, scope, variables=None, scale=None):
-    from morpc_census.geos import geoinfo_from_scope_scale
+def get_api_request(survey_table: str, year: int, group: str, scope: str, variables: list[str] | None = None, sumlevel: str | None = None) -> dict:
+    """Build the Census API request dict (url + params) for a survey, scope, and optional sumlevel."""
+    from morpc_census.geos import geoinfo_from_scope_sumlevel
 
     url = get_query_url(survey_table, year)
     get_param = get_params(group, variables=variables)
-    geo_param = geoinfo_from_scope_scale(scope, scale, output='params')
+    geo_param = geoinfo_from_scope_sumlevel(scope, sumlevel, output='params')
 
     params = {'get': get_param}
     params.update(geo_param)
@@ -403,7 +410,7 @@ def get_api_request(survey_table, year, group, scope, variables=None, scale=None
 # Low-level fetch
 # ---------------------------------------------------------------------------
 
-def fetch(url, params, var_batch_size=20):
+def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
     """Fetch from the Census API and return a DataFrame indexed by GEO_ID.
 
     Automatically batches requests when more than *var_batch_size* variables
@@ -494,19 +501,19 @@ def fetch(url, params, var_batch_size=20):
 # Naming helper
 # ---------------------------------------------------------------------------
 
-def censusapi_name(survey_table, year, scope, group, scale=None, variables=None):
+def censusapi_name(survey_table: str, year: int, scope: str, group: str, sumlevel: str | None = None, variables: list[str] | None = None) -> str:
     """Construct a canonical, machine-readable name for a CensusAPI dataset."""
     from morpc import HIERARCHY_STRING_FROM_CENSUSNAME
 
-    scale_part = (
-        f"{HIERARCHY_STRING_FROM_CENSUSNAME[scale].replace('-', '').lower()}-"
-        if scale is not None
+    sumlevel_part = (
+        f"{HIERARCHY_STRING_FROM_CENSUSNAME[sumlevel].replace('-', '').lower()}-"
+        if sumlevel is not None
         else ''
     )
     var_part = '-select-variables' if variables is not None else ''
     return (
         f"census-{survey_table.replace('/', '-')}-{year}"
-        f"-{scale_part}{scope}-{group}{var_part}"
+        f"-{sumlevel_part}{scope}-{group}{var_part}"
     ).lower()
 
 
@@ -514,7 +521,8 @@ def censusapi_name(survey_table, year, scope, group, scale=None, variables=None)
 # Variable-mapping helper (used by DimensionTable)
 # ---------------------------------------------------------------------------
 
-def find_replace_variable_map(labels, variables, map):
+def find_replace_variable_map(labels: list[str], variables: list[str], map: dict) -> tuple[list[str], list[str]]:
+    """Apply label substitutions and return updated labels and new sequential variable codes."""
     labels = list(labels)
     variables = list(variables)
 
@@ -553,10 +561,11 @@ class CensusAPI:
     group : str
         Variable group code, e.g. ``'B01001'``.
     scope : str
-        Geographic scope, e.g. ``'region15'``, ``'ohio'``.
+        Geographic scope key, e.g. ``'region15'``, ``'ohio'``.
         See ``morpc_census.geos.SCOPES``.
-    scale : str, optional
-        Geographic scale, e.g. ``'county'``, ``'tract'``.
+    sumlevel : str, optional
+        Geographic summary level query name, e.g. ``'county'``, ``'tract'``.
+        See ``morpc_census.geos.valid_sumlevel``.
     variables : list of str, optional
         Specific variables to retrieve.  If ``None`` all variables in the
         group are retrieved.
@@ -566,24 +575,24 @@ class CensusAPI:
 
     def __init__(
         self,
-        survey_table,
-        year,
-        group,
-        scope,
-        scale=None,
-        variables=None,
-        return_long=True,
+        survey_table: str,
+        year: int,
+        group: str,
+        scope: str,
+        sumlevel: str | None = None,
+        variables: list[str] | None = None,
+        return_long: bool = True,
     ):
         self.SURVEY = survey_table
         self.YEAR = year
         self.GROUP = group.upper()
         self.SCOPE = scope.lower()
-        self.SCALE = scale.lower() if scale is not None else None
+        self.SUMLEVEL = sumlevel.lower() if sumlevel is not None else None
         self.VARIABLES = (
             [v.upper() for v in variables] if variables is not None else None
         )
 
-        self.NAME = censusapi_name(survey_table, year, scope, group, scale, variables)
+        self.NAME = censusapi_name(survey_table, year, scope, group, sumlevel, variables)
         self.logger = (
             logging.getLogger(__name__)
             .getChild(self.__class__.__name__)
@@ -601,7 +610,7 @@ class CensusAPI:
             group=self.GROUP,
             scope=self.SCOPE,
             variables=self.VARIABLES,
-            scale=self.SCALE,
+            sumlevel=self.SUMLEVEL,
         )
 
         self.logger.info(
@@ -648,19 +657,35 @@ class CensusAPI:
         if self.VARIABLES is not None:
             self.VARS = {k: v for k, v in self.VARS.items() if k in self.VARIABLES}
 
-    def validate(self):
+    def validate(self) -> None:
         """Validate all parameters, raising ValueError on the first failure."""
-        from morpc_census.geos import valid_scope, valid_scale
+        from morpc_census.geos import valid_scope, valid_sumlevel
 
         self.logger.info("Validating parameters.")
         valid_survey_table(self.SURVEY)
         valid_vintage(self.SURVEY, self.YEAR)
         valid_group(self.GROUP, self.SURVEY, self.YEAR)
         valid_scope(self.SCOPE)
-        if self.SCALE is not None:
-            valid_scale(self.SCALE)
+        if self.SUMLEVEL is not None:
+            self._sumlevel = valid_sumlevel(self.SUMLEVEL)
         if self.VARIABLES is not None:
             valid_variables(self.SURVEY, self.YEAR, self.GROUP, self.VARIABLES)
+
+    # ------------------------------------------------------------------
+    # Convenience properties
+    # ------------------------------------------------------------------
+
+    @property
+    def scope_obj(self):
+        """Return the Scope object for this dataset's geographic scope."""
+        from morpc_census.geos import SCOPES, Scope
+        return SCOPES[self.SCOPE]
+
+    @property
+    def geoidfqs(self):
+        """Return the GEO_ID column parsed as a list of GeoIDFQ objects."""
+        from morpc_census.geos import GeoIDFQ
+        return [GeoIDFQ.parse(g) for g in self.DATA['GEO_ID']]
 
     # ------------------------------------------------------------------
     # Data transformation
@@ -816,11 +841,11 @@ class CensusAPI:
         """
         import frictionless
 
-        scale_str = f'{self.SCALE}s in ' if self.SCALE else ''
-        title = f"{self.YEAR} {self.CONCEPT} for {scale_str}{self.SCOPE}"
+        sumlevel_str = f'{self.SUMLEVEL}s in ' if self.SUMLEVEL else ''
+        title = f"{self.YEAR} {self.CONCEPT} for {sumlevel_str}{self.SCOPE}"
         description = (
             f"Census API data for {self.GROUP}: {self.CONCEPT} "
-            f"from {self.SURVEY} in {self.YEAR} for {scale_str}{self.SCOPE}."
+            f"from {self.SURVEY} in {self.YEAR} for {sumlevel_str}{self.SCOPE}."
         )
 
         descriptor = {

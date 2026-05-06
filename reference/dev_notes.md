@@ -1,5 +1,34 @@
 # morpc-census dev notes
 
+## 2026-05-06 — Align api.py with geos.py: sumlevel rename, type hints, tests, notebook rewrite (closes #35)
+
+Updated `morpc_census/api.py` to match the geos.py changes made in PRs #31–#34:
+
+- All `scale` references renamed to `sumlevel`: `self.SCALE` → `self.SUMLEVEL`, `scale_part` → `sumlevel_part`, `scale_str` → `sumlevel_str`, keyword argument `scale=` → `sumlevel=` in `CensusAPI`, `get_api_request`, and `censusapi_name`
+- `CensusAPI.validate()` now calls `valid_sumlevel()` (from geos.py) to validate the sumlevel and stores the result as `self._sumlevel` (a `SumLevel` object)
+- Added two new `CensusAPI` properties: `scope_obj` (returns the `Scope` object for the dataset's geographic extent) and `geoidfqs` (parses the `GEO_ID` column into a list of `GeoIDFQ` objects)
+- Added type hints and docstrings to all public functions: `valid_survey_table`, `valid_vintage`, `get_query_url`, `get_table_groups`, `valid_group`, `get_group_variables`, `get_group_universe`, `valid_variables`, `get_params`, `fetch`, `find_replace_variable_map`, `censusapi_name`, `get_api_request`
+- Deleted `morpc_census/census.py` (dead code; its three helper functions were unused) and removed its imports from `__init__.py`
+
+Added `tests/test_api.py` with 33 offline tests (all pass):
+- `TestValidSurveyTable` (6 tests): recognized/unrecognized/partial/empty endpoints
+- `TestGetParams` (5 tests): group query string and variable list comma-join
+- `TestCensusapiName` (8 tests): no sumlevel, tract/county sumlevels, variables suffix, dec, lowercase
+- `TestFindReplaceVariableMap` (5 tests): basic replacement, sequential codes, unmatched, duplicates, prefix
+- `TestDimensionTableDescriptionTable` (5 tests): DataFrame shape, index, column split
+- `TestValidVintage` (4 tests): mocked `get_all_avail_endpoints`, valid/invalid year, unknown survey
+
+Updated `tests/test_smoke.py`: removed `test_census_module_imports` since `census.py` was deleted.
+
+Rewrote `doc/02-morpc-census-demo.ipynb` with a usage-first narrative:
+- Section 1: available surveys (`IMPLEMENTED_ENDPOINTS`, `get_all_avail_endpoints`)
+- Section 2: variables in a group (`get_table_groups`, `get_group_variables`)
+- Section 3: scopes and sumlevels (`SCOPES`, `PSEUDOS`)
+- Section 4: fetching data (`CensusAPI`, `.DATA`, `.LONG`, `.scope_obj`, `.geoidfqs`)
+- Section 5: analyzing with `DimensionTable` (`.wide()`, `.percent()`)
+- Section 6: time series (concat LONG from multiple years)
+- Section 7: saving data (`.save()`)
+
 ## 2026-05-05 16:30 — Rename 'scale' to 'sumlevel' throughout geos.py (closes #33)
 
 Removed every use of the term "scale" from `morpc_census/geos.py` and replaced with "sumlevel":
