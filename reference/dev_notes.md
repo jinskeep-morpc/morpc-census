@@ -18,6 +18,19 @@
 After this change, `import morpc_census` requires no network access. Network calls only happen when a function that talks to the Census API or TIGERweb is actually invoked.
 
 Added two tests to `tests/test_smoke.py`: `test_geos_module_imports` and `test_scopes_is_not_accessed_at_import` (asserts `SCOPES._loaded is False` immediately after import).
+## 2026-05-06 — Populate SumLevel metadata fields from SUMLEVEL_DESCRIPTIONS in __post_init__ (closes #41)
+
+Extended `SumLevel.__post_init__` so that `singular`, `plural`, `hierarchy_string`, and `tigerweb_name` are populated automatically from `morpc.SUMLEVEL_DESCRIPTIONS` whenever the lookup runs (i.e. when constructing by name or code alone):
+
+- `SumLevel("county")` now yields `singular="county"`, `plural="counties"`, `hierarchy_string="COUNTY"`, `tigerweb_name="counties"`
+- `SumLevel("050")` yields the same result via the code path
+- Fully-explicit construction (`SumLevel(name, sumlevel, ...)`) still skips `__post_init__` lookup, so explicitly-supplied metadata (including `None`) is preserved unchanged
+
+Implementation: refactored both branches of `__post_init__` to store the matched `desc` dict, then set all four metadata fields with `object.__setattr__` in a shared tail block. Used a `for/else` to detect the not-found case in the query-name branch.
+
+Updated `tests/test_geos_classes.py` (35 tests total, up from 31):
+- Renamed `test_optional_fields_default_to_none` → `test_explicit_metadata_fields_default_to_none` to clarify it applies to explicit construction only
+- Added 4 new tests: `from_name_populates_metadata`, `from_code_populates_metadata`, `from_name_and_from_code_metadata_match`, `from_name_tract_populates_metadata`
 
 ## 2026-05-06 — Update geos demo notebook to show updated SumLevel usage (closes #39)
 
