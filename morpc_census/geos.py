@@ -66,21 +66,26 @@ class SumLevel:
             # Three-digit code passed as the only argument — look up the query name
             if key not in SUMLEVEL_DESCRIPTIONS:
                 raise ValueError(f"Sumlevel code {key!r} not found in SUMLEVEL_DESCRIPTIONS")
-            resolved_name = SUMLEVEL_DESCRIPTIONS[key]["censusQueryName"]
-            object.__setattr__(self, "name", resolved_name)
+            desc = SUMLEVEL_DESCRIPTIONS[key]
+            object.__setattr__(self, "name", desc["censusQueryName"])
             object.__setattr__(self, "sumlevel", key)
         else:
             # Query name — look up the three-digit code
             for code, desc in SUMLEVEL_DESCRIPTIONS.items():
                 if desc["censusQueryName"] == key:
                     object.__setattr__(self, "sumlevel", code)
-                    return
-            available = [
-                d["censusQueryName"]
-                for d in SUMLEVEL_DESCRIPTIONS.values()
-                if d["censusQueryName"] is not None
-            ]
-            raise ValueError(f"Sumlevel {key!r} not recognized. Available: {available}")
+                    break
+            else:
+                available = [
+                    d["censusQueryName"]
+                    for d in SUMLEVEL_DESCRIPTIONS.values()
+                    if d["censusQueryName"] is not None
+                ]
+                raise ValueError(f"Sumlevel {key!r} not recognized. Available: {available}")
+        object.__setattr__(self, "singular", desc["singular"])
+        object.__setattr__(self, "plural", desc["plural"])
+        object.__setattr__(self, "hierarchy_string", desc["hierarchy_string"])
+        object.__setattr__(self, "tigerweb_name", desc["censusRestAPI_layername"])
 
 
 
