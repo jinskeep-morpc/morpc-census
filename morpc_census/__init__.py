@@ -25,13 +25,6 @@ from .api import (
     NTD_AGEMAP_ORDER,
 )
 
-# ACS variable and dimension utilities
-from .census import (
-    acs_label_to_dimensions,
-    acs_generate_universe_table,
-    acs_flatten_category,
-)
-
 # Geography query and translation utilities
 from .geos import (
     GeoIDFQ,
