@@ -1,5 +1,18 @@
 # morpc-census dev notes
 
+## 2026-05-06 — Add optional metadata fields to SumLevel (closes #37)
+
+Added four optional fields to the `SumLevel` dataclass sourced from `morpc.SUMLEVEL_DESCRIPTIONS`:
+
+- `singular: str | None` — singular display name (e.g. `"county"`)
+- `plural: str | None` — plural display name (e.g. `"counties"`)
+- `hierarchy_string: str | None` — hierarchical label (e.g. `"COUNTY"`)
+- `tigerweb_name: str | None` — TIGERweb REST API layer name (renamed from `censusRestAPI_layername`; e.g. `"counties"`)
+
+All fields default to `None` and are not auto-filled in `__post_init__` — callers supply them explicitly when needed. Being part of a frozen dataclass, they are immutable after construction.
+
+Added 3 new tests in `tests/test_geos_classes.py`: defaults to `None`, explicit values stored correctly, frozen after construction.
+
 ## 2026-05-06 — Allow Scope and SumLevel to be constructed from name or code alone (closes #37)
 
 Added `__post_init__` lookup to both dataclasses so they can be constructed from a single identifier without needing to know all fields upfront:

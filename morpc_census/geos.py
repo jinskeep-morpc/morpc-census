@@ -51,7 +51,11 @@ class SumLevel:
     - ``SumLevel("050")``   — looks up the query name from ``SUMLEVEL_DESCRIPTIONS``
     """
     name: str
-    sumlevel: str = ""  # auto-filled when only name or code is passed
+    sumlevel: str = ""           # three-digit code, e.g. "050"; auto-filled when omitted
+    singular: str | None = None  # singular display name, e.g. "county"
+    plural: str | None = None    # plural display name, e.g. "counties"
+    hierarchy_string: str | None = None  # hierarchical label, e.g. "COUNTY"
+    tigerweb_name: str | None = None     # TIGERweb REST API layer name, e.g. "counties"
 
     def __post_init__(self) -> None:
         if self.sumlevel:

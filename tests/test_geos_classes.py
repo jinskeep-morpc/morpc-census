@@ -77,6 +77,31 @@ class TestSumLevel:
         with pytest.raises(ValueError):
             SumLevel("999")
 
+    # --- optional metadata fields ---
+
+    def test_optional_fields_default_to_none(self):
+        s = SumLevel(name="county", sumlevel="050")
+        assert s.singular is None
+        assert s.plural is None
+        assert s.hierarchy_string is None
+        assert s.tigerweb_name is None
+
+    def test_optional_fields_can_be_set(self):
+        s = SumLevel(
+            name="county", sumlevel="050",
+            singular="county", plural="counties",
+            hierarchy_string="COUNTY", tigerweb_name="counties",
+        )
+        assert s.singular == "county"
+        assert s.plural == "counties"
+        assert s.hierarchy_string == "COUNTY"
+        assert s.tigerweb_name == "counties"
+
+    def test_optional_fields_frozen(self):
+        s = SumLevel(name="county", sumlevel="050", singular="county")
+        with pytest.raises(Exception):
+            s.singular = "parish"
+
 
 class TestScopeFromName:
     def test_from_name_franklin(self):
