@@ -1,5 +1,24 @@
 # morpc-census dev notes
 
+## 2026-05-06 — Defer morpc imports so network is only needed when a function runs (closes #43)
+
+`import morpc_census` was hanging whenever the Census API was slow or unresponsive because `morpc/__init__.py` unconditionally imports `morpc.census`, which makes a live HTTP request at module level with no timeout.
+
+**`geos.py`**:
+- Removed top-level `import morpc` and `import morpc.req`
+- Replaced the module-level `STATE_SCOPES` / `COUNTY_SCOPES` / `MORPC_REGION_SCOPES` / `SCOPES` construction (which required `morpc` constants) with a `_LazyScopes` dict subclass. `_LazyScopes` overrides all dict access methods to call `_load()` on first use; `_load()` imports morpc and builds the full dict at that point. The public `SCOPES` API (`SCOPES["franklin"]`, `"us" in SCOPES`, `list(SCOPES.keys())`) is unchanged.
+- Added `import morpc` inside `geoinfo_from_scope_sumlevel` and `fetch_geos_from_geoids` (the two remaining functions with bare `morpc.*` references)
+- Added `import morpc.req` inside `geoinfo_from_params`
+
+**`api.py`**:
+- Removed top-level `from morpc.req import get_json_safely, get_text_safely`
+- Added `from morpc.req import get_json_safely` inside `get_all_avail_endpoints`, `get_table_groups`, `get_group_variables`, and `get_group_universe`
+- Added `from morpc.req import get_json_safely, get_text_safely` inside `fetch`
+
+After this change, `import morpc_census` requires no network access. Network calls only happen when a function that talks to the Census API or TIGERweb is actually invoked.
+
+Added two tests to `tests/test_smoke.py`: `test_geos_module_imports` and `test_scopes_is_not_accessed_at_import` (asserts `SCOPES._loaded is False` immediately after import).
+
 ## 2026-05-06 — Update geos demo notebook to show updated SumLevel usage (closes #39)
 
 Updated `doc/01-morpc-geos-demo.ipynb` to reflect the `SumLevel` changes from PR #38:

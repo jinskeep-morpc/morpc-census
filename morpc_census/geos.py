@@ -8,8 +8,6 @@ from geopandas import GeoDataFrame
 from pandas import DataFrame, Series
 from typing import Literal
 
-import morpc
-import morpc.req
 
 
 @dataclass
@@ -164,49 +162,62 @@ class GeoIDFQ:
 #   [ ]: Consider storing the data as a remote frictionless resource similar to the acs data class.
 #   [ ]: Define scale and scopes that are used. Possibly lists for benchmarking (i.e. Most populous cities)
 
-STATE_SCOPES: list[Scope] = [
-    Scope(name=key, for_param=f"state:{int(value):02d}")
-    for key, value in morpc.CONST_STATE_NAME_TO_ID.items()
-]
+class _LazyScopes(dict):
+    """Dict of Scope objects built from morpc constants on first access.
 
-COUNTY_SCOPES: list[Scope] = [
-    Scope(name=key.lower(), for_param=f"county:{int(value[2:6]):03d}", in_param="state:39")
-    for key, value in morpc.CONST_COUNTY_NAME_TO_ID.items()
-]
+    Defers ``import morpc`` (which triggers a Census API network call in morpc-py)
+    until the dict is actually accessed, so ``import morpc_census`` never blocks.
+    """
 
-MORPC_REGION_SCOPES: list[Scope] = [
-    Scope(name="region15", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['15-County Region']])}"),
-    Scope(name="region10", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['10-County Region']])}"),
-    Scope(name="region7", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['7-County Region']])}"),
-    Scope(name="regioncorpo", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CORPO Region']])}"),
-    Scope(name="regionceds", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CEDS Region']])}"),
-    Scope(name="regioncbsa", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['CBSA']])}"),
-    Scope(name="regionmobility", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['Mobility Region']])}"),
-    Scope(name="regionmpo", in_param="state:39",
-          for_param=f"county:{','.join([morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS['MPO Region']])}"),
-]
+    def __init__(self) -> None:
+        super().__init__()
+        self._loaded = False
 
-SCOPES: dict[str, Scope] = {
-    "us": Scope(name="us", for_param="us:1"),
-    "columbuscbsa": Scope(name="columbuscbsa",
-                          for_param=f"metropolitan statistical area/micropolitan statistical area:{morpc.CONST_COLUMBUS_CBSA_ID}"),
-}
+    def _load(self) -> None:
+        if self._loaded:
+            return
+        import morpc
+        self.update({
+            "us": Scope(name="us", for_param="us:1"),
+            "columbuscbsa": Scope(
+                name="columbuscbsa",
+                for_param=(
+                    "metropolitan statistical area/micropolitan statistical area:"
+                    f"{morpc.CONST_COLUMBUS_CBSA_ID}"
+                ),
+            ),
+        })
+        for key, value in morpc.CONST_STATE_NAME_TO_ID.items():
+            s = Scope(name=key, for_param=f"state:{int(value):02d}")
+            self[s.name] = s
+        for key, value in morpc.CONST_COUNTY_NAME_TO_ID.items():
+            s = Scope(name=key.lower(), for_param=f"county:{int(value[2:6]):03d}", in_param="state:39")
+            self[s.name] = s
+        for name, region_key, in_param in [
+            ("region15",     "15-County Region",  "state:39"),
+            ("region10",     "10-County Region",  "state:39"),
+            ("region7",      "7-County Region",   "state:39"),
+            ("regioncorpo",  "CORPO Region",      "state:39"),
+            ("regionceds",   "CEDS Region",       "state:39"),
+            ("regioncbsa",   "CBSA",              "state:39"),
+            ("regionmobility", "Mobility Region", "state:39"),
+            ("regionmpo",    "MPO Region",        "state:39"),
+        ]:
+            fips = ",".join(morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS[region_key])
+            self[name] = Scope(name=name, for_param=f"county:{fips}", in_param=in_param)
+        self._loaded = True
 
-for _scope in STATE_SCOPES:
-    SCOPES[_scope.name] = _scope
+    def __getitem__(self, key):        self._load(); return super().__getitem__(key)
+    def __contains__(self, key):      self._load(); return super().__contains__(key)
+    def __iter__(self):               self._load(); return super().__iter__()
+    def __len__(self):                self._load(); return super().__len__()
+    def keys(self):                   self._load(); return super().keys()
+    def values(self):                 self._load(); return super().values()
+    def items(self):                  self._load(); return super().items()
+    def get(self, key, default=None): self._load(); return super().get(key, default)
 
-for _scope in COUNTY_SCOPES:
-    SCOPES[_scope.name] = _scope
 
-for _scope in MORPC_REGION_SCOPES:
-    SCOPES[_scope.name] = _scope
+SCOPES: dict[str, Scope] = _LazyScopes()
 
 ## These are the available children sumelevels for the various parent level sumlevels when using the ucgid=psuedo() predicate.
 ## https://www.census.gov/data/developers/guidance/api-user-guide/ucgid-predicate.html
@@ -468,6 +479,7 @@ def geoinfo_from_scope_sumlevel(scope: str, sumlevel: str | None = None, output:
     ValueError
         When sumlevel and scope are an invalid combination.
     """
+    import morpc
     logger.debug(f"Building parameters to pass for geographies Scope: {scope} and SumLevel: {sumlevel}")
     params = {}
     scope_sumlevel = list(set([x[0:3] for x in geoids_from_scope(scope)]))[0]
@@ -546,6 +558,7 @@ def geoids_from_scope(scope: str, output: Literal['list','table','json'] = 'list
 
 def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
     """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
+    import morpc.req
     import pandas as pd
     url = f"https://api.census.gov/data/{year}/geoinfo"
     params = {
@@ -607,7 +620,7 @@ def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['lis
 
 def fetch_geos_from_geoids(geoidfqs: list[str], year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
     """Fetch geometries from the TIGERweb REST API for a list of Census GEOIDFQs."""
-
+    import morpc
     from morpc_census.tigerweb import get_layer_url
     import pandas as pd
     import geopandas as gpd
