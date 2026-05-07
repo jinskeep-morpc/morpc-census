@@ -34,6 +34,11 @@ def test_geos_module_imports():
 
 def test_scopes_is_not_accessed_at_import():
     """SCOPES dict must not be populated until first access — no network at import time."""
-    from morpc_census.geos import SCOPES
-    # _loaded should still be False: import alone must not trigger the morpc network call
-    assert not SCOPES._loaded
+    import subprocess, sys
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "from morpc_census.geos import SCOPES; print(SCOPES._loaded)"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False", f"SCOPES was loaded at import time: {result.stdout.strip()}"

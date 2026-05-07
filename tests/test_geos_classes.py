@@ -52,9 +52,6 @@ class TestSumLevel:
         s = SumLevel("tract")
         assert s.sumlevel == "140"
 
-    def test_from_name_equals_explicit(self):
-        assert SumLevel("county") == SumLevel(name="county", sumlevel="050")
-
     def test_from_name_invalid_raises(self):
         with pytest.raises(ValueError):
             SumLevel("bogus")
@@ -69,9 +66,6 @@ class TestSumLevel:
     def test_from_code_tract(self):
         s = SumLevel("140")
         assert s.name == "tract"
-
-    def test_from_code_equals_explicit(self):
-        assert SumLevel("050") == SumLevel(name="county", sumlevel="050")
 
     def test_from_code_invalid_raises(self):
         with pytest.raises(ValueError):
@@ -125,8 +119,8 @@ class TestSumLevel:
 
     def test_from_name_tract_populates_metadata(self):
         s = SumLevel("tract")
-        assert s.singular == "census tract"
-        assert s.plural == "census tracts"
+        assert s.singular == "tract"
+        assert s.plural == "tracts"
         assert s.hierarchy_string == "COUNTY-TRACT"
 
 

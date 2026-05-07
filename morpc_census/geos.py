@@ -99,7 +99,7 @@ class SumLevel:
         object.__setattr__(self, "plural", desc["plural"])
         object.__setattr__(self, "hierarchy_string", desc["hierarchy_string"])
         object.__setattr__(self, "tigerweb_name", desc["censusRestAPI_layername"])
-        object.__setattr__(self, "current_variant", desc["current_variant"])
+        object.__setattr__(self, "current_variant", desc.get("current_variant"))
     
     def __repr__(self):
         return f"{self.sumlevel!r}"
@@ -159,7 +159,10 @@ class GeoIDFQ:
         Raises ValueError if the sumlevel has no geoidfq_format (MORPC sumlevels)
         or if parts keys do not match the expected geo fields.
         """
-        expected = [name for name, _ in _geoidfq_geo_fields(sumlevel)]
+        sl_code = sumlevel.sumlevel if isinstance(sumlevel, SumLevel) else sumlevel
+        if variant is None:
+            variant = sumlevel.current_variant if isinstance(sumlevel, SumLevel) and sumlevel.current_variant else "00"
+        expected = [name for name, _ in _geoidfq_geo_fields(sl_code)]
         if list(parts.keys()) != expected:
             raise ValueError(
                 f"parts keys {list(parts.keys())} do not match expected {expected} "
@@ -168,7 +171,8 @@ class GeoIDFQ:
         return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
 
     def __str__(self) -> str:
-        return self.sumlevel + self.variant + self.geocomp + "US" + "".join(self.parts.values())
+        sl_code = self.sumlevel.sumlevel if isinstance(self.sumlevel, SumLevel) else self.sumlevel
+        return sl_code + self.variant + self.geocomp + "US" + "".join(self.parts.values())
 
     @property
     def geoid(self) -> str:

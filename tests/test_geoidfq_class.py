@@ -1,5 +1,5 @@
 import pytest
-from morpc_census.geos import GeoIDFQ
+from morpc_census.geos import GeoIDFQ, SumLevel
 
 
 COUNTY_GEOIDFQ   = "0500000US39049"               # Franklin County, Ohio
@@ -15,45 +15,45 @@ BLOCK_GEOIDFQ    = "1000000US390410101001000"     # Block 1000, block group 1, t
 class TestParse:
     def test_county_fields(self):
         g = GeoIDFQ.parse(COUNTY_GEOIDFQ)
-        assert g.sumlevel == "050"
+        assert g.sumlevel == SumLevel("050")
         assert g.variant == "00"
         assert g.geocomp == "00"
         assert g.parts == {"state": "39", "county": "049"}
 
     def test_state_fields(self):
         g = GeoIDFQ.parse(STATE_GEOIDFQ)
-        assert g.sumlevel == "040"
+        assert g.sumlevel == SumLevel("040")
         assert g.parts == {"state": "39"}
 
     def test_place_fields(self):
         g = GeoIDFQ.parse(PLACE_GEOIDFQ)
-        assert g.sumlevel == "160"
+        assert g.sumlevel == SumLevel("160")
         assert g.parts == {"state": "39", "place": "18000"}
 
     def test_cbsa_fields(self):
         g = GeoIDFQ.parse(CBSA_GEOIDFQ)
-        assert g.sumlevel == "310"
+        assert g.sumlevel == SumLevel("310")
         assert g.parts == {"cbsa": "18140"}
 
     def test_congressional_district_variant(self):
         g = GeoIDFQ.parse(CD_GEOIDFQ)
-        assert g.sumlevel == "500"
+        assert g.sumlevel == SumLevel("500")
         assert g.variant == "19"        # 119th Congress (19 + 100)
         assert g.parts == {"state": "39", "cd": "12"}
 
     def test_tract_fields(self):
         g = GeoIDFQ.parse(TRACT_GEOIDFQ)
-        assert g.sumlevel == "140"
+        assert g.sumlevel == SumLevel("140")
         assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
 
     def test_block_group_fields(self):
         g = GeoIDFQ.parse(BLKGRP_GEOIDFQ)
-        assert g.sumlevel == "150"
+        assert g.sumlevel == SumLevel("150")
         assert g.parts == {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1"}
 
     def test_block_fields(self):
         g = GeoIDFQ.parse(BLOCK_GEOIDFQ)
-        assert g.sumlevel == "100"
+        assert g.sumlevel == SumLevel("100")
         assert g.parts == {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1", "block": "000"}
 
     def test_unknown_sumlevel_raises(self):
@@ -71,6 +71,7 @@ class TestBuild:
     def test_tract(self):
         g = GeoIDFQ.build("140", {"state": "39", "county": "041", "tract": "010100"})
         assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
+        assert g.sumlevel == "140"
 
     def test_block_group(self):
         g = GeoIDFQ.build("150", {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1"})
