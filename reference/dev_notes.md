@@ -1,5 +1,17 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Add SurveyTable, Vintage, Group classes to api.py (branch refactor/api-class-integration, issue #54)
+
+Added three classes representing the Census API endpoint hierarchy:
+
+- `SurveyTable(name)` — validates against `IMPLEMENTED_ENDPOINTS`; `vintages` cached_property calls `get_all_avail_endpoints()` once.
+- `Vintage(survey, year)` — accepts str or SurveyTable; validates year against `survey.vintages`; `url` property; `groups` cached_property calls `get_table_groups()` once.
+- `Group(vintage, code)` — requires a Vintage instance; uppercases code; validates against `vintage.groups`; `description` reads from already-cached groups dict; `variables` cached_property; `universe` property.
+
+`CensusAPI.__init__` updated: constructs `Group(Vintage(survey_table, year), group)` instead of calling `valid_survey_table`/`valid_vintage`/`valid_group` separately. All three validation steps happen inside the class constructors. `self.VARIABLE_GROUP` holds the Group instance; `self.SURVEY`/`self.YEAR`/`self.GROUP` remain as plain strings for backwards compat. `_fetch_metadata` delegates to `self.VARIABLE_GROUP.description`/`.universe`/`.variables`. `validate()` is now a no-op.
+
+All three classes exported from `morpc_census/__init__.py`. `tests/test_api.py` updated: `TestCensusAPIClassNormalization._make` now mocks `get_all_avail_endpoints`/`get_table_groups` instead of the removed `valid_survey_table`/`valid_vintage`/`valid_group` calls. Three new test classes added: `TestSurveyTable` (7 tests), `TestVintage` (9 tests), `TestGroup` (10 tests). Total: 89 tests passing.
+
 ## 2026-05-07 — Extract domain lookup tables to constants.py (branch refactor/api-class-integration, issue #53)
 
 Created `morpc_census/constants.py` containing the 10 domain lookup tables that were defined at the top of `api.py` but not used within it: `HIGHLEVEL_GROUP_DESC`, `HIGHLEVEL_DESC_FROM_ID`, `AGEGROUP_MAP`, `AGEGROUP_SORT_ORDER`, `RACE_TABLE_MAP`, `EDUCATION_ATTAIN_MAP`, `EDUCATION_ATTAIN_SORT_ORDER`, `INCOME_TO_POVERTY_MAP`, `INCOME_TO_POVERTY_SORT_ORDER`, `NTD_AGEMAP`, `NTD_AGEMAP_ORDER`.

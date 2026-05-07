@@ -12,6 +12,7 @@ import logging
 import os
 import re
 from collections import OrderedDict
+from functools import cached_property
 from io import StringIO
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -213,6 +214,140 @@ def valid_variables(survey_table: str, year: int, group: str, variables: list[st
 
 
 # ---------------------------------------------------------------------------
+# Census API endpoint classes
+# ---------------------------------------------------------------------------
+
+class SurveyTable:
+    """A Census API survey/table endpoint (e.g. ``'acs/acs5'``, ``'dec/pl'``).
+
+    Validates against :data:`IMPLEMENTED_ENDPOINTS` at construction.
+    No network call is made until :attr:`vintages` is accessed.
+    """
+
+    def __init__(self, name: str) -> None:
+        if name not in IMPLEMENTED_ENDPOINTS:
+            raise ValueError(
+                f"{name!r} is not available or not yet implemented. "
+                f"See IMPLEMENTED_ENDPOINTS."
+            )
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"SurveyTable({self.name!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, SurveyTable) and self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    @cached_property
+    def vintages(self) -> list[int]:
+        """Available vintage years for this survey (fetched once, then cached)."""
+        return get_all_avail_endpoints().get(self.name, [])
+
+
+class Vintage:
+    """A Census API survey at a specific vintage year.
+
+    Parameters
+    ----------
+    survey : str or SurveyTable
+        Survey/table endpoint. Strings are normalized to a :class:`SurveyTable`.
+    year : int
+        Vintage year. Validated against the survey's available years at construction.
+    """
+
+    def __init__(self, survey: str | SurveyTable, year: int) -> None:
+        self.survey = survey if isinstance(survey, SurveyTable) else SurveyTable(survey)
+        year = int(year)
+        if year not in self.survey.vintages:
+            raise ValueError(
+                f"{year} is not an available vintage for {self.survey.name!r}. "
+                f"Available: {self.survey.vintages}"
+            )
+        self.year = year
+
+    def __repr__(self) -> str:
+        return f"Vintage({self.survey.name!r}, {self.year})"
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Vintage)
+            and self.survey == other.survey
+            and self.year == other.year
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.survey.name, self.year))
+
+    @property
+    def url(self) -> str:
+        """Base Census API query URL for this vintage."""
+        return f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey.name}?"
+
+    @cached_property
+    def groups(self) -> dict:
+        """All variable groups for this vintage, keyed by group code (fetched once, then cached)."""
+        return get_table_groups(self.survey.name, self.year)
+
+
+class Group:
+    """A variable group within a Census API survey vintage (e.g. ``'B01001'``).
+
+    Parameters
+    ----------
+    vintage : Vintage
+        The survey vintage this group belongs to.
+    code : str
+        Group code (e.g. ``'B01001'``). Case-insensitive; stored upper-cased.
+        Validated against :attr:`Vintage.groups` at construction.
+    """
+
+    def __init__(self, vintage: Vintage, code: str) -> None:
+        if not isinstance(vintage, Vintage):
+            raise TypeError(
+                f"vintage must be a Vintage instance, got {type(vintage).__name__!r}."
+            )
+        self.vintage = vintage
+        code = code.upper()
+        if code not in self.vintage.groups:
+            raise ValueError(
+                f"{code!r} is not a valid group in "
+                f"{self.vintage.survey.name!r} {self.vintage.year}."
+            )
+        self.code = code
+
+    def __repr__(self) -> str:
+        return f"Group({self.vintage.survey.name!r}, {self.vintage.year}, {self.code!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Group)
+            and self.vintage == other.vintage
+            and self.code == other.code
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.vintage.survey.name, self.vintage.year, self.code))
+
+    @property
+    def description(self) -> str:
+        """Group description (read from :attr:`Vintage.groups` — no extra network call)."""
+        return self.vintage.groups[self.code]['description']
+
+    @property
+    def universe(self) -> str:
+        """Universe description string."""
+        return get_group_universe(self.vintage.survey.name, self.vintage.year, self.code)
+
+    @cached_property
+    def variables(self) -> dict:
+        """Variable metadata dict for this group (fetched once, then cached)."""
+        return get_group_variables(self.vintage.survey.name, self.vintage.year, self.code)
+
+
+# ---------------------------------------------------------------------------
 # Request building
 # ---------------------------------------------------------------------------
 
@@ -411,9 +546,9 @@ class CensusAPI:
 
     def __init__(
         self,
-        survey_table: str,
+        survey_table: str | SurveyTable,
         year: int,
-        group: str,
+        group: str | Group,
         scope: str | Scope,
         sumlevel: str | SumLevel | None = None,
         variables: list[str] | None = None,
@@ -421,9 +556,6 @@ class CensusAPI:
     ):
         from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
-        self.SURVEY = survey_table
-        self.YEAR = year
-        self.GROUP = group.upper()
         self.SCOPE = scope if isinstance(scope, _Scope) else _Scope(scope.lower())
         self.SUMLEVEL = (
             None if sumlevel is None
@@ -434,7 +566,22 @@ class CensusAPI:
             [v.upper() for v in variables] if variables is not None else None
         )
 
-        self.NAME = censusapi_name(survey_table, year, self.SCOPE, group, self.SUMLEVEL, variables)
+        # Normalize to a Group instance — validates survey, year, and group code.
+        if isinstance(group, Group):
+            self.VARIABLE_GROUP = group
+        else:
+            self.VARIABLE_GROUP = Group(Vintage(survey_table, int(year)), group.upper())
+
+        self.SURVEY = self.VARIABLE_GROUP.vintage.survey.name
+        self.YEAR = self.VARIABLE_GROUP.vintage.year
+        self.GROUP = self.VARIABLE_GROUP.code
+
+        if self.VARIABLES is not None:
+            invalid = [v for v in self.VARIABLES if v not in self.VARIABLE_GROUP.variables]
+            if invalid:
+                raise ValueError(f"Variables not found in {self.GROUP}: {invalid}")
+
+        self.NAME = censusapi_name(self.SURVEY, self.YEAR, self.SCOPE, self.GROUP, self.SUMLEVEL, variables)
         self.logger = (
             logging.getLogger(__name__)
             .getChild(self.__class__.__name__)
@@ -442,7 +589,6 @@ class CensusAPI:
         )
         self.logger.info(f"Initializing CensusAPI for {self.NAME}.")
 
-        self.validate()
         self._fetch_metadata()
 
         self.logger.info("Building request URL and parameters.")
@@ -482,11 +628,13 @@ class CensusAPI:
 
     def _fetch_metadata(self):
         """Populate CONCEPT, UNIVERSE, and VARS from the Census API."""
-        self.CONCEPT = get_table_groups(self.SURVEY, self.YEAR)[self.GROUP]['description']
+        self.CONCEPT = self.VARIABLE_GROUP.description
 
         try:
-            universe_year = self.YEAR if int(self.YEAR) >= 2023 else 2023
-            self.UNIVERSE = get_group_universe(self.SURVEY, universe_year, self.GROUP)
+            if self.YEAR >= 2023:
+                self.UNIVERSE = self.VARIABLE_GROUP.universe
+            else:
+                self.UNIVERSE = Group(Vintage(self.SURVEY, 2023), self.GROUP).universe
         except Exception as e:
             self.UNIVERSE = (
                 'Not defined in API — see CensusAPI.REQUEST for endpoint details'
@@ -495,18 +643,12 @@ class CensusAPI:
                 f"Universe not defined for {self.SURVEY}/{self.GROUP}: {e}"
             )
 
-        self.VARS = get_group_variables(self.SURVEY, self.YEAR, self.GROUP)
+        self.VARS = dict(self.VARIABLE_GROUP.variables)
         if self.VARIABLES is not None:
             self.VARS = {k: v for k, v in self.VARS.items() if k in self.VARIABLES}
 
     def validate(self) -> None:
-        """Validate all parameters, raising ValueError on the first failure."""
-        self.logger.info("Validating parameters.")
-        valid_survey_table(self.SURVEY)
-        valid_vintage(self.SURVEY, self.YEAR)
-        valid_group(self.GROUP, self.SURVEY, self.YEAR)
-        if self.VARIABLES is not None:
-            valid_variables(self.SURVEY, self.YEAR, self.GROUP, self.VARIABLES)
+        """No-op — validation now happens during Group construction in __init__."""
 
     # ------------------------------------------------------------------
     # Convenience properties

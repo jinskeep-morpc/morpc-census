@@ -2,6 +2,9 @@ __version__ = "0.1.0"
 
 # Census API client and data structuring
 from .api import (
+    SurveyTable,
+    Vintage,
+    Group,
     CensusAPI,
     DimensionTable,
     get_all_avail_endpoints,

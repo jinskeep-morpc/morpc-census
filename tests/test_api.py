@@ -15,6 +15,9 @@ from morpc_census.api import (
     find_replace_variable_map,
     DimensionTable,
     valid_vintage,
+    SurveyTable,
+    Vintage,
+    Group,
     CensusAPI,
     IMPLEMENTED_ENDPOINTS,
 )
@@ -270,10 +273,10 @@ class TestCensusAPIClassNormalization:
     _fake_groups = {'B01001': {'description': 'Sex by Age', 'variables': ''}}
     _fake_data = pd.DataFrame({'GEO_ID': ['0500000US39049'], 'NAME': ['Franklin County']})
 
+    _fake_endpoints = {'acs/acs5': [2022, 2023]}
+
     def _make(self, scope, sumlevel=None):
-        with patch('morpc_census.api.valid_survey_table', return_value=True), \
-             patch('morpc_census.api.valid_vintage', return_value=True), \
-             patch('morpc_census.api.valid_group', return_value=True), \
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
              patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
              patch('morpc_census.api.get_group_universe', return_value='All people'), \
              patch('morpc_census.api.get_group_variables', return_value=self._fake_vars), \
@@ -334,3 +337,167 @@ class TestCensusAPIClassNormalization:
             api.create_resource()
         assert 'franklin' in captured['title']
         assert 'counties' in captured['title']  # SumLevel('county').plural
+
+
+# ---------------------------------------------------------------------------
+# TestSurveyTable
+# ---------------------------------------------------------------------------
+
+class TestSurveyTable:
+    def test_valid_construction(self):
+        st = SurveyTable('acs/acs5')
+        assert st.name == 'acs/acs5'
+
+    def test_invalid_raises_value_error(self):
+        with pytest.raises(ValueError, match="not available or not yet implemented"):
+            SurveyTable('acs/acs99')
+
+    def test_repr(self):
+        assert repr(SurveyTable('acs/acs5')) == "SurveyTable('acs/acs5')"
+
+    def test_equality(self):
+        assert SurveyTable('acs/acs5') == SurveyTable('acs/acs5')
+        assert SurveyTable('acs/acs5') != SurveyTable('dec/pl')
+
+    def test_hashable(self):
+        s = {SurveyTable('acs/acs5'), SurveyTable('acs/acs5')}
+        assert len(s) == 1
+
+    def test_vintages_returns_list(self):
+        fake = {'acs/acs5': [2021, 2022, 2023]}
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=fake):
+            st = SurveyTable('acs/acs5')
+            assert st.vintages == [2021, 2022, 2023]
+
+    def test_vintages_unknown_survey_returns_empty(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={}):
+            st = SurveyTable('acs/acs5')
+            assert st.vintages == []
+
+
+# ---------------------------------------------------------------------------
+# TestVintage
+# ---------------------------------------------------------------------------
+
+class TestVintage:
+    _fake_endpoints = {'acs/acs5': [2022, 2023]}
+    _fake_groups = {'B01001': {'description': 'Sex by Age', 'variables': ''}}
+
+    def _make_vintage(self, survey='acs/acs5', year=2023):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints):
+            return Vintage(survey, year)
+
+    def test_string_survey_normalized_to_survey_table(self):
+        v = self._make_vintage()
+        assert isinstance(v.survey, SurveyTable)
+
+    def test_survey_table_instance_passed_through(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints):
+            st = SurveyTable('acs/acs5')
+            v = Vintage(st, 2023)
+        assert v.survey is st
+
+    def test_year_stored_as_int(self):
+        v = self._make_vintage(year='2023')
+        assert v.year == 2023
+        assert isinstance(v.year, int)
+
+    def test_invalid_year_raises_value_error(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints):
+            with pytest.raises(ValueError, match="not an available vintage"):
+                Vintage('acs/acs5', 2019)
+
+    def test_url_property(self):
+        v = self._make_vintage()
+        assert v.url == 'https://api.census.gov/data/2023/acs/acs5?'
+
+    def test_repr(self):
+        v = self._make_vintage()
+        assert repr(v) == "Vintage('acs/acs5', 2023)"
+
+    def test_equality(self):
+        v1 = self._make_vintage()
+        v2 = self._make_vintage()
+        assert v1 == v2
+
+    def test_hashable(self):
+        v1 = self._make_vintage()
+        v2 = self._make_vintage()
+        assert hash(v1) == hash(v2)
+
+    def test_groups_delegates_to_get_table_groups(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups) as mock_gtg:
+            v = Vintage('acs/acs5', 2023)
+            groups = v.groups
+        assert groups == self._fake_groups
+        mock_gtg.assert_called_once_with('acs/acs5', 2023)
+
+
+# ---------------------------------------------------------------------------
+# TestGroup
+# ---------------------------------------------------------------------------
+
+class TestGroup:
+    _fake_endpoints = {'acs/acs5': [2022, 2023]}
+    _fake_groups = {'B01001': {'description': 'Sex by Age', 'variables': ''}}
+    _fake_vars = {'B01001_001E': {'label': 'Total:'}}
+
+    def _make_group(self, code='B01001'):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups):
+            v = Vintage('acs/acs5', 2023)
+            return Group(v, code)
+
+    def test_code_uppercased(self):
+        g = self._make_group('b01001')
+        assert g.code == 'B01001'
+
+    def test_invalid_code_raises_value_error(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups):
+            v = Vintage('acs/acs5', 2023)
+            with pytest.raises(ValueError, match="not a valid group"):
+                Group(v, 'BOGUS')
+
+    def test_non_vintage_raises_type_error(self):
+        with pytest.raises(TypeError, match="vintage must be a Vintage instance"):
+            Group('not-a-vintage', 'B01001')
+
+    def test_description_from_vintage_groups(self):
+        g = self._make_group()
+        assert g.description == 'Sex by Age'
+
+    def test_repr(self):
+        g = self._make_group()
+        assert repr(g) == "Group('acs/acs5', 2023, 'B01001')"
+
+    def test_equality(self):
+        g1 = self._make_group()
+        g2 = self._make_group()
+        assert g1 == g2
+
+    def test_hashable(self):
+        g1 = self._make_group()
+        g2 = self._make_group()
+        assert hash(g1) == hash(g2)
+
+    def test_variables_delegates_to_get_group_variables(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
+             patch('morpc_census.api.get_group_variables', return_value=self._fake_vars) as mock_ggv:
+            v = Vintage('acs/acs5', 2023)
+            g = Group(v, 'B01001')
+            variables = g.variables
+        assert variables == self._fake_vars
+        mock_ggv.assert_called_once_with('acs/acs5', 2023, 'B01001')
+
+    def test_universe_delegates_to_get_group_universe(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
+             patch('morpc_census.api.get_group_universe', return_value='All people') as mock_ggu:
+            v = Vintage('acs/acs5', 2023)
+            g = Group(v, 'B01001')
+            universe = g.universe
+        assert universe == 'All people'
+        mock_ggu.assert_called_once_with('acs/acs5', 2023, 'B01001')
