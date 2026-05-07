@@ -1,5 +1,19 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Refactor tigerweb module; add SumLevel.parts (branch refactor/tigerweb-class-integration, issue #47)
+
+Added `SumLevel.parts` property (list of geo component field names, e.g. `['state', 'county']`). Implemented using `_geoidfq_geo_fields` so the geo schema lives in one place.
+
+`tigerweb.py` fully refactored:
+- `outfields_from_scale` removed — callers now build outfields inline with `SumLevel.parts`
+- `get_layer_url` accepts `str | SumLevel`; if given a SumLevel it reads `tigerweb_name` directly
+- `where_from_scope` accepts `str | Scope`; delegates to `Scope.sql`
+- `resource_from_scope_scale` and `resource_from_geometry_scale` accept `str | Scope` and `str | SumLevel`; all `SUMLEVEL_DESCRIPTIONS`, `SUMLEVEL_FROM_CENSUSQUERY`, and `HIERARCHY_STRING_FROM_CENSUSNAME` lookups replaced with `SumLevel` properties (`tigerweb_name`, `hierarchy_string`, `parts`)
+- Type hints and docstrings added throughout; `from __future__ import annotations` added
+- Congressional-district regex in `get_tigerweb_layers_map` generalised (was hard-coded to "11Xth")
+
+`outfields_from_scale` removed from `__init__.py` exports.
+
 ## 2026-05-07 — Rename *_sumlevel_scope → *_scope_sumlevel; add Scope/SumLevel types to fetch (branch refactor/geos-class-integration)
 
 Renamed `pseudos_from_sumlevel_scope` → `pseudos_from_scope_sumlevel` and `fetch_geos_from_sumlevel_scope` → `fetch_geos_from_scope_sumlevel` throughout geos.py, __init__.py, and the demo notebook. Consistent with the `geoinfo_from_scope_sumlevel` naming convention (scope first, then sumlevel).
