@@ -173,25 +173,6 @@ def get_layer_url(
     return url
 
 
-def where_from_scope(scope: str | Scope) -> str:
-    """Return a SQL WHERE clause that filters to the geographies in a scope.
-
-    Parameters
-    ----------
-    scope : str | Scope
-        A scope name (e.g. ``'franklin'``) or a ``Scope`` instance.
-
-    Returns
-    -------
-    str
-        SQL WHERE clause (e.g. ``"COUNTY in ('049') and STATE in ('39')"``,
-        or ``'1=1'`` for the US scope).
-    """
-    from morpc_census.geos import Scope
-    sc = scope if isinstance(scope, Scope) else Scope(scope)
-    return sc.sql
-
-
 def resource_from_scope_scale(
     scope: str | Scope,
     scale: str | SumLevel,

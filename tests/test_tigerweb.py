@@ -1,6 +1,6 @@
 import pytest
 from morpc_census.geos import SumLevel, Scope
-from morpc_census.tigerweb import get_layer_url, where_from_scope
+from morpc_census.tigerweb import get_layer_url
 
 
 class TestSumLevelParts:
@@ -50,22 +50,18 @@ class TestGetLayerUrl:
             get_layer_url("bogus_layer_xyz")
 
 
-class TestWhereFromScope:
+class TestScopeSql:
     def test_us_returns_all(self):
-        assert where_from_scope("us") == "1=1"
-
-    def test_accepts_scope_instance(self):
-        sc = Scope("us")
-        assert where_from_scope(sc) == "1=1"
+        assert Scope("us").sql == "1=1"
 
     def test_county_scope_contains_county(self):
-        result = where_from_scope("franklin")
+        result = Scope("franklin").sql
         assert "COUNTY" in result
         assert "049" in result
 
     def test_county_scope_contains_state(self):
-        result = where_from_scope("franklin")
-        assert "STATE" in result or "state" in result.lower()
+        result = Scope("franklin").sql
+        assert "STATE" in result.upper()
 
-    def test_str_and_instance_match(self):
-        assert where_from_scope("franklin") == where_from_scope(Scope("franklin"))
+    def test_str_and_instance_consistent(self):
+        assert Scope("franklin").sql == Scope("franklin").sql

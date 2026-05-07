@@ -50,7 +50,6 @@ from .geos import (
 from .tigerweb import (
     get_tigerweb_layers_map,
     get_layer_url,
-    where_from_scope,
     resource_from_scope_scale,
     resource_from_geometry_scale,
 )
