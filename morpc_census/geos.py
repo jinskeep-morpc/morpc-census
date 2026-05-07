@@ -122,6 +122,11 @@ class SumLevel:
         logger.debug(f"{self.name} requires {query_requirements}")
         return query_requirements
 
+    @property
+    def parts(self) -> list[str]:
+        """Geo component field names for GEOIDFQs of this sumlevel (e.g. ``['state', 'county']``)."""
+        return [name for name, _ in _geoidfq_geo_fields(self.sumlevel)]
+
 
 def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     """Return the geo-specific (name, width) pairs for a sumlevel's geoidfq_format."""

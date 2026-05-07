@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import logging
 from os import PathLike
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from morpc_census.geos import Scope, SumLevel
 
 logger = logging.getLogger(__name__)
 
-current_endpoints = {
+current_endpoints: dict[str, int] = {
     'public use microdata areas': 0,
     'zip code tabulation areas': 2,
     'tribal tracts': 4,
@@ -43,204 +48,235 @@ current_endpoints = {
     'combined statistical areas': 97,
     'metropolitan divisions': 95,
     'metropolitan statistical areas': 93,
-    'micropolitan statistical areas': 91
-    }
+    'micropolitan statistical areas': 91,
+}
 
-def get_tigerweb_layers_map(year: int = 2023, survey:Literal['ACS','DEC']='ACS'):
-    """
-    Parameters: s
-    -----------
+
+def get_tigerweb_layers_map(
+    year: int = 2023,
+    survey: Literal['ACS', 'DEC'] = 'ACS',
+) -> dict[str, int]:
+    """Return a mapping of layer names to MapServer IDs for a TIGERweb service.
+
+    Parameters
+    ----------
     year : int
-        The year of the TIGERweb layer (e.g., 2024).
-    survey : str, optional
-        The survey type, either 'ACS' (American Community Survey) or 'DEC' for Decennial Census
-        or 'Current' for the most current geometries.
-        Default is 'ACS'.
+        Vintage year of the TIGERweb service (e.g. ``2024``).
+    survey : {'ACS', 'DEC'}
+        Survey type. ``'ACS'`` requires 2012 or later; ``'DEC'`` accepts 2010 or 2020.
 
-    Returns:
-    --------
-    dict : dict
-        A dictionary mapping layer names to their corresponding IDs.
+    Returns
+    -------
+    dict[str, int]
+        Layer names (lower-cased, year/prefix stripped) mapped to their MapServer layer IDs.
 
-    Example:
+    Examples
     --------
-    >>>   layers = get_tigerweb_layers_map(2024, survey='ACS')
-    >>>   print(layers)
+    >>> layers = get_tigerweb_layers_map(2024, survey='ACS')
+    >>> layers['tracts']
+    8
     """
     import pandas as pd
     import requests
     import re
 
-
-
     if survey not in ['ACS', 'DEC']:
-        logger.error(f"Invalid survey type {survey}. Must be 'ACS' or 'DEC'.")
-        raise ValueError("Invalid survey type. Must be 'ACS' or 'DEC'.")
-    if survey == 'DEC' and year not in ['2010', '2020']:
-        logger.error(f"Invalid year {year} for Decennial Census. Must be 2010 or 2020.")
-        raise ValueError("Invalid year for Decennial Census. Must be 2010 or 2020.")
+        raise ValueError(f"Invalid survey type {survey!r}. Must be 'ACS' or 'DEC'.")
+    if survey == 'DEC' and year not in [2010, 2020]:
+        raise ValueError(f"Invalid year {year} for Decennial Census. Must be 2010 or 2020.")
     if survey == 'ACS' and pd.to_numeric(year) < 2012:
-        logger.error(f"Invalid year {year} for ACS. Must be 2012 or later.")
-        raise ValueError("Invalid year for ACS. Must be 2012 or later.")
-    if survey == 'DEC':
-        survey = 'Census'
-    if survey == 'Current':
-        year == ""
+        raise ValueError(f"Invalid year {year} for ACS. Must be 2012 or later.")
 
-    baseurl = f"https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/"
-    mapserver_path = f"tigerWMS_{survey}{year}/MapServer/"
-    mapserver_url = baseurl + mapserver_path
+    survey_slug = 'Census' if survey == 'DEC' else survey
+    mapserver_url = f"https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_{survey_slug}{year}/MapServer/"
 
-    # Retrieve the layers from the map service
     logger.info(f"Fetching metadata from {mapserver_url}?f=pjson")
     r = requests.get(f"{mapserver_url}?f=pjson")
-    
-    #   Check if the request was successful
     if r.status_code != 200:
-        logger.error(f"Error fetching data from {mapserver_url}: {r.status_code}")
-        raise RuntimeError(f"Failed to fetch data from {mapserver_url}")
-    else:
-        logger.info(f"successful fetch using {r.url}")
-    
-    # Parse the JSON response
+        raise RuntimeError(f"Failed to fetch data from {mapserver_url}: {r.status_code}")
+    logger.info(f"Successful fetch from {r.url}")
+
     try:
         layers_json = r.json()
-    except:
-        logger.error(f"Failed to decode json: CONTENTS OF REQUESTS {r.content}")
+    except Exception:
         r.close()
         raise RuntimeError(f"Failed to parse JSON from {mapserver_url}")
-    r.close()    
+    r.close()
 
-    # Convert the layers to a DataFrame for easier manipulation
-    layers = pd.DataFrame(layers_json['layers'])
-    layers = layers[['id', 'name']]
-    layers = layers.loc[layers['name'].str.contains('Labels') == False]  # Exclude label layers
-    
-    # Convert the DataFrame to a dictionary mapping layer names to IDs
-    layers = layers.set_index('name')['id'].to_dict()
-    
-    layers = {k.lower(): v for k, v in layers.items()}  # Normalize layer names to lowercase
-    # remove census from keys in layers
-    layers = {k.replace('census ', ''): v for k, v in layers.items()}
-    # remove years from keys in layers
-    layers = {re.sub(r"^(19|20)[0-9]{2} ", '', k): v for k, v in layers.items()}
-    # remove the 11Xth from congressional districts
-    layers = {re.sub(r"^(11)[0-9]{1}th ", '', k): v for k, v in layers.items()}
+    layers = pd.DataFrame(layers_json['layers'])[['id', 'name']]
+    layers = layers.loc[~layers['name'].str.contains('Labels')]
+    layer_map: dict[str, int] = layers.set_index('name')['id'].to_dict()
 
-    return layers
-    
-def get_layer_url(layer_name, year:int|None=None, survey:Literal['current', 'ACS', 'DEC']='current'):
-    """Construct the MapServer URL for a specific TIGERweb layer.
+    layer_map = {k.lower(): v for k, v in layer_map.items()}
+    layer_map = {k.replace('census ', ''): v for k, v in layer_map.items()}
+    layer_map = {re.sub(r'^(19|20)\d{2} ', '', k): v for k, v in layer_map.items()}
+    layer_map = {re.sub(r'^\d{3}(st|nd|rd|th) ', '', k): v for k, v in layer_map.items()}
+
+    return layer_map
+
+
+def get_layer_url(
+    layer_name: str | SumLevel,
+    year: int | None = None,
+    survey: Literal['current', 'ACS', 'DEC'] = 'current',
+) -> str:
+    """Return the MapServer endpoint URL for a TIGERweb layer.
 
     Parameters
     ----------
-    layer_name : str
-        Layer name, e.g. ``'tracts'``, ``'counties'``.
+    layer_name : str | SumLevel
+        Layer name (e.g. ``'tracts'``) or a ``SumLevel`` instance whose
+        ``tigerweb_name`` is used automatically.
     year : int, optional
-        Vintage year (e.g. ``2024``).  Required for ``'ACS'`` and ``'DEC'``.
+        Vintage year. Required for ``'ACS'`` and ``'DEC'`` surveys.
     survey : {'current', 'ACS', 'DEC'}
-        Survey type.  Defaults to ``'current'`` (most recent geometries).
+        Survey type. Defaults to ``'current'`` (most recent geometries).
 
     Returns
     -------
     str
-        MapServer endpoint URL for the layer.
+        MapServer endpoint URL for the requested layer.
 
-    Example
-    -------
-    >>> url = get_layer_url('tracts', year=2024, survey='ACS')
-    >>> print(url)
-    https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_ACS2024/MapServer/8
+    Examples
+    --------
+    >>> get_layer_url('tracts', year=2024, survey='ACS')
+    'https://tigerweb.geo.census.gov/.../MapServer/8'
     """
     import pandas as pd
+    from morpc_census.geos import SumLevel
 
-    logger.info(f"Validating Survey {survey} and Year {year}")
+    if isinstance(layer_name, SumLevel):
+        layer_name = layer_name.tigerweb_name
+
     if survey not in ['ACS', 'DEC', 'current']:
-        raise ValueError("Invalid survey type. Must be 'current', 'ACS' or 'DEC'.")
-    if survey == 'DEC' and year not in ['2010', '2020']:
-        raise ValueError("Invalid year for Decennial Census. Must be 2010 or 2020.")
+        raise ValueError(f"Invalid survey type {survey!r}. Must be 'current', 'ACS', or 'DEC'.")
+    if survey == 'DEC' and year not in [2010, 2020]:
+        raise ValueError(f"Invalid year {year} for Decennial Census. Must be 2010 or 2020.")
     if survey == 'ACS' and pd.to_numeric(year) < 2012:
-        raise ValueError("Invalid year for ACS. Must be 2012 or later.")
-    if survey == 'DEC':
-        survey = 'Census'
+        raise ValueError(f"Invalid year {year} for ACS. Must be 2012 or later.")
 
     layer_name = layer_name.lower()
-
     baseurl = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/"
-    if survey != 'current':
+
+    if survey == 'current':
+        if layer_name not in current_endpoints:
+            raise ValueError(f"Layer {layer_name!r} not found in current endpoints. Available: {list(current_endpoints)}")
+        url = f"{baseurl}tigerWMS_Current/MapServer/{current_endpoints[layer_name]}"
+    else:
+        survey_slug = 'Census' if survey == 'DEC' else survey
         layers = get_tigerweb_layers_map(year, survey)
         if layer_name not in layers:
-            logger.error(f"Layer '{layer_name}' not found for year {year} and survey '{survey}'. Available layers: {list(layers.keys())}")
-            raise ValueError(f"Layer '{layer_name}' not found for year {year} and survey '{survey}'. Available layers: {list(layers.keys())}")
-        mapserver_url = f"{baseurl}tigerWMS_{survey}{year}/MapServer/{layers[layer_name]}"
-    else:
-        mapserver_url = f"{baseurl}tigerWMS_Current/MapServer/{current_endpoints[layer_name]}"
+            raise ValueError(f"Layer {layer_name!r} not found for {survey} {year}. Available: {list(layers)}")
+        url = f"{baseurl}tigerWMS_{survey_slug}{year}/MapServer/{layers[layer_name]}"
 
-    logger.info(f"url: {mapserver_url}")
-    return mapserver_url
-
-def outfields_from_scale(scale):
-    import re
-    from morpc import SUMLEVEL_DESCRIPTIONS, SUMLEVEL_FROM_CENSUSQUERY
-
-    sumlevel = SUMLEVEL_FROM_CENSUSQUERY[scale]
-    template = SUMLEVEL_DESCRIPTIONS[sumlevel]['geoidfq_format']
-
-    fields = [[y[0].lower(), y[1]] for y in [x.split(':') for x in re.findall(r'\{(.+?)\}', template)] if y[0] not in ['SUMLEVEL', 'VARIANT', 'GEOCOMP']]
-
-    return ",".join(['GEOID','NAME'] + [x[0].upper() for x in fields])
-
-def where_from_scope(scope):
-    from morpc_census.geos import SCOPES
-    if scope == 'us':
-        where = '1=1'
-    else:
-        scope_params = SCOPES[scope] 
-        wheres = []
-        for param in scope_params:
-            geo, ids = scope_params[param].split(':')
-            wheres.append(f"{geo.upper()} in ({",".join([f"'{str(x)}'" for x in ids.split(',')])})")
-        where = " and ".join(wheres)
-    return where
+    logger.info(f"Layer URL: {url}")
+    return url
 
 
-def resource_from_scope_scale(scope, scale, archive:PathLike|None=None, max_record_count=20):
+def resource_from_scope_sumlevel(
+    scope: str | Scope,
+    sumlevel: str | SumLevel,
+    archive: PathLike | None = None,
+    max_record_count: int = 20,
+):
+    """Build a morpc REST API resource for all geographies at *sumlevel* within *scope*.
+
+    Parameters
+    ----------
+    scope : str | Scope
+        Geographic scope (e.g. ``'franklin'`` or a ``Scope`` instance).
+    sumlevel : str | SumLevel
+        Summary level name or ``SumLevel`` instance (e.g. ``'tract'``).
+    archive : path-like, optional
+        If provided, the resource is serialised to YAML at this path.
+    max_record_count : int
+        Maximum records per API page. Defaults to 20.
+
+    Returns
+    -------
+    morpc.rest_api.resource
+        Configured resource ready for fetching.
+    """
     from morpc.rest_api import resource
-    from morpc import SUMLEVEL_DESCRIPTIONS, SUMLEVEL_FROM_CENSUSQUERY, HIERARCHY_STRING_FROM_CENSUSNAME
+    from morpc_census.geos import Scope, SumLevel
 
-    sumlevel = SUMLEVEL_FROM_CENSUSQUERY[scale]
-    url = get_layer_url(SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername'])
+    sc = scope if isinstance(scope, Scope) else Scope(scope)
+    sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
 
-    where = where_from_scope(scope)
-    outfields = outfields_from_scale(scale)
+    url = get_layer_url(sl.tigerweb_name)
+    where = sc.sql
+    outfields = ",".join(['GEOID', 'NAME'] + [f.upper() for f in sl.parts])
 
-    tigerweb_resource = resource(name=f"censustigerweb-{scope}-{HIERARCHY_STRING_FROM_CENSUSNAME[scale].lower()}", url=url, where=where, outfields=outfields, max_record_count=max_record_count)
+    tigerweb_resource = resource(
+        name=f"censustigerweb-{sc.name}-{sl.hierarchy_string.lower()}",
+        url=url,
+        where=where,
+        outfields=outfields,
+        max_record_count=max_record_count,
+    )
 
-    if archive != None:
+    if archive is not None:
         tigerweb_resource.to_yaml(archive)
 
     return tigerweb_resource
 
-def resource_from_geometry_scale(geo, scopename, scale, archive:PathLike|None=None, max_record_count=20):
-    from morpc.rest_api import resource
-    from morpc import SUMLEVEL_DESCRIPTIONS, SUMLEVEL_FROM_CENSUSQUERY, HIERARCHY_STRING_FROM_CENSUSNAME
 
-    sumlevel = SUMLEVEL_FROM_CENSUSQUERY[scale]
-    url = get_layer_url(SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername'])
-
-    outfields = outfields_from_scale(scale)
-
-    params = {
-        'geometry': ",".join([str(x) for x in geo.total_bounds]),
-        'geometryType': 'esriGeometryEnvelope',
-        'inSR': geo.crs.to_epsg(),
-        'spatialRel': 'esriSpatialRelContains',
-        'returnGeometry': 'true',
-        'f': 'geojson'
-    }
-    tigerweb_resource = resource(name=f"censustigerweb-{scopename}-{HIERARCHY_STRING_FROM_CENSUSNAME[scale].lower()}", url=url, outfields=outfields, max_record_count=max_record_count, **params)
-
-    if archive != None:
-        tigerweb_resource.to_yaml(archive)
-
-    return tigerweb_resource
+# TODO: resource_from_geometry_sumlevel is blocked on gdf_from_resource support for
+# spatial (geometry envelope) queries. morpc.rest_api.gdf_from_resource paginates using
+# totalRecordCount which does not accept spatial params, so fetching from this resource
+# silently returns wrong results. Re-enable and debug once gdf_from_resource is updated
+# to handle geometry-based queries.
+#
+# def resource_from_geometry_sumlevel(
+#     geo,
+#     scopename: str,
+#     sumlevel: str | SumLevel,
+#     archive: PathLike | None = None,
+#     max_record_count: int = 20,
+# ):
+#     """Build a frictionless Resource for all geographies at *sumlevel* intersecting *geo*.
+#
+#     geo : GeoDataFrame | GeoSeries -- bounding box used as spatial filter
+#     scopename : str -- label for the resource name (e.g. 'franklin')
+#     sumlevel : str | SumLevel -- e.g. 'tract'
+#     """
+#     import frictionless, re
+#     from morpc.rest_api import totalRecordCount, schema as rest_schema, maxRecordCount
+#     from morpc_census.geos import SumLevel
+#     sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
+#     url = get_layer_url(sl.tigerweb_name)
+#     outfields = ",".join(['GEOID', 'NAME'] + [f.upper() for f in sl.parts])
+#     query = {
+#         'geometry': ",".join(str(x) for x in geo.total_bounds),
+#         'geometryType': 'esriGeometryEnvelope',
+#         'inSR': str(geo.crs.to_epsg()),
+#         'spatialRel': 'esriSpatialRelContains',
+#         'outFields': outfields,
+#         'returnGeometry': 'true',
+#         'f': 'geojson',
+#     }
+#     try:
+#         total_records = totalRecordCount(url, where='1=1', outfields=outfields)
+#     except Exception:
+#         total_records = max_record_count
+#     try:
+#         srv_max = maxRecordCount(url)
+#     except (ValueError, KeyError):
+#         srv_max = max_record_count
+#     resource_dict = {
+#         "name": re.sub('[:/_ ]', '-', f"censustigerweb-{scopename}-{sl.hierarchy_string.lower()}").lower(),
+#         "format": "json",
+#         "path": url,
+#         "schema": rest_schema(url, outfields=outfields),
+#         "mediatype": "application/geo+json",
+#         "_metadata": {
+#             "type": "arcgis_service",
+#             "params": query,
+#             "total_records": total_records,
+#             "max_record_count": min(max_record_count, srv_max),
+#         },
+#     }
+#     tigerweb_resource = frictionless.Resource(resource_dict)
+#     if archive is not None:
+#         tigerweb_resource.to_yaml(archive)
+#     return tigerweb_resource
