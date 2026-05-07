@@ -1,5 +1,18 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Fix GeoIDFQ with SumLevel sumlevel type (main, 460075e)
+
+Fixed three bugs introduced when GeoIDFQ.sumlevel was changed to str | SumLevel:
+- __str__ crashed with TypeError when sumlevel is a SumLevel (added .sumlevel code extraction)
+- build() lost its variant="00" default (now resolves None → current_variant or "00")
+- SumLevel.__post_init__ crashed on desc["current_variant"] for sumlevels that don't have it yet (changed to .get())
+
+Updated test suite:
+- test_geoidfq_class: sumlevel assertions now compare to SumLevel instances
+- test_geos_classes: removed two equality tests (lookup vs explicit differ in metadata); updated tract singular/plural to match morpc-py values
+- test_smoke: lazy-load check now uses subprocess to avoid test-ordering interference
+
+
 ## 2026-05-06 — Defer morpc imports so network is only needed when a function runs (closes #43)
 
 `import morpc_census` was hanging whenever the Census API was slow or unresponsive because `morpc/__init__.py` unconditionally imports `morpc.census`, which makes a live HTTP request at module level with no timeout.
