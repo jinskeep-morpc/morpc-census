@@ -1,5 +1,43 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Rename *_sumlevel_scope → *_scope_sumlevel; add Scope/SumLevel types to fetch (branch refactor/geos-class-integration)
+
+Renamed `pseudos_from_sumlevel_scope` → `pseudos_from_scope_sumlevel` and `fetch_geos_from_sumlevel_scope` → `fetch_geos_from_scope_sumlevel` throughout geos.py, __init__.py, and the demo notebook. Consistent with the `geoinfo_from_scope_sumlevel` naming convention (scope first, then sumlevel).
+
+`fetch_geos_from_scope_sumlevel` now accepts `str | Scope` and `str | SumLevel | None`, normalising to `Scope`/`SumLevel` objects before delegating to `geoinfo_from_scope_sumlevel`.
+
+## 2026-05-07 — Refactor fetch_geos_from_geoids; GeoIDFQ.__repr__ shows components (branch refactor/geos-class-integration)
+
+Extracted `_fetch_layer(sumlevel: SumLevel, geoids, year, survey, chunk_size)` private helper that handles one sumlevel group, including internal chunking. Uses `sl.tigerweb_name` directly instead of re-accessing `morpc.SUMLEVEL_DESCRIPTIONS`.
+
+`fetch_geos_from_geoids` signature changed from `list[str]` to `list[GeoIDFQ]`. Groups by `SumLevel` key (not raw string) before calling `_fetch_layer`. Eliminates duplicated if/else chunking logic and the pattern of chunking by position before grouping by sumlevel.
+
+`fetch_geos_from_sumlevel_scope` updated to parse GEOIDFQ strings into `GeoIDFQ` objects once, then uses `.geoid` for the short ID (replaces `x.split('US')[-1]`).
+
+`GeoIDFQ.__repr__` changed to show parsed components (e.g. `GeoIDFQ(sumlevel='140', variant='00', geocomp='00', state='39', county='041', tract='010100')`) instead of the raw concatenated string. `__str__` unchanged — still returns the full GEOIDFQ string.
+
+## 2026-05-07 — Reorder geos functions; integrate Scope/SumLevel/GeoIDFQ (branch refactor/geos-class-integration)
+
+Reordered functions in logical dependency order:
+geoinfo_from_params → geoids_from_scope → get_query_req → pseudos_from_sumlevel_scope → geoinfo_for_hierarchical_geos → geoinfo_from_scope_sumlevel
+
+Class integration:
+- geoids_from_scope: now accepts str | Scope
+- pseudos_from_sumlevel_scope: accepts str | SumLevel and str | Scope; uses GeoIDFQ.parse for parent sumlevel
+- geoinfo_for_hierarchical_geos: accepts str | Scope and str | SumLevel; calls sl.get_query_req() and sc.params directly
+- geoinfo_from_scope_sumlevel: accepts str | Scope and str | SumLevel | None; derives scope_sl via GeoIDFQ.parse; compares SumLevel instances
+- columns_to_geoidfq: fixed for new GeoIDFQ.build(**kwargs) API; handles SumLevel objects in sumlevel column
+
+
+## 2026-05-07 — GeoIDFQ parts as kwargs; SumLevel.get_query_req (branch refactor/geos-class-integration, #45)
+
+Two refactors on branch refactor/geos-class-integration:
+1. GeoIDFQ converted from @dataclass to regular class — geo components (state, county, tract, etc.)
+   are now kwargs stored as direct attributes instead of a parts dict. Access as g.state, g.county, etc.
+   GeoIDFQ.build() signature changed: parts dict replaced with **kwargs. parts property kept for compat.
+2. SumLevel.get_query_req(year) added as a method. Module-level get_query_req() now delegates to it.
+
+
 ## 2026-05-07 — Fix GeoIDFQ with SumLevel sumlevel type (main, 460075e)
 
 Fixed three bugs introduced when GeoIDFQ.sumlevel was changed to str | SumLevel:

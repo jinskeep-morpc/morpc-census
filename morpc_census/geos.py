@@ -103,7 +103,25 @@ class SumLevel:
     
     def __repr__(self):
         return f"{self.sumlevel!r}"
-        
+
+    def get_query_req(self, year: str = '2023') -> dict:
+        """Fetch Census API requirements for this sumlevel (required 'in' parameters and wildcards)."""
+        from morpc import SUMLEVEL_FROM_CENSUSQUERY
+        from morpc.req import get_json_safely
+
+        sumlevel_code = SUMLEVEL_FROM_CENSUSQUERY[self.name]
+        url = f"https://api.census.gov/data/{year}/geoinfo/geography.json"
+        json = get_json_safely(url)
+
+        query_requirements: dict = {}
+        for item in json['fips']:
+            if item['geoLevelDisplay'] in sumlevel_code:
+                query_requirements['requires'] = item.get('requires')
+                query_requirements['wildcard'] = item.get('wildcard')
+
+        logger.debug(f"{self.name} requires {query_requirements}")
+        return query_requirements
+
 
 def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     """Return the geo-specific (name, width) pairs for a sumlevel's geoidfq_format."""
@@ -118,11 +136,12 @@ def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     ]
 
 
-@dataclass
 class GeoIDFQ:
     """A parsed Census fully-qualified geographic identifier (GEOIDFQ).
 
     Structure: {SUMLEVEL:3}{VARIANT:2}{GEOCOMP:2}US{geo-specific fields...}
+
+    Geo components (state, county, tract, etc.) are accessible as direct attributes.
 
     Variant codes (Census geo-variant system):
       "00"        standard/default — most geography types
@@ -134,10 +153,23 @@ class GeoIDFQ:
       "Px"        public use microdata areas (PUMAs)
       "Zx"        ZIP Code tabulation areas
     """
-    sumlevel: str | SumLevel
-    variant: str
-    geocomp: str
-    parts: dict[str, str]
+
+    def __init__(self, sumlevel: "str | SumLevel", variant: str, geocomp: str, **kwargs: str) -> None:
+        self.sumlevel = sumlevel
+        self.variant = variant
+        self.geocomp = geocomp
+        self._geo_fields: list[str] = list(kwargs)
+        for name, value in kwargs.items():
+            setattr(self, name, value)
+
+    def __repr__(self) -> str:
+        sl_code = self.sumlevel.sumlevel if isinstance(self.sumlevel, SumLevel) else self.sumlevel
+        fields = {"sumlevel": sl_code, "variant": self.variant, "geocomp": self.geocomp}
+        fields.update({f: getattr(self, f) for f in self._geo_fields})
+        return "GeoIDFQ(" + ", ".join(f"{k}={v!r}" for k, v in fields.items()) + ")"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, GeoIDFQ) and str(self) == str(other)
 
     @classmethod
     def parse(cls, geoidfq: str) -> "GeoIDFQ":
@@ -145,39 +177,44 @@ class GeoIDFQ:
         sumlevel = SumLevel(geoidfq[0:3])
         variant = geoidfq[3:5]
         geocomp = geoidfq[5:7]
-        parts = {}
+        parts: dict[str, str] = {}
         pos = 9  # skip SUMLEVEL(3) + VARIANT(2) + GEOCOMP(2) + "US"(2)
         for name, width in _geoidfq_geo_fields(sumlevel.sumlevel):
             parts[name] = geoidfq[pos:pos + width]
             pos += width
-        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
+        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, **parts)
 
     @classmethod
-    def build(cls, sumlevel: str | SumLevel, parts: dict[str, str], variant: str | None = None, geocomp: str = "00") -> "GeoIDFQ":
+    def build(cls, sumlevel: "str | SumLevel", variant: "str | None" = None, geocomp: str = "00", **kwargs: str) -> "GeoIDFQ":
         """Construct a GeoIDFQ from components.
 
         Raises ValueError if the sumlevel has no geoidfq_format (MORPC sumlevels)
-        or if parts keys do not match the expected geo fields.
+        or if geo field kwargs do not match the expected fields for the sumlevel.
         """
         sl_code = sumlevel.sumlevel if isinstance(sumlevel, SumLevel) else sumlevel
         if variant is None:
             variant = sumlevel.current_variant if isinstance(sumlevel, SumLevel) and sumlevel.current_variant else "00"
         expected = [name for name, _ in _geoidfq_geo_fields(sl_code)]
-        if list(parts.keys()) != expected:
+        if list(kwargs.keys()) != expected:
             raise ValueError(
-                f"parts keys {list(parts.keys())} do not match expected {expected} "
+                f"geo field keys {list(kwargs.keys())} do not match expected {expected} "
                 f"for sumlevel {sumlevel!r}"
             )
-        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
+        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, **kwargs)
 
     def __str__(self) -> str:
         sl_code = self.sumlevel.sumlevel if isinstance(self.sumlevel, SumLevel) else self.sumlevel
-        return sl_code + self.variant + self.geocomp + "US" + "".join(self.parts.values())
+        return sl_code + self.variant + self.geocomp + "US" + "".join(getattr(self, f) for f in self._geo_fields)
 
     @property
     def geoid(self) -> str:
         """Short-form ID after 'US' — used in REST API and Census API queries."""
-        return "".join(self.parts.values())
+        return "".join(getattr(self, f) for f in self._geo_fields)
+
+    @property
+    def parts(self) -> "dict[str, str]":
+        """Dict of geo components (state, county, tract, etc.)."""
+        return {f: getattr(self, f) for f in self._geo_fields}
 
 
 # TODO (jinskeep_morpc): Develop function for fetching census geographies leveraging scopes
@@ -356,132 +393,133 @@ PSEUDOS = {'010': [
  }
 
 
-def get_query_req(sumlevel: str, year: str = '2023') -> dict:
-    """Fetch Census API requirements for the given sumlevel (required 'in' parameters and wildcards)."""
-    from morpc import SUMLEVEL_FROM_CENSUSQUERY
+def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
+    """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
+    import morpc.req
+    import pandas as pd
+    url = f"https://api.census.gov/data/{year}/geoinfo"
+    params = {'get': 'GEO_ID,NAME'}
+    logger.debug(f"Updating params from {param_dict}")
+
+    if 'ucgid' in param_dict:
+        if 'pseudo' in param_dict['ucgid']:
+            params.update({'ucgid': param_dict['ucgid']})
+        else:
+            logger.error(f"ucgid without pseudo. {params}")
+            raise NotImplementedError
+    elif 'for' in param_dict:
+        params.update({'for': param_dict['for']})
+        if 'in' in param_dict:
+            params.update({'in': param_dict['in']})
+
+    logger.info(f"Getting GEOIDS from {url} and params: {params}.")
+    json = morpc.req.get_json_safely(url, params=params)
+
+    if output == 'list':
+        return [row[0] for row in json[1:]]
+    if output == 'table':
+        return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
+    if output == 'json':
+        return json
+
+
+def geoids_from_scope(scope: str | Scope, output: Literal['list','table','json'] = 'list') -> list | DataFrame:
+    """Return GEOIDFQs for all geographies in scope from the Census geoinfo API."""
     from morpc.req import get_json_safely
-
-    logger.debug(f"Getting required 'in' parameters for {sumlevel}")
-
-    sumlevel_code = SUMLEVEL_FROM_CENSUSQUERY[sumlevel]
-
-    url = f"https://api.census.gov/data/{year}/geoinfo/geography.json"
-    json = get_json_safely(url)
-
-    query_requirements = {}
-    for item in json['fips']:
-        if item['geoLevelDisplay'] in sumlevel_code:
-            if 'requires' in item.keys():
-                query_requirements['requires'] = item['requires']
-            else:
-                query_requirements['requires'] = None
-            if 'wildcard' in item.keys():
-                query_requirements['wildcard'] = item['wildcard']
-            else:
-                query_requirements['wildcard'] = None
-
-    logger.info(f"{sumlevel} requires {query_requirements}")
-    return query_requirements
-
-def geoinfo_for_hierarchical_geos(scope: str, sumlevel: str) -> DataFrame:
-    """Build a geoinfo table for sumlevel/scope combinations that cannot be expressed as ucgid pseudos."""
-    from morpc_census.geos import geoinfo_from_params, geoids_from_scope, get_query_req, SCOPES
     import pandas as pd
 
-    # Get the query requirements
-    query_req = get_query_req(sumlevel)
+    sc = scope if isinstance(scope, Scope) else SCOPES[scope]
+    logger.debug(f"Fetching geoids from scope {sc.name!r}.")
+    baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
+    json = get_json_safely(baseurl, params=sc.params)
+    if output == 'list':
+        return [row[0] for row in json[1:]]
+    if output == 'table':
+        return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
+    if output == 'json':
+        return json
 
-    # Get all the geos in the scope
-    scope_params = list(SCOPES[scope].params.values())
-    in_scope = [x.split(":")[0] for x in scope_params if x.split(":")[0] in query_req['requires']]
 
-    # Get the difference
-    not_in_scope = [x for x in query_req['requires'] if x not in in_scope]
+def get_query_req(sumlevel: str, year: str = '2023') -> dict:
+    """Fetch Census API requirements for the given sumlevel. Delegates to SumLevel.get_query_req."""
+    return SumLevel(sumlevel).get_query_req(year)
 
-    # Create a table of the geoids for what is already in the scope
-    parent_table = geoids_from_scope(scope, output='table').drop(columns='GEO_ID')
 
-    # To fill in required geographic levels build a table representing a query for each 
-    # query we need to construct the whole table. 
-
-    # For each geography that is not in the scope but is in the requirements...
-    for geo in not_in_scope:
-        logger.info(f"Getting {geo} from {in_scope}")
-
-        # Add a column to the table for the geography
-        parent_table[geo] = None
-        parent_table[geo] = parent_table[geo].astype('object')
-
-        # For each row in the table
-        for i, row in parent_table.iterrows():      
-
-            # Create query parameters from columns in row
-            in_param_str = []      
-            for x in in_scope:
-                in_param_str.append(f"{x}:{",".join(row[x]) if isinstance(row[x],list) else row[x]}")
-
-            # Get a list of all geoids (*) for the geography we are adding to the table
-            geoids = geoinfo_from_params({"in": in_param_str, "for": f"{geo}:*"}, output='table')[geo].to_list()
-            logger.debug(f"at row:{i}, column:{geo} adding geoids {geoids}")
-
-            # Add it to the table
-            parent_table.at[i, geo] = geoids
-
-        # Add the geography to the list of geographies in the scope
-        in_scope += [geo]
-
-        # If the list of geographies in the scope is less than the last column. Explode the list
-        if len(in_scope) < len(query_req['requires']):
-            parent_table = parent_table.explode(geo).reset_index().drop(columns='index')
-
-    # With table each row representing a required query...
-    geoinfos = []
-    # Itereate through each row
-    for i, row in parent_table.iterrows():
-
-        # Construct the in parameter for the query
-        in_param_str = []      
-        for x in in_scope:
-            in_param_str.append(f"{x}:{",".join(row[x]) if isinstance(row[x],list) else row[x]}")
-
-        # Call this list of GEOIDFQs this time
-        geoinfo = geoinfo_from_params({"in": in_param_str, "for": f"{sumlevel}:*"}, output='table')
-
-        # Add to list
-        geoinfos.append(geoinfo)
-
-    # combine and return
-    return pd.concat(geoinfos)
-    
-def pseudos_from_sumlevel_scope(sumlevel: str, scope: str) -> list[str]:
+def pseudos_from_scope_sumlevel(sumlevel: str | SumLevel, scope: str | Scope) -> list[str]:
     """Build ucgid pseudo predicates for each parent GEOID in scope at the given child sumlevel."""
-    from morpc import SUMLEVEL_FROM_CENSUSQUERY
+    sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
+    sc = scope if isinstance(scope, Scope) else SCOPES[scope]
 
-    logger.debug(f"Getting psuedo combinations for parents in {scope} at sumlevel {sumlevel}")
-    parents = geoids_from_scope(scope)
+    logger.debug(f"Getting pseudo combinations for parents in {sc.name!r} at sumlevel {sl.name!r}")
+    parents = geoids_from_scope(sc)
 
-    parent_sumlevel = parents[0][0:3]
-
-    child = f"{SUMLEVEL_FROM_CENSUSQUERY[sumlevel]}0000"
+    parent_sumlevel = GeoIDFQ.parse(parents[0]).sumlevel.sumlevel
+    child = f"{sl.sumlevel}0000"
 
     if child in PSEUDOS[parent_sumlevel]:
         logger.info(f"Returning pseudos for {child} in {parents}")
-        pseudos = [f"{parent}${child}" for parent in parents]
-    else:
-        logger.error(f"{child} is not allowed child for parent sumlevel {parent_sumlevel}")
-        raise ValueError
+        return [f"{parent}${child}" for parent in parents]
 
-    return pseudos
+    logger.error(f"{child} is not an allowed child for parent sumlevel {parent_sumlevel!r}")
+    raise ValueError(f"{sl.name!r} is not a valid child sumlevel for scope {sc.name!r}")
 
-def geoinfo_from_scope_sumlevel(scope: str, sumlevel: str | None = None, output: Literal['list','table','json','params']='list') -> list | DataFrame | dict:
+
+def geoinfo_for_hierarchical_geos(scope: str | Scope, sumlevel: str | SumLevel) -> DataFrame:
+    """Build a geoinfo table for sumlevel/scope combinations that cannot be expressed as ucgid pseudos."""
+    import pandas as pd
+    sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
+    sc = scope if isinstance(scope, Scope) else SCOPES[scope]
+
+    query_req = sl.get_query_req()
+    scope_params = list(sc.params.values())
+    in_scope = [x.split(":")[0] for x in scope_params if x.split(":")[0] in query_req['requires']]
+    not_in_scope = [x for x in query_req['requires'] if x not in in_scope]
+
+    parent_table = geoids_from_scope(sc, output='table').drop(columns='GEO_ID')
+
+    for geo in not_in_scope:
+        logger.info(f"Getting {geo} from {in_scope}")
+        parent_table[geo] = None
+        parent_table[geo] = parent_table[geo].astype('object')
+
+        for i, row in parent_table.iterrows():
+            in_param_str = [
+                f"{x}:{','.join(row[x]) if isinstance(row[x], list) else row[x]}"
+                for x in in_scope
+            ]
+            geoids = geoinfo_from_params({"in": in_param_str, "for": f"{geo}:*"}, output='table')[geo].to_list()
+            logger.debug(f"at row:{i}, column:{geo} adding geoids {geoids}")
+            parent_table.at[i, geo] = geoids
+
+        in_scope += [geo]
+        if len(in_scope) < len(query_req['requires']):
+            parent_table = parent_table.explode(geo).reset_index().drop(columns='index')
+
+    geoinfos = []
+    for i, row in parent_table.iterrows():
+        in_param_str = [
+            f"{x}:{','.join(row[x]) if isinstance(row[x], list) else row[x]}"
+            for x in in_scope
+        ]
+        geoinfo = geoinfo_from_params({"in": in_param_str, "for": f"{sl.name}:*"}, output='table')
+        geoinfos.append(geoinfo)
+
+    return pd.concat(geoinfos)
+
+
+def geoinfo_from_scope_sumlevel(
+    scope: str | Scope,
+    sumlevel: str | SumLevel | None = None,
+    output: Literal['list', 'table', 'json', 'params'] = 'list',
+) -> list | DataFrame | dict:
     """Return GEOIDFQs for all geographies at sumlevel within scope.
 
     Parameters
     ----------
-    scope : str
-        A key from SCOPES (e.g. ``"franklin"``, ``"region15"``).
-    sumlevel : str, optional
-        Census query name (e.g. ``"tract"``). Defaults to the scope's own level.
+    scope : str | Scope
+        A scope name or Scope instance (e.g. ``"franklin"``, ``"region15"``).
+    sumlevel : str | SumLevel | None, optional
+        Summary level name or SumLevel instance (e.g. ``"tract"``). Defaults to the scope's native level.
     output : {'list', 'table', 'json', 'params'}
         Return format: list of GEO_ID strings, DataFrame, JSON dict, or raw params dict.
 
@@ -490,58 +528,48 @@ def geoinfo_from_scope_sumlevel(scope: str, sumlevel: str | None = None, output:
     ValueError
         When sumlevel and scope are an invalid combination.
     """
-    import morpc
-    logger.debug(f"Building parameters to pass for geographies Scope: {scope} and SumLevel: {sumlevel}")
-    params = {}
-    scope_sumlevel = list(set([x[0:3] for x in geoids_from_scope(scope)]))[0]
+    sc = scope if isinstance(scope, Scope) else SCOPES[scope]
+    scope_geoids = geoids_from_scope(sc)
+    scope_sl = GeoIDFQ.parse(scope_geoids[0]).sumlevel  # SumLevel of the scope's native geography
 
-    # If there is no sumlevel, just use scope.
-    if sumlevel == None:
-        if scope.startswith('region'):
-            sumlevel = 'county'
-        logger.info(f"No sumlevel specified. Using {scope} parameters. {SCOPES[scope].params}")
-        params.update(SCOPES[scope].params)
+    params: dict = {}
+    geoinfo: DataFrame | None = None
+
+    logger.debug(f"Building parameters for scope {sc.name!r} at sumlevel {sumlevel!r}.")
+
+    if sumlevel is None:
+        sl = SumLevel('county') if sc.name.startswith('region') else scope_sl
+        logger.info(f"No sumlevel specified; using scope {sc.name!r} parameters.")
+        params.update(sc.params)
         if output == 'params':
             return params
         geoinfo = geoinfo_from_params(params, output='table')
 
-    # If there is a sumlevel...
     else:
-        logger.info(f"SumLevel {sumlevel} specified for scope {scope}.")
-        query_sumlevel = morpc.SUMLEVEL_FROM_CENSUSQUERY[sumlevel]
+        sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
+        logger.info(f"SumLevel {sl.name!r} specified for scope {sc.name!r}.")
 
-        # Check to make sure scope and sumlevel are different sumlevels...
-        # If it is, just use scope.
-        if scope_sumlevel == query_sumlevel:
-            logger.warning(f"Scope and SumLevel have same sumlevel, using Scope {scope}.")
-            params.update(SCOPES[scope].params)
+        if scope_sl == sl:
+            logger.warning(f"Scope {sc.name!r} is already at {sl.name!r}; using scope parameters directly.")
+            params.update(sc.params)
             if output == 'params':
                 return params
             geoinfo = geoinfo_from_params(params, output='table')
 
-        # If we need to use sumlevel
         else:
-            # First try to use psuedos
             try:
-                pseudos = pseudos_from_sumlevel_scope(sumlevel, scope)
-                params.update({'ucgid': f"pseudo({','.join(pseudos)})"})
+                pseudos = pseudos_from_scope_sumlevel(sl, sc)
+                params['ucgid'] = f"pseudo({','.join(pseudos)})"
                 if output == 'params':
                     return params
                 geoinfo = geoinfo_from_params(params, output='table')
 
-            except ValueError as e:
-                logger.info(f"Manually building list of all geoids.")
-
-            # If geography combination is not valid combination for psuedos...
-
-                            # (see list of available combinations
-                            # at https://www.census.gov/data/developers/guidance/api-user-guide/ucgid-predicate.html
-                            # in the "List of Available Collections of Geographies.")
-
-            # try to build "in" and "for" parameters to meet requirements. (see https://api.census.gov/data/2023/acs/acs5/geography.json)
+            except ValueError:
+                logger.info("Pseudo predicates unavailable; using hierarchical for/in approach.")
+                # (https://www.census.gov/data/developers/guidance/api-user-guide/ucgid-predicate.html)
                 if output == 'params':
-                    return {'ucgid': ",".join(geoinfo_for_hierarchical_geos(scope, sumlevel)['GEO_ID'])}
-                geoinfo = geoinfo_for_hierarchical_geos(scope, sumlevel)
+                    return {'ucgid': ','.join(geoinfo_for_hierarchical_geos(sc, sl)['GEO_ID'])}
+                geoinfo = geoinfo_for_hierarchical_geos(sc, sl)
 
     if output == 'table':
         return geoinfo
@@ -550,165 +578,60 @@ def geoinfo_from_scope_sumlevel(scope: str, sumlevel: str | None = None, output:
     if output == 'list':
         return geoinfo['GEO_ID'].to_list()
 
-
-def geoids_from_scope(scope: str, output: Literal['list','table','json'] = 'list') -> list | DataFrame:
-    """Return GEOIDFQs for all geographies in scope from the Census geoinfo API."""
-    from morpc.req import get_json_safely
-    import pandas as pd
-
-    logger.debug(f"Fetching geoids from scope parameters {SCOPES[scope]}.")
-    baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
-    json = get_json_safely(baseurl, params = SCOPES[scope].params)
-    if output == 'list':
-        return [row[0] for row in json[1:]]
-    if output == 'table':
-        return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
-    if output == 'json':
-        return json
-
-def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
-    """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
-    import morpc.req
-    import pandas as pd
-    url = f"https://api.census.gov/data/{year}/geoinfo"
-    params = {
-        'get': 'GEO_ID,NAME',
-    }
-    logger.debug(f"Updating params from {param_dict}")
-
-    if 'ucgid' in param_dict:
-        if 'pseudo' in param_dict['ucgid']:
-            params.update({
-                'ucgid': param_dict['ucgid']
-            })
-        else:
-            logger.error(f"ucgid without pseudo. {params}")
-            raise NotImplementedError
-        
-    elif 'for' in param_dict:
-        params.update({
-            'for': param_dict['for']
-        })
-        if 'in' in param_dict:
-            params.update({
-                'in': param_dict['in']
-            })
-    
-    logger.info(f"Getting GEOIDS from {url} and params: {params}.")
-    json = morpc.req.get_json_safely(url, params = params)
-
-    if output == 'list':
-        return [row[0] for row in json[1:]]
-    if output == 'table':
-        return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
-    if output == 'json':
-        return json
-
-## depreciated and combined with geoids_from_params()
-# def geoids_from_pseudo(pseudos, year=2023):
-#     """
-#     returns a list of GEOIDFQs from list of ucgid psuedos. 
-
-#     Parameters
-#     ----------
-#     psuedos : list
-#         a list of ucgid pseudo predicate. See https://www.census.gov/data/developers/guidance/api-user-guide/ucgid-predicate.html
-    
-#     """
-#     baseurl = f"https://api.census.gov/data/{year}/geoinfo"
-#     params = {
-#         'get': 'GEO_ID',
-#         'ucgid': f"pseudo({",".join(pseudos)})"
-#     }
-    
-#     logger.info("Getting GEOIDS from pseudo groups {pseudos}")
-#     json = morpc.req.get_json_safely(baseurl,params = params)
-
-#     # Extract UCGIDs from the response
-#     ucgids = [x[0] for x in json[1:]]
-#     return ucgids
-
-def fetch_geos_from_geoids(geoidfqs: list[str], year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
-    """Fetch geometries from the TIGERweb REST API for a list of Census GEOIDFQs."""
+def _fetch_layer(sumlevel: SumLevel, geoids: list[str], year: int | None, survey: str, chunk_size: int) -> "GeoDataFrame":
+    """Fetch geometries for a single sumlevel from TIGERweb, chunking the geoid list as needed."""
     import morpc
     from morpc_census.tigerweb import get_layer_url
     import pandas as pd
+
+    if sumlevel.tigerweb_name is None:
+        logger.error(f"Sumlevel {sumlevel!r} has no TIGERweb layer.")
+        raise NotImplementedError(f"Sumlevel {sumlevel!r} has no TIGERweb layer")
+
+    url = get_layer_url(layer_name=sumlevel.tigerweb_name, year=year, survey=survey)
+    logger.info(f"Fetching {sumlevel.name} geometries ({len(geoids)} records) from {url}")
+
+    chunks = [geoids[i:i + chunk_size] for i in range(0, len(geoids), chunk_size)]
+    results = []
+    for i, chunk in enumerate(chunks):
+        if len(chunks) > 1:
+            logger.info(f"  chunk {i + 1}/{len(chunks)} ({len(chunk)} records)")
+        where = "GEOID in ({})".format(",".join(f"'{g}'" for g in chunk))
+        resource = morpc.rest_api.resource(name='temp', url=url, where=where, outfields='GEOID', max_record_count=chunk_size)
+        results.append(morpc.rest_api.gdf_from_resource(resource))
+
+    return pd.concat(results)
+
+
+def fetch_geos_from_geoids(geoidfqs: list[GeoIDFQ], year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+    """Fetch geometries from the TIGERweb REST API for a list of GeoIDFQ objects."""
+    import pandas as pd
     import geopandas as gpd
-    
-    all_geoidfqs = geoidfqs
-    all_geometries = []
 
-    if len(geoidfqs) > chunk_size:
-        start = 0
-        while start < len(all_geoidfqs):
-            offset = min(chunk_size, len(all_geoidfqs) - start)
-            logger.info(f"Fetching geoids {start} - {start + offset - 1}")
-            geoidfqs = all_geoidfqs[start:start + offset]
+    by_sumlevel: dict[SumLevel, list[str]] = {}
+    for g in geoidfqs:
+        by_sumlevel.setdefault(g.sumlevel, []).append(g.geoid)
 
-            sumlevels = set([x[0:3] for x in geoidfqs])
-            logger.info(f"Sum levels {', '.join(sumlevels)} are in data.")
+    logger.info(f"Fetching geometries for sumlevels: {', '.join(sl.name for sl in by_sumlevel)}")
 
-            for sumlevel in sumlevels:
-                layerName = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername']
-                if layerName == None:
-                    logger.error(f"Sumlevel {sumlevel} does not have a layer in TigerWeb REST API.")
-                    raise NotImplementedError
+    results = [
+        _fetch_layer(sl, geoids, year, survey, chunk_size)
+        for sl, geoids in by_sumlevel.items()
+    ]
 
-                url = get_layer_url(layer_name=layerName, year=year, survey=survey)
-                logger.info(f"Fetching geometries for {layerName} ({sumlevel}) from {url}")
-
-                geoids = ",".join([f"'{x.split('US')[-1]}'" for x in geoidfqs if x.startswith(sumlevel)])
-                logger.info(f"There are {len(geoids)} geographies in {layerName}")
-                logger.debug(f"{geoids}")
-
-                resource = morpc.rest_api.resource(name='temp', url=url, where=f"GEOID in ({geoids})", outfields='GEOID', max_record_count=chunk_size)
-                geos = morpc.rest_api.gdf_from_resource(resource)
-                all_geometries.append(geos)
-
-            start += offset
-    else:
-        sumlevels = set([x[0:3] for x in geoidfqs])
-
-        logger.info(f"Sum levels {', '.join(sumlevels)} are in data.")
-
-        for sumlevel in sumlevels: # Get geometries for each sumlevel iteratively
-            # Get rest api layer name and get url
-            layerName = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername']
-            if layerName == None:
-                logger.error(f"Sumlevel {sumlevel} does not have a layer in TigerWeb REST API.")
-                raise NotImplementedError
-
-            url = get_layer_url(year=year, layer_name=layerName, survey=survey)
-            logger.info(f"Fetching geometries for {layerName} ({sumlevel}) from {url}")
-
-            # Construct a list of geoids from data to us to query API
-            geoids = ",".join([f"'{x.split('US')[-1]}'" for x in geoidfqs if x.startswith(sumlevel)])
-
-            logger.info(f"There are {len(geoids)} geographies in {layerName}")
-            logger.debug(f"{', '.join(geoidfqs)}")
-
-            # Build resource file and query API
-            logger.info(f"Building resource file to fetch from RestAPI.")
-            resource = morpc.rest_api.resource(name='temp', url=url, where= f"GEOID in ({geoids})", outfields='GEOID', max_record_count=chunk_size)
-            logger.debug(f"{resource}")
-            logger.info(f"Fetching geographies from RestAPI.")
-            geos = morpc.rest_api.gdf_from_resource(resource)
-
-            all_geometries.append(geos)
-
-    logger.info("Combining geometries...")
-    geometries = pd.concat(all_geometries)
-    geometries = geometries.rename(columns={'GEOID': 'GEO_ID'})
-
+    geometries = pd.concat(results).rename(columns={'GEOID': 'GEO_ID'})
     return gpd.GeoDataFrame(geometries, geometry='geometry')
 
-def fetch_geos_from_sumlevel_scope(scope: str, sumlevel: str | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+def fetch_geos_from_scope_sumlevel(scope: str | Scope, sumlevel: str | SumLevel | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
     """Fetch a GeoDataFrame of geometries for all geographies at sumlevel within scope."""
+    sc = scope if isinstance(scope, Scope) else SCOPES[scope]
+    sl = sumlevel if isinstance(sumlevel, SumLevel) or sumlevel is None else SumLevel(sumlevel)
 
-    geoinfo = geoinfo_from_scope_sumlevel(scope, sumlevel, output='table')
+    geoinfo = geoinfo_from_scope_sumlevel(sc, sl, output='table')
+    parsed = [GeoIDFQ.parse(fq) for fq in geoinfo['GEO_ID']]
     geoinfo['GEOIDFQ'] = geoinfo['GEO_ID']
-    geoinfo['GEO_ID'] = [x.split('US')[-1] for x in geoinfo['GEO_ID']]
-    geos = fetch_geos_from_geoids(geoinfo['GEOIDFQ'].to_list(), year, survey, chunk_size=chunk_size)
+    geoinfo['GEO_ID'] = [g.geoid for g in parsed]
+    geos = fetch_geos_from_geoids(parsed, year, survey, chunk_size=chunk_size)
 
     try:
         geos = geos.set_index('GEO_ID').join(geoinfo.set_index('GEO_ID')).reset_index()
@@ -1241,17 +1164,18 @@ def columns_to_geoidfq(df: DataFrame, variant: str = "00", geocomp: str = "00") 
         raise ValueError
 
     sumlevels = list(df['sumlevel'].unique())
-    logger.debug(f"Sumlevels ({','.join(sumlevels)}) in data")
+    logger.debug(f"Sumlevels ({','.join(str(s) for s in sumlevels)}) in data")
 
     for sumlevel in sumlevels:
-        geo_fields = [name for name, _ in _geoidfq_geo_fields(sumlevel)]
+        sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
+        geo_fields = [name for name, _ in _geoidfq_geo_fields(sl.sumlevel)]
         mask = df['sumlevel'] == sumlevel
         df.loc[mask, 'geoidfq'] = df.loc[mask].apply(
-            lambda row: str(GeoIDFQ.build(
-                sumlevel=sumlevel,
-                parts={f: str(row[f]) for f in geo_fields},
+            lambda row, _sl=sl, _fields=geo_fields: str(GeoIDFQ.build(
+                _sl,
                 variant=variant,
                 geocomp=geocomp,
+                **{f: str(row[f]) for f in _fields},
             )),
             axis=1,
         )
