@@ -1,5 +1,14 @@
 # morpc-census dev notes
 
+## 2026-05-07 — GeoIDFQ parts as kwargs; SumLevel.get_query_req (branch refactor/geos-class-integration, #45)
+
+Two refactors on branch refactor/geos-class-integration:
+1. GeoIDFQ converted from @dataclass to regular class — geo components (state, county, tract, etc.)
+   are now kwargs stored as direct attributes instead of a parts dict. Access as g.state, g.county, etc.
+   GeoIDFQ.build() signature changed: parts dict replaced with **kwargs. parts property kept for compat.
+2. SumLevel.get_query_req(year) added as a method. Module-level get_query_req() now delegates to it.
+
+
 ## 2026-05-07 — Fix GeoIDFQ with SumLevel sumlevel type (main, 460075e)
 
 Fixed three bugs introduced when GeoIDFQ.sumlevel was changed to str | SumLevel:
