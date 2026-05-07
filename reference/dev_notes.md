@@ -1,5 +1,18 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Reorder geos functions; integrate Scope/SumLevel/GeoIDFQ (branch refactor/geos-class-integration)
+
+Reordered functions in logical dependency order:
+geoinfo_from_params → geoids_from_scope → get_query_req → pseudos_from_sumlevel_scope → geoinfo_for_hierarchical_geos → geoinfo_from_scope_sumlevel
+
+Class integration:
+- geoids_from_scope: now accepts str | Scope
+- pseudos_from_sumlevel_scope: accepts str | SumLevel and str | Scope; uses GeoIDFQ.parse for parent sumlevel
+- geoinfo_for_hierarchical_geos: accepts str | Scope and str | SumLevel; calls sl.get_query_req() and sc.params directly
+- geoinfo_from_scope_sumlevel: accepts str | Scope and str | SumLevel | None; derives scope_sl via GeoIDFQ.parse; compares SumLevel instances
+- columns_to_geoidfq: fixed for new GeoIDFQ.build(**kwargs) API; handles SumLevel objects in sumlevel column
+
+
 ## 2026-05-07 — GeoIDFQ parts as kwargs; SumLevel.get_query_req (branch refactor/geos-class-integration, #45)
 
 Two refactors on branch refactor/geos-class-integration:
