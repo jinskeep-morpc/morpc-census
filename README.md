@@ -10,7 +10,6 @@ This package depends on [morpc-py](https://github.com/morpc/morpc-py) for shared
 
 - **morpc_census.api** — Connect to the Census API at `https://api.census.gov/data/`, retrieve survey data by group and geography, and structure results as long-format DataFrames with frictionless schema and resource files.
 - **morpc_census.geos** — Geography utilities for building Census API queries, translating between Census GEOIDs and MORPC geography definitions, and fetching geographic metadata.
-- **morpc_census.census** — Functions for working with ACS variable groups, generating frictionless schemas from Census metadata, and producing dimension tables.
 - **morpc_census.tigerweb** — Tools for interacting with the Census TIGERweb REST API to fetch geographic boundary data.
 
 ## Installation
@@ -55,6 +54,6 @@ print(data.LONG.head())
 data.save('./output')
 ```
 
-## Documentation
+## Demos and Documentation
 
-See [doc](https://github.com/jinskeep-morpc/morpc-census/tree/main/doc) for notebooks and reference material.
+See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and documentation.
