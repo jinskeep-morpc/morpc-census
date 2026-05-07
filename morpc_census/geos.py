@@ -103,7 +103,25 @@ class SumLevel:
     
     def __repr__(self):
         return f"{self.sumlevel!r}"
-        
+
+    def get_query_req(self, year: str = '2023') -> dict:
+        """Fetch Census API requirements for this sumlevel (required 'in' parameters and wildcards)."""
+        from morpc import SUMLEVEL_FROM_CENSUSQUERY
+        from morpc.req import get_json_safely
+
+        sumlevel_code = SUMLEVEL_FROM_CENSUSQUERY[self.name]
+        url = f"https://api.census.gov/data/{year}/geoinfo/geography.json"
+        json = get_json_safely(url)
+
+        query_requirements: dict = {}
+        for item in json['fips']:
+            if item['geoLevelDisplay'] in sumlevel_code:
+                query_requirements['requires'] = item.get('requires')
+                query_requirements['wildcard'] = item.get('wildcard')
+
+        logger.debug(f"{self.name} requires {query_requirements}")
+        return query_requirements
+
 
 def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     """Return the geo-specific (name, width) pairs for a sumlevel's geoidfq_format."""
@@ -118,11 +136,12 @@ def _geoidfq_geo_fields(sumlevel: str) -> list[tuple[str, int]]:
     ]
 
 
-@dataclass
 class GeoIDFQ:
     """A parsed Census fully-qualified geographic identifier (GEOIDFQ).
 
     Structure: {SUMLEVEL:3}{VARIANT:2}{GEOCOMP:2}US{geo-specific fields...}
+
+    Geo components (state, county, tract, etc.) are accessible as direct attributes.
 
     Variant codes (Census geo-variant system):
       "00"        standard/default — most geography types
@@ -134,10 +153,20 @@ class GeoIDFQ:
       "Px"        public use microdata areas (PUMAs)
       "Zx"        ZIP Code tabulation areas
     """
-    sumlevel: str | SumLevel
-    variant: str
-    geocomp: str
-    parts: dict[str, str]
+
+    def __init__(self, sumlevel: "str | SumLevel", variant: str, geocomp: str, **kwargs: str) -> None:
+        self.sumlevel = sumlevel
+        self.variant = variant
+        self.geocomp = geocomp
+        self._geo_fields: list[str] = list(kwargs)
+        for name, value in kwargs.items():
+            setattr(self, name, value)
+
+    def __repr__(self) -> str:
+        return str(self)
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, GeoIDFQ) and str(self) == str(other)
 
     @classmethod
     def parse(cls, geoidfq: str) -> "GeoIDFQ":
@@ -145,39 +174,44 @@ class GeoIDFQ:
         sumlevel = SumLevel(geoidfq[0:3])
         variant = geoidfq[3:5]
         geocomp = geoidfq[5:7]
-        parts = {}
+        parts: dict[str, str] = {}
         pos = 9  # skip SUMLEVEL(3) + VARIANT(2) + GEOCOMP(2) + "US"(2)
         for name, width in _geoidfq_geo_fields(sumlevel.sumlevel):
             parts[name] = geoidfq[pos:pos + width]
             pos += width
-        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
+        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, **parts)
 
     @classmethod
-    def build(cls, sumlevel: str | SumLevel, parts: dict[str, str], variant: str | None = None, geocomp: str = "00") -> "GeoIDFQ":
+    def build(cls, sumlevel: "str | SumLevel", variant: "str | None" = None, geocomp: str = "00", **kwargs: str) -> "GeoIDFQ":
         """Construct a GeoIDFQ from components.
 
         Raises ValueError if the sumlevel has no geoidfq_format (MORPC sumlevels)
-        or if parts keys do not match the expected geo fields.
+        or if geo field kwargs do not match the expected fields for the sumlevel.
         """
         sl_code = sumlevel.sumlevel if isinstance(sumlevel, SumLevel) else sumlevel
         if variant is None:
             variant = sumlevel.current_variant if isinstance(sumlevel, SumLevel) and sumlevel.current_variant else "00"
         expected = [name for name, _ in _geoidfq_geo_fields(sl_code)]
-        if list(parts.keys()) != expected:
+        if list(kwargs.keys()) != expected:
             raise ValueError(
-                f"parts keys {list(parts.keys())} do not match expected {expected} "
+                f"geo field keys {list(kwargs.keys())} do not match expected {expected} "
                 f"for sumlevel {sumlevel!r}"
             )
-        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, parts=parts)
+        return cls(sumlevel=sumlevel, variant=variant, geocomp=geocomp, **kwargs)
 
     def __str__(self) -> str:
         sl_code = self.sumlevel.sumlevel if isinstance(self.sumlevel, SumLevel) else self.sumlevel
-        return sl_code + self.variant + self.geocomp + "US" + "".join(self.parts.values())
+        return sl_code + self.variant + self.geocomp + "US" + "".join(getattr(self, f) for f in self._geo_fields)
 
     @property
     def geoid(self) -> str:
         """Short-form ID after 'US' — used in REST API and Census API queries."""
-        return "".join(self.parts.values())
+        return "".join(getattr(self, f) for f in self._geo_fields)
+
+    @property
+    def parts(self) -> "dict[str, str]":
+        """Dict of geo components (state, county, tract, etc.)."""
+        return {f: getattr(self, f) for f in self._geo_fields}
 
 
 # TODO (jinskeep_morpc): Develop function for fetching census geographies leveraging scopes
@@ -357,31 +391,8 @@ PSEUDOS = {'010': [
 
 
 def get_query_req(sumlevel: str, year: str = '2023') -> dict:
-    """Fetch Census API requirements for the given sumlevel (required 'in' parameters and wildcards)."""
-    from morpc import SUMLEVEL_FROM_CENSUSQUERY
-    from morpc.req import get_json_safely
-
-    logger.debug(f"Getting required 'in' parameters for {sumlevel}")
-
-    sumlevel_code = SUMLEVEL_FROM_CENSUSQUERY[sumlevel]
-
-    url = f"https://api.census.gov/data/{year}/geoinfo/geography.json"
-    json = get_json_safely(url)
-
-    query_requirements = {}
-    for item in json['fips']:
-        if item['geoLevelDisplay'] in sumlevel_code:
-            if 'requires' in item.keys():
-                query_requirements['requires'] = item['requires']
-            else:
-                query_requirements['requires'] = None
-            if 'wildcard' in item.keys():
-                query_requirements['wildcard'] = item['wildcard']
-            else:
-                query_requirements['wildcard'] = None
-
-    logger.info(f"{sumlevel} requires {query_requirements}")
-    return query_requirements
+    """Fetch Census API requirements for the given sumlevel. Delegates to SumLevel.get_query_req."""
+    return SumLevel(sumlevel).get_query_req(year)
 
 def geoinfo_for_hierarchical_geos(scope: str, sumlevel: str) -> DataFrame:
     """Build a geoinfo table for sumlevel/scope combinations that cannot be expressed as ucgid pseudos."""

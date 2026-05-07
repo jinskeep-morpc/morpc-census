@@ -1,5 +1,5 @@
 import pytest
-from morpc_census.geos import GeoIDFQ, SumLevel
+from morpc_census.geos import GeoIDFQ, SumLevel, get_query_req
 
 
 COUNTY_GEOIDFQ   = "0500000US39049"               # Franklin County, Ohio
@@ -18,43 +18,55 @@ class TestParse:
         assert g.sumlevel == SumLevel("050")
         assert g.variant == "00"
         assert g.geocomp == "00"
-        assert g.parts == {"state": "39", "county": "049"}
+        assert g.state == "39"
+        assert g.county == "049"
 
     def test_state_fields(self):
         g = GeoIDFQ.parse(STATE_GEOIDFQ)
         assert g.sumlevel == SumLevel("040")
-        assert g.parts == {"state": "39"}
+        assert g.state == "39"
 
     def test_place_fields(self):
         g = GeoIDFQ.parse(PLACE_GEOIDFQ)
         assert g.sumlevel == SumLevel("160")
-        assert g.parts == {"state": "39", "place": "18000"}
+        assert g.state == "39"
+        assert g.place == "18000"
 
     def test_cbsa_fields(self):
         g = GeoIDFQ.parse(CBSA_GEOIDFQ)
         assert g.sumlevel == SumLevel("310")
-        assert g.parts == {"cbsa": "18140"}
+        assert g.cbsa == "18140"
 
     def test_congressional_district_variant(self):
         g = GeoIDFQ.parse(CD_GEOIDFQ)
         assert g.sumlevel == SumLevel("500")
         assert g.variant == "19"        # 119th Congress (19 + 100)
-        assert g.parts == {"state": "39", "cd": "12"}
+        assert g.state == "39"
+        assert g.cd == "12"
 
     def test_tract_fields(self):
         g = GeoIDFQ.parse(TRACT_GEOIDFQ)
         assert g.sumlevel == SumLevel("140")
-        assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
+        assert g.state == "39"
+        assert g.county == "041"
+        assert g.tract == "010100"
 
     def test_block_group_fields(self):
         g = GeoIDFQ.parse(BLKGRP_GEOIDFQ)
         assert g.sumlevel == SumLevel("150")
-        assert g.parts == {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1"}
+        assert g.state == "39"
+        assert g.county == "041"
+        assert g.tract == "010100"
+        assert g.blkgrp == "1"
 
     def test_block_fields(self):
         g = GeoIDFQ.parse(BLOCK_GEOIDFQ)
         assert g.sumlevel == SumLevel("100")
-        assert g.parts == {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1", "block": "000"}
+        assert g.state == "39"
+        assert g.county == "041"
+        assert g.tract == "010100"
+        assert g.blkgrp == "1"
+        assert g.block == "000"
 
     def test_unknown_sumlevel_raises(self):
         with pytest.raises((KeyError, ValueError)):
@@ -63,43 +75,46 @@ class TestParse:
 
 class TestBuild:
     def test_county(self):
-        g = GeoIDFQ.build("050", {"state": "39", "county": "049"})
+        g = GeoIDFQ.build("050", state="39", county="049")
         assert g.sumlevel == "050"
         assert g.variant == "00"
-        assert g.parts == {"state": "39", "county": "049"}
+        assert g.state == "39"
+        assert g.county == "049"
 
     def test_tract(self):
-        g = GeoIDFQ.build("140", {"state": "39", "county": "041", "tract": "010100"})
-        assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
+        g = GeoIDFQ.build("140", state="39", county="041", tract="010100")
         assert g.sumlevel == "140"
+        assert g.state == "39"
+        assert g.county == "041"
+        assert g.tract == "010100"
 
     def test_block_group(self):
-        g = GeoIDFQ.build("150", {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1"})
+        g = GeoIDFQ.build("150", state="39", county="041", tract="010100", blkgrp="1")
         assert g.sumlevel == "150"
 
     def test_block(self):
-        g = GeoIDFQ.build("100", {"state": "39", "county": "041", "tract": "010100", "blkgrp": "1", "block": "000"})
+        g = GeoIDFQ.build("100", state="39", county="041", tract="010100", blkgrp="1", block="000")
         assert g.sumlevel == "100"
 
     def test_variant_passthrough(self):
-        g = GeoIDFQ.build("500", {"state": "39", "cd": "12"}, variant="19")
+        g = GeoIDFQ.build("500", variant="19", state="39", cd="12")
         assert g.variant == "19"
 
     def test_geocomp_passthrough(self):
-        g = GeoIDFQ.build("050", {"state": "39", "county": "049"}, geocomp="H0")
+        g = GeoIDFQ.build("050", geocomp="H0", state="39", county="049")
         assert g.geocomp == "H0"
 
     def test_wrong_keys_raises(self):
         with pytest.raises(ValueError):
-            GeoIDFQ.build("050", {"state": "39"})           # missing county
+            GeoIDFQ.build("050", state="39")                # missing county
 
     def test_extra_keys_raises(self):
         with pytest.raises(ValueError):
-            GeoIDFQ.build("050", {"state": "39", "county": "049", "tract": "000100"})
+            GeoIDFQ.build("050", state="39", county="049", tract="000100")
 
     def test_morpc_sumlevel_raises(self):
         with pytest.raises(ValueError):
-            GeoIDFQ.build("M10", {"jurisid": "12345"})
+            GeoIDFQ.build("M10", jurisid="12345")
 
 
 class TestStrAndGeoid:
@@ -146,9 +161,32 @@ class TestStrAndGeoid:
         assert GeoIDFQ.parse(BLOCK_GEOIDFQ).geoid == "390410101001000"
 
     def test_build_str_matches_parse(self):
-        built = GeoIDFQ.build("050", {"state": "39", "county": "049"})
+        built = GeoIDFQ.build("050", state="39", county="049")
         assert str(built) == str(GeoIDFQ.parse(COUNTY_GEOIDFQ))
 
     def test_build_tract_str_matches_parse(self):
-        built = GeoIDFQ.build("140", {"state": "39", "county": "041", "tract": "010100"})
+        built = GeoIDFQ.build("140", state="39", county="041", tract="010100")
         assert str(built) == TRACT_GEOIDFQ
+
+class TestPartsProperty:
+    def test_parts_returns_dict(self):
+        g = GeoIDFQ.parse(COUNTY_GEOIDFQ)
+        assert g.parts == {"state": "39", "county": "049"}
+
+    def test_parts_tract(self):
+        g = GeoIDFQ.parse(TRACT_GEOIDFQ)
+        assert g.parts == {"state": "39", "county": "041", "tract": "010100"}
+
+    def test_parts_matches_attributes(self):
+        g = GeoIDFQ.parse(COUNTY_GEOIDFQ)
+        for key, val in g.parts.items():
+            assert getattr(g, key) == val
+
+
+class TestSumLevelGetQueryReq:
+    def test_method_exists(self):
+        assert hasattr(SumLevel("county"), "get_query_req")
+        assert callable(SumLevel("county").get_query_req)
+
+    def test_module_function_exists(self):
+        assert callable(get_query_req)
