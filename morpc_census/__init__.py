@@ -11,9 +11,13 @@ from .api import (
     fetch,
     CENSUS_DATA_BASE_URL,
     IMPLEMENTED_ENDPOINTS,
-    HIGHLEVEL_GROUP_DESC,
     MISSING_VALUES,
     VARIABLE_TYPES,
+)
+
+# Domain lookup tables
+from .constants import (
+    HIGHLEVEL_GROUP_DESC,
     AGEGROUP_MAP,
     AGEGROUP_SORT_ORDER,
     RACE_TABLE_MAP,

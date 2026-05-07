@@ -1,5 +1,13 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Extract domain lookup tables to constants.py (branch refactor/api-class-integration, issue #53)
+
+Created `morpc_census/constants.py` containing the 10 domain lookup tables that were defined at the top of `api.py` but not used within it: `HIGHLEVEL_GROUP_DESC`, `HIGHLEVEL_DESC_FROM_ID`, `AGEGROUP_MAP`, `AGEGROUP_SORT_ORDER`, `RACE_TABLE_MAP`, `EDUCATION_ATTAIN_MAP`, `EDUCATION_ATTAIN_SORT_ORDER`, `INCOME_TO_POVERTY_MAP`, `INCOME_TO_POVERTY_SORT_ORDER`, `NTD_AGEMAP`, `NTD_AGEMAP_ORDER`.
+
+`api.py` re-exports them via `from morpc_census.constants import ...` so the public API is unchanged. `__init__.py` now imports them from `constants` directly. API-machinery constants (`MISSING_VALUES`, `VARIABLE_TYPES`, `CENSUS_DATA_BASE_URL`, `IMPLEMENTED_ENDPOINTS`) stay in `api.py`.
+
+Note: test suite revealed a pre-existing inconsistency — `NTD_AGEMAP` maps to `'19 to 64 years'` but `NTD_AGEMAP_ORDER` has `'20 to 64 years'`. Not fixed here; tracked for a future cleanup.
+
 ## 2026-05-07 — Integrate Scope/SumLevel classes into api.py (branch refactor/api-class-integration, issue #52)
 
 `censusapi_name` now accepts `str | Scope` for scope and `str | SumLevel | None` for sumlevel. Replaced `from morpc import HIERARCHY_STRING_FROM_CENSUSNAME` lookup with `SumLevel.hierarchy_string` property. Falls back to `sl.name` when `hierarchy_string` is None (partially-constructed SumLevel edge case).
