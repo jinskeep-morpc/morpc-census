@@ -15,6 +15,7 @@ from morpc_census.api import (
     find_replace_variable_map,
     DimensionTable,
     valid_vintage,
+    CensusAPI,
     IMPLEMENTED_ENDPOINTS,
 )
 
@@ -139,6 +140,30 @@ class TestCensusapiName:
         name = censusapi_name('dec/pl', 2020, 'ohio', 'P1')
         assert name == 'census-dec-pl-2020-ohio-p1'
 
+    def test_accepts_scope_instance(self):
+        from morpc_census.geos import Scope
+        name = censusapi_name('acs/acs5', 2023, Scope('franklin'), 'B01001')
+        assert name == 'census-acs-acs5-2023-franklin-b01001'
+
+    def test_accepts_sumlevel_instance(self):
+        from morpc_census.geos import SumLevel
+        name = censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel=SumLevel('county'))
+        assert name == 'census-acs-acs5-2023-county-ohio-b01001'
+
+    def test_scope_instance_matches_string(self):
+        from morpc_census.geos import Scope
+        assert (
+            censusapi_name('acs/acs5', 2023, Scope('franklin'), 'B01001')
+            == censusapi_name('acs/acs5', 2023, 'franklin', 'B01001')
+        )
+
+    def test_sumlevel_instance_matches_string(self):
+        from morpc_census.geos import SumLevel
+        assert (
+            censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel=SumLevel('county'))
+            == censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel='county')
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestFindReplaceVariableMap
@@ -232,3 +257,80 @@ class TestValidVintage:
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._endpoints):
             with pytest.raises(ValueError):
                 valid_vintage('acs/acs1', 2023)
+
+
+# ---------------------------------------------------------------------------
+# TestCensusAPIClassNormalization
+# ---------------------------------------------------------------------------
+
+class TestCensusAPIClassNormalization:
+    """Test that CensusAPI normalizes scope/sumlevel strings to class instances."""
+
+    _fake_vars = {'B01001_001E': {'label': 'Total:'}}
+    _fake_groups = {'B01001': {'description': 'Sex by Age', 'variables': ''}}
+    _fake_data = pd.DataFrame({'GEO_ID': ['0500000US39049'], 'NAME': ['Franklin County']})
+
+    def _make(self, scope, sumlevel=None):
+        with patch('morpc_census.api.valid_survey_table', return_value=True), \
+             patch('morpc_census.api.valid_vintage', return_value=True), \
+             patch('morpc_census.api.valid_group', return_value=True), \
+             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
+             patch('morpc_census.api.get_group_universe', return_value='All people'), \
+             patch('morpc_census.api.get_group_variables', return_value=self._fake_vars), \
+             patch('morpc_census.api.get_api_request', return_value={'url': 'http://x', 'params': {'get': 'group(B01001)', 'for': 'county:049'}}), \
+             patch('morpc_census.api.fetch', return_value=self._fake_data):
+            return CensusAPI('acs/acs5', 2023, 'B01001', scope, sumlevel=sumlevel, return_long=False)
+
+    def test_scope_string_stored_as_scope_instance(self):
+        from morpc_census.geos import Scope
+        api = self._make('franklin')
+        assert isinstance(api.SCOPE, Scope)
+
+    def test_scope_instance_passed_through(self):
+        from morpc_census.geos import Scope
+        sc = Scope('franklin')
+        api = self._make(sc)
+        assert api.SCOPE is sc
+
+    def test_scope_name_is_correct(self):
+        api = self._make('franklin')
+        assert api.SCOPE.name == 'franklin'
+
+    def test_sumlevel_string_stored_as_sumlevel_instance(self):
+        from morpc_census.geos import SumLevel
+        api = self._make('franklin', sumlevel='county')
+        assert isinstance(api.SUMLEVEL, SumLevel)
+
+    def test_sumlevel_none_stays_none(self):
+        api = self._make('franklin')
+        assert api.SUMLEVEL is None
+
+    def test_sumlevel_instance_passed_through(self):
+        from morpc_census.geos import SumLevel
+        sl = SumLevel('county')
+        api = self._make('franklin', sumlevel=sl)
+        assert api.SUMLEVEL is sl
+
+    def test_sumlevel_name_is_correct(self):
+        from morpc_census.geos import SumLevel
+        api = self._make('franklin', sumlevel='county')
+        assert api.SUMLEVEL.name == 'county'
+        assert isinstance(api.SUMLEVEL, SumLevel)
+
+    def test_scope_obj_returns_scope_instance(self):
+        from morpc_census.geos import Scope
+        api = self._make('franklin')
+        assert isinstance(api.scope_obj, Scope)
+        assert api.scope_obj is api.SCOPE
+
+    def test_create_resource_title_uses_sumlevel_plural_and_scope_name(self):
+        import frictionless
+        api = self._make('franklin', sumlevel='county')
+        api.CONCEPT = 'Sex by Age'
+        api.FILENAME = 'test.csv'
+        api.SCHEMA_FILENAME = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            api.create_resource()
+        assert 'franklin' in captured['title']
+        assert 'counties' in captured['title']  # SumLevel('county').plural

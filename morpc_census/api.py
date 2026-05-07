@@ -5,6 +5,8 @@ as long-format tables backed by frictionless metadata.
 Census API root: https://api.census.gov/data/
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
@@ -12,9 +14,13 @@ import re
 from collections import OrderedDict
 from io import StringIO
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from morpc_census.geos import Scope, SumLevel
 
 logger = logging.getLogger(__name__)
 
@@ -393,7 +399,7 @@ def get_params(group: str, variables: list[str] | None = None) -> str:
     return f"group({group})"
 
 
-def get_api_request(survey_table: str, year: int, group: str, scope: str, variables: list[str] | None = None, sumlevel: str | None = None) -> dict:
+def get_api_request(survey_table: str, year: int, group: str, scope: str | Scope, variables: list[str] | None = None, sumlevel: str | SumLevel | None = None) -> dict:
     """Build the Census API request dict (url + params) for a survey, scope, and optional sumlevel."""
     from morpc_census.geos import geoinfo_from_scope_sumlevel
 
@@ -504,19 +510,22 @@ def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
 # Naming helper
 # ---------------------------------------------------------------------------
 
-def censusapi_name(survey_table: str, year: int, scope: str, group: str, sumlevel: str | None = None, variables: list[str] | None = None) -> str:
+def censusapi_name(survey_table: str, year: int, scope: str | Scope, group: str, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
     """Construct a canonical, machine-readable name for a CensusAPI dataset."""
-    from morpc import HIERARCHY_STRING_FROM_CENSUSNAME
+    from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
-    sumlevel_part = (
-        f"{HIERARCHY_STRING_FROM_CENSUSNAME[sumlevel].replace('-', '').lower()}-"
-        if sumlevel is not None
-        else ''
-    )
+    scope_name = scope.name if isinstance(scope, _Scope) else scope
+
+    if sumlevel is not None:
+        sl = sumlevel if isinstance(sumlevel, _SumLevel) else _SumLevel(sumlevel)
+        sumlevel_part = f"{(sl.hierarchy_string or sl.name).replace('-', '').lower()}-"
+    else:
+        sumlevel_part = ''
+
     var_part = '-select-variables' if variables is not None else ''
     return (
         f"census-{survey_table.replace('/', '-')}-{year}"
-        f"-{sumlevel_part}{scope}-{group}{var_part}"
+        f"-{sumlevel_part}{scope_name}-{group}{var_part}"
     ).lower()
 
 
@@ -563,12 +572,12 @@ class CensusAPI:
         Vintage year, e.g. ``2023``.
     group : str
         Variable group code, e.g. ``'B01001'``.
-    scope : str
-        Geographic scope key, e.g. ``'region15'``, ``'ohio'``.
-        See ``morpc_census.geos.SCOPES``.
-    sumlevel : str, optional
-        Geographic summary level query name, e.g. ``'county'``, ``'tract'``.
-        See ``morpc_census.geos.valid_sumlevel``.
+    scope : str or Scope
+        Geographic scope key (e.g. ``'region15'``) or a ``Scope`` instance.
+        See ``morpc_census.geos.SCOPES`` for available keys.
+    sumlevel : str or SumLevel, optional
+        Geographic summary level query name (e.g. ``'county'``, ``'tract'``)
+        or a ``SumLevel`` instance.  See ``morpc_census.geos.SumLevel``.
     variables : list of str, optional
         Specific variables to retrieve.  If ``None`` all variables in the
         group are retrieved.
@@ -581,21 +590,27 @@ class CensusAPI:
         survey_table: str,
         year: int,
         group: str,
-        scope: str,
-        sumlevel: str | None = None,
+        scope: str | Scope,
+        sumlevel: str | SumLevel | None = None,
         variables: list[str] | None = None,
         return_long: bool = True,
     ):
+        from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
+
         self.SURVEY = survey_table
         self.YEAR = year
         self.GROUP = group.upper()
-        self.SCOPE = scope.lower()
-        self.SUMLEVEL = sumlevel.lower() if sumlevel is not None else None
+        self.SCOPE = scope if isinstance(scope, _Scope) else _Scope(scope.lower())
+        self.SUMLEVEL = (
+            None if sumlevel is None
+            else sumlevel if isinstance(sumlevel, _SumLevel)
+            else _SumLevel(sumlevel.lower())
+        )
         self.VARIABLES = (
             [v.upper() for v in variables] if variables is not None else None
         )
 
-        self.NAME = censusapi_name(survey_table, year, scope, group, sumlevel, variables)
+        self.NAME = censusapi_name(survey_table, year, self.SCOPE, group, self.SUMLEVEL, variables)
         self.logger = (
             logging.getLogger(__name__)
             .getChild(self.__class__.__name__)
@@ -676,8 +691,7 @@ class CensusAPI:
     @property
     def scope_obj(self):
         """Return the Scope object for this dataset's geographic scope."""
-        from morpc_census.geos import SCOPES, Scope
-        return SCOPES[self.SCOPE]
+        return self.SCOPE
 
     @property
     def geoidfqs(self):
@@ -839,11 +853,11 @@ class CensusAPI:
         """
         import frictionless
 
-        sumlevel_str = f'{self.SUMLEVEL}s in ' if self.SUMLEVEL else ''
-        title = f"{self.YEAR} {self.CONCEPT} for {sumlevel_str}{self.SCOPE}"
+        sumlevel_str = f'{self.SUMLEVEL.plural} in ' if self.SUMLEVEL is not None else ''
+        title = f"{self.YEAR} {self.CONCEPT} for {sumlevel_str}{self.SCOPE.name}"
         description = (
             f"Census API data for {self.GROUP}: {self.CONCEPT} "
-            f"from {self.SURVEY} in {self.YEAR} for {sumlevel_str}{self.SCOPE}."
+            f"from {self.SURVEY} in {self.YEAR} for {sumlevel_str}{self.SCOPE.name}."
         )
 
         descriptor = {

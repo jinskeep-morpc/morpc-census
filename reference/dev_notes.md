@@ -1,5 +1,24 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Integrate Scope/SumLevel classes into api.py (branch refactor/api-class-integration, issue #52)
+
+`censusapi_name` now accepts `str | Scope` for scope and `str | SumLevel | None` for sumlevel. Replaced `from morpc import HIERARCHY_STRING_FROM_CENSUSNAME` lookup with `SumLevel.hierarchy_string` property. Falls back to `sl.name` when `hierarchy_string` is None (partially-constructed SumLevel edge case).
+
+`get_api_request` type hints updated to `str | Scope` / `str | SumLevel | None`.
+
+`CensusAPI.__init__` now normalizes both parameters on entry:
+- `self.SCOPE` is always a `Scope` instance (was a lowercase string)
+- `self.SUMLEVEL` is always a `SumLevel` or `None` (was a lowercase string or None)
+- `censusapi_name` called with already-normalized objects so name is consistent
+
+`CensusAPI.scope_obj` simplified — returns `self.SCOPE` directly (was `SCOPES[self.SCOPE]`).
+
+`CensusAPI.create_resource` updated: `self.SUMLEVEL.plural` replaces manual `f'{sumlevel}s'` string; `self.SCOPE.name` replaces raw `self.SCOPE` in title/description.
+
+`from __future__ import annotations` and `TYPE_CHECKING` guard added for geos imports.
+
+9 new tests in `TestCensusAPIClassNormalization`; 4 new cases added to `TestCensusapiName`. All 46 api tests pass.
+
 ## 2026-05-07 — Fix resource_from_geometry_sumlevel; fix notebook frictionless.Resource access (branch refactor/tigerweb-class-integration)
 
 `resource_from_geometry_sumlevel` was broken: it passed spatial params (`geometry`, `geometryType`, `inSR`, `spatialRel`) as kwargs to `morpc.rest_api.resource()`, which only accepts `(name, url, where, outfields, max_record_count)`. Fixed by building `frictionless.Resource` directly, using `totalRecordCount(url, where='1=1')` for total_records and `maxRecordCount` for the service page size.
