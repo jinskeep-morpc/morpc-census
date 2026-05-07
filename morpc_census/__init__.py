@@ -51,5 +51,5 @@ from .tigerweb import (
     get_tigerweb_layers_map,
     get_layer_url,
     resource_from_scope_sumlevel,
-    resource_from_geometry_sumlevel,
+    # resource_from_geometry_sumlevel,  # disabled — needs gdf_from_resource spatial support
 )
