@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Fix resource_from_geometry_sumlevel; fix notebook frictionless.Resource access (branch refactor/tigerweb-class-integration)
+
+`resource_from_geometry_sumlevel` was broken: it passed spatial params (`geometry`, `geometryType`, `inSR`, `spatialRel`) as kwargs to `morpc.rest_api.resource()`, which only accepts `(name, url, where, outfields, max_record_count)`. Fixed by building `frictionless.Resource` directly, using `totalRecordCount(url, where='1=1')` for total_records and `maxRecordCount` for the service page size.
+
+Demo notebook cells fixed: `frictionless.Resource` has no `.url`, `.where`, `.outfields`, or `.params` attributes. Correct access: `.path` for the URL; `.to_dict()['_metadata']['params']` for the query dict (`where` → `params['where']`, `outFields` → `params['outFields']`, `geometry` → `params['geometry']`).
+
 ## 2026-05-07 — Refactor tigerweb module; add SumLevel.parts (branch refactor/tigerweb-class-integration, issue #47)
 
 Added `SumLevel.parts` property (list of geo component field names, e.g. `['state', 'county']`). Implemented using `_geoidfq_geo_fields` so the geo schema lives in one place.

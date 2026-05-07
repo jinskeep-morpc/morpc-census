@@ -228,7 +228,7 @@ def resource_from_geometry_sumlevel(
     archive: PathLike | None = None,
     max_record_count: int = 20,
 ):
-    """Build a morpc REST API resource for all geographies at *sumlevel* intersecting *geo*.
+    """Build a frictionless Resource for all geographies at *sumlevel* intersecting *geo*.
 
     Parameters
     ----------
@@ -245,10 +245,12 @@ def resource_from_geometry_sumlevel(
 
     Returns
     -------
-    morpc.rest_api.resource
-        Configured resource ready for fetching.
+    frictionless.Resource
+        Configured resource ready for fetching via ``morpc.rest_api.gdf_from_resource``.
     """
-    from morpc.rest_api import resource
+    import frictionless
+    import re
+    from morpc.rest_api import totalRecordCount, schema as rest_schema, maxRecordCount
     from morpc_census.geos import SumLevel
 
     sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
@@ -256,21 +258,40 @@ def resource_from_geometry_sumlevel(
     url = get_layer_url(sl.tigerweb_name)
     outfields = ",".join(['GEOID', 'NAME'] + [f.upper() for f in sl.parts])
 
-    params = {
+    query = {
         'geometry': ",".join(str(x) for x in geo.total_bounds),
         'geometryType': 'esriGeometryEnvelope',
-        'inSR': geo.crs.to_epsg(),
+        'inSR': str(geo.crs.to_epsg()),
         'spatialRel': 'esriSpatialRelContains',
+        'outFields': outfields,
         'returnGeometry': 'true',
         'f': 'geojson',
     }
-    tigerweb_resource = resource(
-        name=f"censustigerweb-{scopename}-{sl.hierarchy_string.lower()}",
-        url=url,
-        outfields=outfields,
-        max_record_count=max_record_count,
-        **params,
-    )
+
+    try:
+        total_records = totalRecordCount(url, where='1=1', outfields=outfields)
+    except Exception:
+        total_records = max_record_count
+
+    try:
+        srv_max = maxRecordCount(url)
+    except (ValueError, KeyError):
+        srv_max = max_record_count
+
+    resource_dict = {
+        "name": re.sub('[:/_ ]', '-', f"censustigerweb-{scopename}-{sl.hierarchy_string.lower()}").lower(),
+        "format": "json",
+        "path": url,
+        "schema": rest_schema(url, outfields=outfields),
+        "mediatype": "application/geo+json",
+        "_metadata": {
+            "type": "arcgis_service",
+            "params": query,
+            "total_records": total_records,
+            "max_record_count": min(max_record_count, srv_max),
+        },
+    }
+    tigerweb_resource = frictionless.Resource(resource_dict)
 
     if archive is not None:
         tigerweb_resource.to_yaml(archive)
