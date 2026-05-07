@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Move network helpers into class methods (branch refactor/api-class-integration)
+
+Removed `get_table_groups`, `get_group_variables`, `get_group_universe` as standalone module functions. Logic now lives directly in the class that uses it: `Vintage.groups`, `Group.variables`, and `Group.universe` each do their own `get_json_safely` call. All three removed from `__init__.py` exports — callers access the data through class instances instead.
+
+Tests updated: mock target changes from `morpc_census.api.get_table_groups` etc. to `morpc.req.get_json_safely`, with URL-dispatching side effects. `test_groups_delegates_to_get_table_groups` → `test_groups_fetches_from_api`; similarly for variables and universe.
+
 ## 2026-05-07 — Remove standalone validation/utility functions from api.py (branch refactor/api-class-integration)
 
 Removed 7 standalone functions that were made redundant by the class hierarchy:

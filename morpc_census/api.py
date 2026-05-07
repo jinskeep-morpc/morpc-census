@@ -124,45 +124,6 @@ def get_all_avail_endpoints():
 
 
 # ---------------------------------------------------------------------------
-# Network helpers — called by class cached_properties; also public for direct use
-# ---------------------------------------------------------------------------
-
-def get_table_groups(survey_table: str, year: int) -> dict:
-    """Return {group_name: {description, variables}} for all groups in the survey."""
-    from morpc.req import get_json_safely
-    logger.debug(f"Fetching groups for {year} {survey_table}")
-    data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups.json")
-    groups = {
-        g['name']: {'description': g['description'], 'variables': g['variables']}
-        for g in data['groups']
-    }
-    return dict(sorted(groups.items()))
-
-
-def get_group_variables(survey_table: str, year: int, group: str) -> dict:
-    """Return variable metadata dict for *group*, sorted by variable name."""
-    from morpc.req import get_json_safely
-    data = get_json_safely(
-        f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups/{group}.json"
-    )
-    return {
-        k: data['variables'][k]
-        for k in sorted(data['variables'])
-        if k not in ('GEO_ID', 'NAME')
-    }
-
-
-def get_group_universe(survey_table: str, year: int, group: str) -> str:
-    """Return the universe string for a variable group from the Census API."""
-    from morpc.req import get_json_safely
-    data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups")
-    match = [x for x in data['groups'] if x['name'] == group.upper()]
-    if not match:
-        raise ValueError(f"Group {group} not found in {year} {survey_table}.")
-    return match[0]['universe ']  # trailing space is present in the Census API response
-
-
-# ---------------------------------------------------------------------------
 # Census API endpoint classes
 # ---------------------------------------------------------------------------
 
@@ -238,7 +199,13 @@ class Vintage:
     @cached_property
     def groups(self) -> dict:
         """All variable groups for this vintage, keyed by group code (fetched once, then cached)."""
-        return get_table_groups(self.survey.name, self.year)
+        from morpc.req import get_json_safely
+        logger.debug(f"Fetching groups for {self.year} {self.survey.name}")
+        data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey.name}/groups.json")
+        return dict(sorted({
+            g['name']: {'description': g['description'], 'variables': g['variables']}
+            for g in data['groups']
+        }.items()))
 
 
 class Group:
@@ -288,12 +255,31 @@ class Group:
     @property
     def universe(self) -> str:
         """Universe description string."""
-        return get_group_universe(self.vintage.survey.name, self.vintage.year, self.code)
+        from morpc.req import get_json_safely
+        data = get_json_safely(
+            f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}/groups"
+        )
+        match = [x for x in data['groups'] if x['name'] == self.code]
+        if not match:
+            raise ValueError(
+                f"Group {self.code!r} not found in "
+                f"{self.vintage.year} {self.vintage.survey.name}."
+            )
+        return match[0]['universe ']  # trailing space is present in the Census API response
 
     @cached_property
     def variables(self) -> dict:
         """Variable metadata dict for this group (fetched once, then cached)."""
-        return get_group_variables(self.vintage.survey.name, self.vintage.year, self.code)
+        from morpc.req import get_json_safely
+        data = get_json_safely(
+            f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}"
+            f"/groups/{self.code}.json"
+        )
+        return {
+            k: data['variables'][k]
+            for k in sorted(data['variables'])
+            if k not in ('GEO_ID', 'NAME')
+        }
 
 
 # ---------------------------------------------------------------------------

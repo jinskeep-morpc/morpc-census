@@ -194,11 +194,22 @@ class TestCensusAPIClassNormalization:
 
     _fake_endpoints = {'acs/acs5': [2022, 2023]}
 
+    # Raw JSON responses matching the three Census API endpoints the classes call
+    _groups_json = {'groups': [{'name': 'B01001', 'description': 'Sex by Age', 'variables': '', 'universe ': 'All people'}]}
+    _vars_json = {'variables': {'B01001_001E': {'label': 'Total:'}, 'GEO_ID': {}, 'NAME': {}}}
+
+    def _census_json(self, url, **kwargs):
+        if url.endswith('/groups.json'):
+            return self._groups_json
+        if url.endswith('/groups'):
+            return self._groups_json
+        if 'groups/B01001.json' in url:
+            return self._vars_json
+        raise ValueError(f"Unexpected URL in test: {url}")
+
     def _make(self, scope, sumlevel=None):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
-             patch('morpc_census.api.get_group_universe', return_value='All people'), \
-             patch('morpc_census.api.get_group_variables', return_value=self._fake_vars), \
+             patch('morpc.req.get_json_safely', side_effect=self._census_json), \
              patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
              patch('morpc_census.api.fetch', return_value=self._fake_data):
             return CensusAPI('acs/acs5', 2023, 'B01001', scope, sumlevel=sumlevel, return_long=False)
@@ -356,13 +367,13 @@ class TestVintage:
         v2 = self._make_vintage()
         assert hash(v1) == hash(v2)
 
-    def test_groups_delegates_to_get_table_groups(self):
+    def test_groups_fetches_from_api(self):
+        raw = {'groups': [{'name': 'B01001', 'description': 'Sex by Age', 'variables': ''}]}
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups) as mock_gtg:
+             patch('morpc.req.get_json_safely', return_value=raw):
             v = Vintage('acs/acs5', 2023)
             groups = v.groups
-        assert groups == self._fake_groups
-        mock_gtg.assert_called_once_with('acs/acs5', 2023)
+        assert groups == {'B01001': {'description': 'Sex by Age', 'variables': ''}}
 
 
 # ---------------------------------------------------------------------------
@@ -373,10 +384,12 @@ class TestGroup:
     _fake_endpoints = {'acs/acs5': [2022, 2023]}
     _fake_groups = {'B01001': {'description': 'Sex by Age', 'variables': ''}}
     _fake_vars = {'B01001_001E': {'label': 'Total:'}}
+    _groups_json = {'groups': [{'name': 'B01001', 'description': 'Sex by Age', 'variables': '', 'universe ': 'All people'}]}
+    _vars_json = {'variables': {'B01001_001E': {'label': 'Total:'}, 'GEO_ID': {}, 'NAME': {}}}
 
     def _make_group(self, code='B01001'):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups):
+             patch('morpc.req.get_json_safely', return_value=self._groups_json):
             v = Vintage('acs/acs5', 2023)
             return Group(v, code)
 
@@ -386,7 +399,7 @@ class TestGroup:
 
     def test_invalid_code_raises_value_error(self):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups):
+             patch('morpc.req.get_json_safely', return_value=self._groups_json):
             v = Vintage('acs/acs5', 2023)
             with pytest.raises(ValueError, match="not a valid group"):
                 Group(v, 'BOGUS')
@@ -413,22 +426,20 @@ class TestGroup:
         g2 = self._make_group()
         assert hash(g1) == hash(g2)
 
-    def test_variables_delegates_to_get_group_variables(self):
+    def test_variables_fetches_from_api(self):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
-             patch('morpc_census.api.get_group_variables', return_value=self._fake_vars) as mock_ggv:
+             patch('morpc.req.get_json_safely', side_effect=[self._groups_json, self._vars_json]):
             v = Vintage('acs/acs5', 2023)
             g = Group(v, 'B01001')
             variables = g.variables
-        assert variables == self._fake_vars
-        mock_ggv.assert_called_once_with('acs/acs5', 2023, 'B01001')
+        assert variables == {'B01001_001E': {'label': 'Total:'}}
+        assert 'GEO_ID' not in variables
+        assert 'NAME' not in variables
 
-    def test_universe_delegates_to_get_group_universe(self):
+    def test_universe_fetches_from_api(self):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
-             patch('morpc_census.api.get_group_universe', return_value='All people') as mock_ggu:
+             patch('morpc.req.get_json_safely', side_effect=[self._groups_json, self._groups_json]):
             v = Vintage('acs/acs5', 2023)
             g = Group(v, 'B01001')
             universe = g.universe
         assert universe == 'All people'
-        mock_ggu.assert_called_once_with('acs/acs5', 2023, 'B01001')
