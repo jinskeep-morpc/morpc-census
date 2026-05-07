@@ -14,5 +14,5 @@ This package depends on [morpc-py](https://github.com/morpc/morpc-py) for shared
 
 ## Notebooks
 
-- [05 — Geography demo](05-morpc-geos-demo.ipynb)
-- [07 — Census API demo](07-morpc-census-demo.ipynb)
+- [Geography demo](/morpc-geos-demo)
+- [Census API demo](/morpc-census-demo)
