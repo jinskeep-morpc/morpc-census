@@ -445,7 +445,7 @@ def get_query_req(sumlevel: str, year: str = '2023') -> dict:
     return SumLevel(sumlevel).get_query_req(year)
 
 
-def pseudos_from_sumlevel_scope(sumlevel: str | SumLevel, scope: str | Scope) -> list[str]:
+def pseudos_from_scope_sumlevel(sumlevel: str | SumLevel, scope: str | Scope) -> list[str]:
     """Build ucgid pseudo predicates for each parent GEOID in scope at the given child sumlevel."""
     sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
     sc = scope if isinstance(scope, Scope) else SCOPES[scope]
@@ -558,7 +558,7 @@ def geoinfo_from_scope_sumlevel(
 
         else:
             try:
-                pseudos = pseudos_from_sumlevel_scope(sl, sc)
+                pseudos = pseudos_from_scope_sumlevel(sl, sc)
                 params['ucgid'] = f"pseudo({','.join(pseudos)})"
                 if output == 'params':
                     return params
@@ -622,10 +622,12 @@ def fetch_geos_from_geoids(geoidfqs: list[GeoIDFQ], year: int | None = None, sur
     geometries = pd.concat(results).rename(columns={'GEOID': 'GEO_ID'})
     return gpd.GeoDataFrame(geometries, geometry='geometry')
 
-def fetch_geos_from_sumlevel_scope(scope: str, sumlevel: str | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+def fetch_geos_from_scope_sumlevel(scope: str | Scope, sumlevel: str | SumLevel | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
     """Fetch a GeoDataFrame of geometries for all geographies at sumlevel within scope."""
+    sc = scope if isinstance(scope, Scope) else SCOPES[scope]
+    sl = sumlevel if isinstance(sumlevel, SumLevel) or sumlevel is None else SumLevel(sumlevel)
 
-    geoinfo = geoinfo_from_scope_sumlevel(scope, sumlevel, output='table')
+    geoinfo = geoinfo_from_scope_sumlevel(sc, sl, output='table')
     parsed = [GeoIDFQ.parse(fq) for fq in geoinfo['GEO_ID']]
     geoinfo['GEOIDFQ'] = geoinfo['GEO_ID']
     geoinfo['GEO_ID'] = [g.geoid for g in parsed]

@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Rename *_sumlevel_scope → *_scope_sumlevel; add Scope/SumLevel types to fetch (branch refactor/geos-class-integration)
+
+Renamed `pseudos_from_sumlevel_scope` → `pseudos_from_scope_sumlevel` and `fetch_geos_from_sumlevel_scope` → `fetch_geos_from_scope_sumlevel` throughout geos.py, __init__.py, and the demo notebook. Consistent with the `geoinfo_from_scope_sumlevel` naming convention (scope first, then sumlevel).
+
+`fetch_geos_from_scope_sumlevel` now accepts `str | Scope` and `str | SumLevel | None`, normalising to `Scope`/`SumLevel` objects before delegating to `geoinfo_from_scope_sumlevel`.
+
 ## 2026-05-07 — Refactor fetch_geos_from_geoids; GeoIDFQ.__repr__ shows components (branch refactor/geos-class-integration)
 
 Extracted `_fetch_layer(sumlevel: SumLevel, geoids, year, survey, chunk_size)` private helper that handles one sumlevel group, including internal chunking. Uses `sl.tigerweb_name` directly instead of re-accessing `morpc.SUMLEVEL_DESCRIPTIONS`.
