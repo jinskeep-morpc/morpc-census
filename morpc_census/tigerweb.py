@@ -179,13 +179,13 @@ def resource_from_scope_sumlevel(
     archive: PathLike | None = None,
     max_record_count: int = 20,
 ):
-    """Build a morpc REST API resource for all geographies at *scale* within *scope*.
+    """Build a morpc REST API resource for all geographies at *sumlevel* within *scope*.
 
     Parameters
     ----------
     scope : str | Scope
         Geographic scope (e.g. ``'franklin'`` or a ``Scope`` instance).
-    scale : str | SumLevel
+    sumlevel : str | SumLevel
         Summary level name or ``SumLevel`` instance (e.g. ``'tract'``).
     archive : path-like, optional
         If provided, the resource is serialised to YAML at this path.
@@ -228,7 +228,7 @@ def resource_from_geometry_sumlevel(
     archive: PathLike | None = None,
     max_record_count: int = 20,
 ):
-    """Build a morpc REST API resource for all geographies at *scale* intersecting *geo*.
+    """Build a morpc REST API resource for all geographies at *sumlevel* intersecting *geo*.
 
     Parameters
     ----------
@@ -236,7 +236,7 @@ def resource_from_geometry_sumlevel(
         Geometry whose bounding box is used as the spatial filter.
     scopename : str
         Label used in the resource name (e.g. ``'franklin'``).
-    scale : str | SumLevel
+    sumlevel : str | SumLevel
         Summary level name or ``SumLevel`` instance (e.g. ``'tract'``).
     archive : path-like, optional
         If provided, the resource is serialised to YAML at this path.
