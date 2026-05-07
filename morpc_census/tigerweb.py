@@ -222,6 +222,7 @@ def resource_from_scope_sumlevel(
 
 
 # TODO: resource_from_geometry_sumlevel is blocked on gdf_from_resource support for
+# Issue URL: https://github.com/jinskeep-morpc/morpc-census/issues/50
 # spatial (geometry envelope) queries. morpc.rest_api.gdf_from_resource paginates using
 # totalRecordCount which does not accept spatial params, so fetching from this resource
 # silently returns wrong results. Re-enable and debug once gdf_from_resource is updated
