@@ -1,5 +1,18 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Remove standalone validation/utility functions from api.py (branch refactor/api-class-integration)
+
+Removed 7 standalone functions that were made redundant by the class hierarchy:
+- `valid_survey_table`, `valid_vintage`, `valid_group`, `valid_variables` → validation now happens in `SurveyTable.__init__`, `Vintage.__init__`, `Group.__init__`, and `CensusAPI.__init__` respectively
+- `get_query_url` → superseded by `Vintage.url`
+- `get_params`, `get_api_request` → absorbed into `CensusAPI._build_request()`
+
+The module now has a clear two-layer structure: (1) network primitives (`get_all_avail_endpoints`, `get_table_groups`, `get_group_variables`, `get_group_universe`, `fetch`) used by class cached_properties; (2) classes (`SurveyTable` → `Vintage` → `Group` → `CensusAPI`) that expose the hierarchy cleanly.
+
+`CensusAPI._build_request()` builds `{url, params}` directly from `self.VARIABLE_GROUP.vintage.url` and `geoinfo_from_scope_sumlevel(self.SCOPE, self.SUMLEVEL)`.
+
+Tests: removed `TestValidSurveyTable`, `TestValidVintage`, `TestGetParams` (all covered by `TestSurveyTable`/`TestVintage`/`TestGroup`); added 3 edge-case tests to `TestSurveyTable`; updated `_make` to patch `morpc_census.geos.geoinfo_from_scope_sumlevel` instead of the removed `get_api_request`. 77 tests passing.
+
 ## 2026-05-07 — Add SurveyTable, Vintage, Group classes to api.py (branch refactor/api-class-integration, issue #54)
 
 Added three classes representing the Census API endpoint hierarchy:

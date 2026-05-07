@@ -9,12 +9,9 @@ import pandas as pd
 from unittest.mock import patch
 
 from morpc_census.api import (
-    valid_survey_table,
-    get_params,
     censusapi_name,
     find_replace_variable_map,
     DimensionTable,
-    valid_vintage,
     SurveyTable,
     Vintage,
     Group,
@@ -41,58 +38,6 @@ def _make_long():
         'estimate': [100, 50, 50],
         'moe': [5, 3, 3],
     })
-
-
-# ---------------------------------------------------------------------------
-# TestValidSurveyTable
-# ---------------------------------------------------------------------------
-
-class TestValidSurveyTable:
-    def test_returns_true_for_acs5(self):
-        assert valid_survey_table('acs/acs5') is True
-
-    def test_returns_true_for_dec_pl(self):
-        assert valid_survey_table('dec/pl') is True
-
-    def test_returns_true_for_every_implemented_endpoint(self):
-        for endpoint in IMPLEMENTED_ENDPOINTS:
-            assert valid_survey_table(endpoint) is True
-
-    def test_raises_for_unknown_endpoint(self):
-        with pytest.raises(ValueError, match="not available or not yet implemented"):
-            valid_survey_table('acs/acs99')
-
-    def test_raises_for_empty_string(self):
-        with pytest.raises(ValueError):
-            valid_survey_table('')
-
-    def test_raises_for_partial_match(self):
-        with pytest.raises(ValueError):
-            valid_survey_table('acs')
-
-
-# ---------------------------------------------------------------------------
-# TestGetParams
-# ---------------------------------------------------------------------------
-
-class TestGetParams:
-    def test_no_variables_returns_group_string(self):
-        assert get_params('B01001') == 'group(B01001)'
-
-    def test_none_variables_returns_group_string(self):
-        assert get_params('B01001', variables=None) == 'group(B01001)'
-
-    def test_variable_list_returns_comma_joined(self):
-        result = get_params('B01001', variables=['B01001_001E', 'B01001_002E'])
-        assert result == 'B01001_001E,B01001_002E'
-
-    def test_single_variable_no_trailing_comma(self):
-        assert get_params('B01001', variables=['B01001_001E']) == 'B01001_001E'
-
-    def test_group_string_contains_group_code(self):
-        result = get_params('B25003')
-        assert 'B25003' in result
-        assert result.startswith('group(')
 
 
 # ---------------------------------------------------------------------------
@@ -237,32 +182,6 @@ class TestDimensionTableDescriptionTable:
 
 
 # ---------------------------------------------------------------------------
-# TestValidVintage (mocked)
-# ---------------------------------------------------------------------------
-
-class TestValidVintage:
-    _endpoints = {'acs/acs5': [2022, 2023]}
-
-    def test_valid_year_int_returns_true(self):
-        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._endpoints):
-            assert valid_vintage('acs/acs5', 2023) is True
-
-    def test_valid_year_string_returns_true(self):
-        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._endpoints):
-            assert valid_vintage('acs/acs5', '2022') is True
-
-    def test_invalid_year_raises_value_error(self):
-        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._endpoints):
-            with pytest.raises(ValueError, match="not an available vintage"):
-                valid_vintage('acs/acs5', 2019)
-
-    def test_unknown_survey_table_raises_value_error(self):
-        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._endpoints):
-            with pytest.raises(ValueError):
-                valid_vintage('acs/acs1', 2023)
-
-
-# ---------------------------------------------------------------------------
 # TestCensusAPIClassNormalization
 # ---------------------------------------------------------------------------
 
@@ -280,7 +199,7 @@ class TestCensusAPIClassNormalization:
              patch('morpc_census.api.get_table_groups', return_value=self._fake_groups), \
              patch('morpc_census.api.get_group_universe', return_value='All people'), \
              patch('morpc_census.api.get_group_variables', return_value=self._fake_vars), \
-             patch('morpc_census.api.get_api_request', return_value={'url': 'http://x', 'params': {'get': 'group(B01001)', 'for': 'county:049'}}), \
+             patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
              patch('morpc_census.api.fetch', return_value=self._fake_data):
             return CensusAPI('acs/acs5', 2023, 'B01001', scope, sumlevel=sumlevel, return_long=False)
 
@@ -348,9 +267,21 @@ class TestSurveyTable:
         st = SurveyTable('acs/acs5')
         assert st.name == 'acs/acs5'
 
+    def test_valid_for_every_implemented_endpoint(self):
+        for endpoint in IMPLEMENTED_ENDPOINTS:
+            assert SurveyTable(endpoint).name == endpoint
+
     def test_invalid_raises_value_error(self):
         with pytest.raises(ValueError, match="not available or not yet implemented"):
             SurveyTable('acs/acs99')
+
+    def test_raises_for_empty_string(self):
+        with pytest.raises(ValueError):
+            SurveyTable('')
+
+    def test_raises_for_partial_match(self):
+        with pytest.raises(ValueError):
+            SurveyTable('acs')
 
     def test_repr(self):
         assert repr(SurveyTable('acs/acs5')) == "SurveyTable('acs/acs5')"

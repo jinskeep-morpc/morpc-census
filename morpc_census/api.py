@@ -124,39 +124,8 @@ def get_all_avail_endpoints():
 
 
 # ---------------------------------------------------------------------------
-# Parameter validation helpers
+# Network helpers — called by class cached_properties; also public for direct use
 # ---------------------------------------------------------------------------
-
-def valid_survey_table(survey_table: str) -> bool:
-    """Validate survey_table against IMPLEMENTED_ENDPOINTS. Raises ValueError if not recognized."""
-    if survey_table in IMPLEMENTED_ENDPOINTS:
-        logger.info(f"{survey_table} is valid.")
-        return True
-    logger.error(f"{survey_table} not available or not yet implemented.")
-    raise ValueError(f"{survey_table} not available or not yet implemented.")
-
-
-def valid_vintage(survey_table: str, year: int) -> bool:
-    """Validate that *year* is an available vintage for *survey_table*.
-
-    Makes a network call to the Census discovery endpoint on first use
-    (result is cached).
-    """
-    year = int(year)
-    avail = get_all_avail_endpoints()
-    if year in avail.get(survey_table, []):
-        logger.info(f"{year} is valid for {survey_table}.")
-        return True
-    logger.error(f"{year} is not an available vintage for {survey_table}.")
-    raise ValueError(f"{year} is not an available vintage for {survey_table}.")
-
-
-def get_query_url(survey_table: str, year: int) -> str:
-    """Build the base Census API query URL for a survey and vintage year."""
-    url = f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}?"
-    logger.info(f"Base URL: {url}")
-    return url
-
 
 def get_table_groups(survey_table: str, year: int) -> dict:
     """Return {group_name: {description, variables}} for all groups in the survey."""
@@ -168,16 +137,6 @@ def get_table_groups(survey_table: str, year: int) -> dict:
         for g in data['groups']
     }
     return dict(sorted(groups.items()))
-
-
-def valid_group(group: str, survey_table: str, year: int) -> bool:
-    """Validate that group exists in survey_table for year. Raises ValueError if not found."""
-    groups = get_table_groups(survey_table, year)
-    if group in groups:
-        logger.info(f"{group} is valid for {year} {survey_table}.")
-        return True
-    logger.error(f"{group} is not a valid group in {year} {survey_table}.")
-    raise ValueError(f"{group} is not a valid group in {year} {survey_table}.")
 
 
 def get_group_variables(survey_table: str, year: int, group: str) -> dict:
@@ -201,16 +160,6 @@ def get_group_universe(survey_table: str, year: int, group: str) -> str:
     if not match:
         raise ValueError(f"Group {group} not found in {year} {survey_table}.")
     return match[0]['universe ']  # trailing space is present in the Census API response
-
-
-def valid_variables(survey_table: str, year: int, group: str, variables: list[str]) -> bool:
-    """Validate that all variables exist in group. Raises ValueError on first missing variable."""
-    avail = get_group_variables(survey_table, year, group)
-    for var in variables:
-        if var not in avail:
-            logger.error(f"{var} is not a valid variable in {group} {survey_table}.")
-            raise ValueError(f"{var} is not a valid variable in {group} {survey_table}.")
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -345,32 +294,6 @@ class Group:
     def variables(self) -> dict:
         """Variable metadata dict for this group (fetched once, then cached)."""
         return get_group_variables(self.vintage.survey.name, self.vintage.year, self.code)
-
-
-# ---------------------------------------------------------------------------
-# Request building
-# ---------------------------------------------------------------------------
-
-def get_params(group: str, variables: list[str] | None = None) -> str:
-    """Build the Census API 'get' parameter string for a group or variable list."""
-    if variables is not None:
-        return ",".join(variables)
-    return f"group({group})"
-
-
-def get_api_request(survey_table: str, year: int, group: str, scope: str | Scope, variables: list[str] | None = None, sumlevel: str | SumLevel | None = None) -> dict:
-    """Build the Census API request dict (url + params) for a survey, scope, and optional sumlevel."""
-    from morpc_census.geos import geoinfo_from_scope_sumlevel
-
-    url = get_query_url(survey_table, year)
-    get_param = get_params(group, variables=variables)
-    geo_param = geoinfo_from_scope_sumlevel(scope, sumlevel, output='params')
-
-    params = {'get': get_param}
-    params.update(geo_param)
-
-    logger.info(f"Request — url: {url}  params: {params}")
-    return {'url': url, 'params': params}
 
 
 # ---------------------------------------------------------------------------
@@ -592,14 +515,7 @@ class CensusAPI:
         self._fetch_metadata()
 
         self.logger.info("Building request URL and parameters.")
-        self.REQUEST = get_api_request(
-            survey_table=self.SURVEY,
-            year=self.YEAR,
-            group=self.GROUP,
-            scope=self.SCOPE,
-            variables=self.VARIABLES,
-            sumlevel=self.SUMLEVEL,
-        )
+        self.REQUEST = self._build_request()
 
         self.logger.info(
             f"Fetching data from {self.REQUEST['url']} "
@@ -646,6 +562,18 @@ class CensusAPI:
         self.VARS = dict(self.VARIABLE_GROUP.variables)
         if self.VARIABLES is not None:
             self.VARS = {k: v for k, v in self.VARS.items() if k in self.VARIABLES}
+
+    def _build_request(self) -> dict:
+        """Build the Census API request dict from already-normalized instance attributes."""
+        from morpc_census.geos import geoinfo_from_scope_sumlevel
+        get_param = (
+            ','.join(self.VARIABLES) if self.VARIABLES is not None
+            else f"group({self.GROUP})"
+        )
+        geo_param = geoinfo_from_scope_sumlevel(self.SCOPE, self.SUMLEVEL, output='params')
+        params = {'get': get_param}
+        params.update(geo_param)
+        return {'url': self.VARIABLE_GROUP.vintage.url, 'params': params}
 
     def validate(self) -> None:
         """No-op — validation now happens during Group construction in __init__."""
