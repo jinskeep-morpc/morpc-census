@@ -662,8 +662,6 @@ class CensusAPI:
 
     def validate(self) -> None:
         """Validate all parameters, raising ValueError on the first failure."""
-        from morpc_census.geos import valid_scope, valid_sumlevel
-
         self.logger.info("Validating parameters.")
         valid_survey_table(self.SURVEY)
         valid_vintage(self.SURVEY, self.YEAR)
