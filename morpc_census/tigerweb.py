@@ -173,9 +173,9 @@ def get_layer_url(
     return url
 
 
-def resource_from_scope_scale(
+def resource_from_scope_sumlevel(
     scope: str | Scope,
-    scale: str | SumLevel,
+    sumlevel: str | SumLevel,
     archive: PathLike | None = None,
     max_record_count: int = 20,
 ):
@@ -201,7 +201,7 @@ def resource_from_scope_scale(
     from morpc_census.geos import Scope, SumLevel
 
     sc = scope if isinstance(scope, Scope) else Scope(scope)
-    sl = scale if isinstance(scale, SumLevel) else SumLevel(scale)
+    sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
 
     url = get_layer_url(sl.tigerweb_name)
     where = sc.sql
@@ -221,10 +221,10 @@ def resource_from_scope_scale(
     return tigerweb_resource
 
 
-def resource_from_geometry_scale(
+def resource_from_geometry_sumlevel(
     geo,
     scopename: str,
-    scale: str | SumLevel,
+    sumlevel: str | SumLevel,
     archive: PathLike | None = None,
     max_record_count: int = 20,
 ):
@@ -251,7 +251,7 @@ def resource_from_geometry_scale(
     from morpc.rest_api import resource
     from morpc_census.geos import SumLevel
 
-    sl = scale if isinstance(scale, SumLevel) else SumLevel(scale)
+    sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
 
     url = get_layer_url(sl.tigerweb_name)
     outfields = ",".join(['GEOID', 'NAME'] + [f.upper() for f in sl.parts])
