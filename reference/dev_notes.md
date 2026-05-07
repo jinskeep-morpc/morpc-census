@@ -1,5 +1,15 @@
 # morpc-census dev notes
 
+## 2026-05-07 — Refactor fetch_geos_from_geoids; GeoIDFQ.__repr__ shows components (branch refactor/geos-class-integration)
+
+Extracted `_fetch_layer(sumlevel: SumLevel, geoids, year, survey, chunk_size)` private helper that handles one sumlevel group, including internal chunking. Uses `sl.tigerweb_name` directly instead of re-accessing `morpc.SUMLEVEL_DESCRIPTIONS`.
+
+`fetch_geos_from_geoids` signature changed from `list[str]` to `list[GeoIDFQ]`. Groups by `SumLevel` key (not raw string) before calling `_fetch_layer`. Eliminates duplicated if/else chunking logic and the pattern of chunking by position before grouping by sumlevel.
+
+`fetch_geos_from_sumlevel_scope` updated to parse GEOIDFQ strings into `GeoIDFQ` objects once, then uses `.geoid` for the short ID (replaces `x.split('US')[-1]`).
+
+`GeoIDFQ.__repr__` changed to show parsed components (e.g. `GeoIDFQ(sumlevel='140', variant='00', geocomp='00', state='39', county='041', tract='010100')`) instead of the raw concatenated string. `__str__` unchanged — still returns the full GEOIDFQ string.
+
 ## 2026-05-07 — Reorder geos functions; integrate Scope/SumLevel/GeoIDFQ (branch refactor/geos-class-integration)
 
 Reordered functions in logical dependency order:

@@ -163,7 +163,10 @@ class GeoIDFQ:
             setattr(self, name, value)
 
     def __repr__(self) -> str:
-        return str(self)
+        sl_code = self.sumlevel.sumlevel if isinstance(self.sumlevel, SumLevel) else self.sumlevel
+        fields = {"sumlevel": sl_code, "variant": self.variant, "geocomp": self.geocomp}
+        fields.update({f: getattr(self, f) for f in self._geo_fields})
+        return "GeoIDFQ(" + ", ".join(f"{k}={v!r}" for k, v in fields.items()) + ")"
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, GeoIDFQ) and str(self) == str(other)
@@ -575,87 +578,58 @@ def geoinfo_from_scope_sumlevel(
     if output == 'list':
         return geoinfo['GEO_ID'].to_list()
 
-def fetch_geos_from_geoids(geoidfqs: list[str], year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
-    """Fetch geometries from the TIGERweb REST API for a list of Census GEOIDFQs."""
+def _fetch_layer(sumlevel: SumLevel, geoids: list[str], year: int | None, survey: str, chunk_size: int) -> "GeoDataFrame":
+    """Fetch geometries for a single sumlevel from TIGERweb, chunking the geoid list as needed."""
     import morpc
     from morpc_census.tigerweb import get_layer_url
     import pandas as pd
+
+    if sumlevel.tigerweb_name is None:
+        logger.error(f"Sumlevel {sumlevel!r} has no TIGERweb layer.")
+        raise NotImplementedError(f"Sumlevel {sumlevel!r} has no TIGERweb layer")
+
+    url = get_layer_url(layer_name=sumlevel.tigerweb_name, year=year, survey=survey)
+    logger.info(f"Fetching {sumlevel.name} geometries ({len(geoids)} records) from {url}")
+
+    chunks = [geoids[i:i + chunk_size] for i in range(0, len(geoids), chunk_size)]
+    results = []
+    for i, chunk in enumerate(chunks):
+        if len(chunks) > 1:
+            logger.info(f"  chunk {i + 1}/{len(chunks)} ({len(chunk)} records)")
+        where = "GEOID in ({})".format(",".join(f"'{g}'" for g in chunk))
+        resource = morpc.rest_api.resource(name='temp', url=url, where=where, outfields='GEOID', max_record_count=chunk_size)
+        results.append(morpc.rest_api.gdf_from_resource(resource))
+
+    return pd.concat(results)
+
+
+def fetch_geos_from_geoids(geoidfqs: list[GeoIDFQ], year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
+    """Fetch geometries from the TIGERweb REST API for a list of GeoIDFQ objects."""
+    import pandas as pd
     import geopandas as gpd
-    
-    all_geoidfqs = geoidfqs
-    all_geometries = []
 
-    if len(geoidfqs) > chunk_size:
-        start = 0
-        while start < len(all_geoidfqs):
-            offset = min(chunk_size, len(all_geoidfqs) - start)
-            logger.info(f"Fetching geoids {start} - {start + offset - 1}")
-            geoidfqs = all_geoidfqs[start:start + offset]
+    by_sumlevel: dict[SumLevel, list[str]] = {}
+    for g in geoidfqs:
+        by_sumlevel.setdefault(g.sumlevel, []).append(g.geoid)
 
-            sumlevels = set([x[0:3] for x in geoidfqs])
-            logger.info(f"Sum levels {', '.join(sumlevels)} are in data.")
+    logger.info(f"Fetching geometries for sumlevels: {', '.join(sl.name for sl in by_sumlevel)}")
 
-            for sumlevel in sumlevels:
-                layerName = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername']
-                if layerName == None:
-                    logger.error(f"Sumlevel {sumlevel} does not have a layer in TigerWeb REST API.")
-                    raise NotImplementedError
+    results = [
+        _fetch_layer(sl, geoids, year, survey, chunk_size)
+        for sl, geoids in by_sumlevel.items()
+    ]
 
-                url = get_layer_url(layer_name=layerName, year=year, survey=survey)
-                logger.info(f"Fetching geometries for {layerName} ({sumlevel}) from {url}")
-
-                geoids = ",".join([f"'{x.split('US')[-1]}'" for x in geoidfqs if x.startswith(sumlevel)])
-                logger.info(f"There are {len(geoids)} geographies in {layerName}")
-                logger.debug(f"{geoids}")
-
-                resource = morpc.rest_api.resource(name='temp', url=url, where=f"GEOID in ({geoids})", outfields='GEOID', max_record_count=chunk_size)
-                geos = morpc.rest_api.gdf_from_resource(resource)
-                all_geometries.append(geos)
-
-            start += offset
-    else:
-        sumlevels = set([x[0:3] for x in geoidfqs])
-
-        logger.info(f"Sum levels {', '.join(sumlevels)} are in data.")
-
-        for sumlevel in sumlevels: # Get geometries for each sumlevel iteratively
-            # Get rest api layer name and get url
-            layerName = morpc.SUMLEVEL_DESCRIPTIONS[sumlevel]['censusRestAPI_layername']
-            if layerName == None:
-                logger.error(f"Sumlevel {sumlevel} does not have a layer in TigerWeb REST API.")
-                raise NotImplementedError
-
-            url = get_layer_url(year=year, layer_name=layerName, survey=survey)
-            logger.info(f"Fetching geometries for {layerName} ({sumlevel}) from {url}")
-
-            # Construct a list of geoids from data to us to query API
-            geoids = ",".join([f"'{x.split('US')[-1]}'" for x in geoidfqs if x.startswith(sumlevel)])
-
-            logger.info(f"There are {len(geoids)} geographies in {layerName}")
-            logger.debug(f"{', '.join(geoidfqs)}")
-
-            # Build resource file and query API
-            logger.info(f"Building resource file to fetch from RestAPI.")
-            resource = morpc.rest_api.resource(name='temp', url=url, where= f"GEOID in ({geoids})", outfields='GEOID', max_record_count=chunk_size)
-            logger.debug(f"{resource}")
-            logger.info(f"Fetching geographies from RestAPI.")
-            geos = morpc.rest_api.gdf_from_resource(resource)
-
-            all_geometries.append(geos)
-
-    logger.info("Combining geometries...")
-    geometries = pd.concat(all_geometries)
-    geometries = geometries.rename(columns={'GEOID': 'GEO_ID'})
-
+    geometries = pd.concat(results).rename(columns={'GEOID': 'GEO_ID'})
     return gpd.GeoDataFrame(geometries, geometry='geometry')
 
 def fetch_geos_from_sumlevel_scope(scope: str, sumlevel: str | None = None, year: int | None = None, survey: Literal['current', 'ACS', 'DEC'] = 'current', chunk_size: int = 500) -> GeoDataFrame:
     """Fetch a GeoDataFrame of geometries for all geographies at sumlevel within scope."""
 
     geoinfo = geoinfo_from_scope_sumlevel(scope, sumlevel, output='table')
+    parsed = [GeoIDFQ.parse(fq) for fq in geoinfo['GEO_ID']]
     geoinfo['GEOIDFQ'] = geoinfo['GEO_ID']
-    geoinfo['GEO_ID'] = [x.split('US')[-1] for x in geoinfo['GEO_ID']]
-    geos = fetch_geos_from_geoids(geoinfo['GEOIDFQ'].to_list(), year, survey, chunk_size=chunk_size)
+    geoinfo['GEO_ID'] = [g.geoid for g in parsed]
+    geos = fetch_geos_from_geoids(parsed, year, survey, chunk_size=chunk_size)
 
     try:
         geos = geos.set_index('GEO_ID').join(geoinfo.set_index('GEO_ID')).reset_index()
