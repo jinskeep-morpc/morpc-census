@@ -1,5 +1,9 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Rename CensusAPI and DimensionTable instance attributes to snake_case (branch refactor/api-class-integration)
+
+ALL_CAPS instance attributes are a non-standard convention; PEP 8 reserves that style for module-level constants. Renamed all instance attributes on `CensusAPI` and `DimensionTable` to snake_case: `SCOPE`→`scope`, `SUMLEVEL`→`sumlevel`, `VARIABLES`→`variables`, `GROUP`→`group`, `REQUEST`→`request`, `DATA`→`data`, `LONG`→`long`, `UNIVERSE`→`universe`, `VARS`→`vars`, `NAME`→`name`, `FILENAME`→`filename`, `SCHEMA_FILENAME`→`schema_filename`, `SCHEMA`→`schema`, `DATAPATH`→`datapath`, `DESC_TABLE`→`desc_table`. `DimensionTable.WIDE`→`_wide` (can't use `wide`, that's an existing method). Updated tests accordingly. 54 tests passing.
+
 ## 2026-05-11 — Remove redundant passthrough properties from CensusAPI (branch refactor/api-class-integration)
 
 Removed `SURVEY`, `YEAR`, `GROUP` (string), `CONCEPT`, and `scope_obj` properties — they were simple one-liner delegations that added noise without adding value. Callers navigate the hierarchy directly: `api.GROUP.endpoint.year`, `api.GROUP.endpoint.survey`, `api.GROUP.code`, `api.GROUP.description`, `api.SCOPE`.

@@ -227,44 +227,44 @@ class TestCensusAPIClassNormalization:
     def test_scope_string_stored_as_scope_instance(self):
         from morpc_census.geos import Scope
         api = self._make('franklin')
-        assert isinstance(api.SCOPE, Scope)
+        assert isinstance(api.scope, Scope)
 
     def test_scope_instance_passed_through(self):
         from morpc_census.geos import Scope
         sc = Scope('franklin')
         api = self._make(sc)
-        assert api.SCOPE is sc
+        assert api.scope is sc
 
     def test_scope_name_is_correct(self):
         api = self._make('franklin')
-        assert api.SCOPE.name == 'franklin'
+        assert api.scope.name == 'franklin'
 
     def test_sumlevel_string_stored_as_sumlevel_instance(self):
         from morpc_census.geos import SumLevel
         api = self._make('franklin', sumlevel='county')
-        assert isinstance(api.SUMLEVEL, SumLevel)
+        assert isinstance(api.sumlevel, SumLevel)
 
     def test_sumlevel_none_stays_none(self):
         api = self._make('franklin')
-        assert api.SUMLEVEL is None
+        assert api.sumlevel is None
 
     def test_sumlevel_instance_passed_through(self):
         from morpc_census.geos import SumLevel
         sl = SumLevel('county')
         api = self._make('franklin', sumlevel=sl)
-        assert api.SUMLEVEL is sl
+        assert api.sumlevel is sl
 
     def test_sumlevel_name_is_correct(self):
         from morpc_census.geos import SumLevel
         api = self._make('franklin', sumlevel='county')
-        assert api.SUMLEVEL.name == 'county'
-        assert isinstance(api.SUMLEVEL, SumLevel)
+        assert api.sumlevel.name == 'county'
+        assert isinstance(api.sumlevel, SumLevel)
 
     def test_create_resource_title_uses_sumlevel_plural_and_scope_name(self):
         import frictionless
         api = self._make('franklin', sumlevel='county')
-        api.FILENAME = 'test.csv'
-        api.SCHEMA_FILENAME = 'test.schema.yaml'
+        api.filename = 'test.csv'
+        api.schema_filename = 'test.schema.yaml'
         captured = {}
         with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
             api.create_resource()
