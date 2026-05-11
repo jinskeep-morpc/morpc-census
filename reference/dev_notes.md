@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Collapse SurveyTable + Vintage into Endpoint class (branch refactor/api-class-integration)
+
+Removed `SurveyTable` and `Vintage` as separate classes. Replaced with a single `Endpoint(survey, year)` class that validates the survey name against `IMPLEMENTED_ENDPOINTS` and the year against the Census API's available vintages in one constructor. `Endpoint.survey` is now a plain string (no intermediate wrapper object). All properties formerly on `Vintage` (`url`, `groups`, `vintages`) and all validation formerly in `SurveyTable` now live directly on `Endpoint`.
+
+Updated throughout: `Group.endpoint` (was `.vintage`), `CensusAPI.__init__` takes `endpoint: Endpoint`, `censusapi_name` takes `endpoint: Endpoint`, `__init__.py` exports. `TestSurveyTable` and `TestVintage` merged into `TestEndpoint` (11 tests). 55 tests passing.
+
 ## 2026-05-11 — Switch CensusAPI and censusapi_name to Vintage + Group classes (branch refactor/api-class-integration)
 
 `CensusAPI.__init__` signature changed from `(survey_table: str | SurveyTable, year: int, group, ...)` to `(vintage: Vintage, group: str | Group, ...)`. When `group` is a string it is normalized to `Group(vintage, group.upper())`; when it's already a `Group` instance, it's used directly and the `vintage` arg is ignored (the group carries its own vintage). This completes the push to have callers work with class instances rather than loose strings and ints.

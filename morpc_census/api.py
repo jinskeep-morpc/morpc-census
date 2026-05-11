@@ -139,83 +139,67 @@ def _get_api_key() -> str | None:
 # Census API endpoint classes
 # ---------------------------------------------------------------------------
 
-class SurveyTable:
-    """A Census API survey/table endpoint (e.g. ``'acs/acs5'``, ``'dec/pl'``).
+class Endpoint:
+    """A Census API survey at a specific vintage year (e.g. ``'acs/acs5'``, 2023).
 
-    Validates against :data:`IMPLEMENTED_ENDPOINTS` at construction.
-    No network call is made until :attr:`vintages` is accessed.
-    """
-
-    def __init__(self, name: str) -> None:
-        if name not in IMPLEMENTED_ENDPOINTS:
-            raise ValueError(
-                f"{name!r} is not available or not yet implemented. "
-                f"See IMPLEMENTED_ENDPOINTS."
-            )
-        self.name = name
-
-    def __repr__(self) -> str:
-        return f"SurveyTable({self.name!r})"
-
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, SurveyTable) and self.name == other.name
-
-    def __hash__(self) -> int:
-        return hash(self.name)
-
-    @cached_property
-    def vintages(self) -> list[int]:
-        """Available vintage years for this survey (fetched once, then cached)."""
-        return get_all_avail_endpoints().get(self.name, [])
-
-
-class Vintage:
-    """A Census API survey at a specific vintage year.
+    Validates the survey name against :data:`IMPLEMENTED_ENDPOINTS` and the year
+    against the Census API's available vintages at construction.
 
     Parameters
     ----------
-    survey : str or SurveyTable
-        Survey/table endpoint. Strings are normalized to a :class:`SurveyTable`.
+    survey : str
+        Survey/table name, e.g. ``'acs/acs5'``, ``'dec/pl'``.
+        See :data:`IMPLEMENTED_ENDPOINTS`.
     year : int
-        Vintage year. Validated against the survey's available years at construction.
+        Vintage year. Validated against the survey's available years.
     """
 
-    def __init__(self, survey: str | SurveyTable, year: int) -> None:
-        self.survey = survey if isinstance(survey, SurveyTable) else SurveyTable(survey)
-        year = int(year)
-        if year not in self.survey.vintages:
+    def __init__(self, survey: str, year: int) -> None:
+        if survey not in IMPLEMENTED_ENDPOINTS:
             raise ValueError(
-                f"{year} is not an available vintage for {self.survey.name!r}. "
-                f"Available: {self.survey.vintages}"
+                f"{survey!r} is not available or not yet implemented. "
+                f"See IMPLEMENTED_ENDPOINTS."
+            )
+        self.survey = survey
+        year = int(year)
+        if year not in self.vintages:
+            raise ValueError(
+                f"{year} is not an available vintage for {self.survey!r}. "
+                f"Available: {self.vintages}"
             )
         self.year = year
 
     def __repr__(self) -> str:
-        return f"Vintage({self.survey.name!r}, {self.year})"
+        return f"Endpoint({self.survey!r}, {self.year})"
 
     def __eq__(self, other: object) -> bool:
         return (
-            isinstance(other, Vintage)
+            isinstance(other, Endpoint)
             and self.survey == other.survey
             and self.year == other.year
         )
 
     def __hash__(self) -> int:
-        return hash((self.survey.name, self.year))
+        return hash((self.survey, self.year))
+
+    @cached_property
+    def vintages(self) -> list[int]:
+        """Available vintage years for this survey (fetched once, then cached)."""
+        return get_all_avail_endpoints().get(self.survey, [])
 
     @property
     def url(self) -> str:
-        """Base Census API query URL for this vintage."""
-        return f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey.name}?"
+        """Base Census API query URL for this endpoint."""
+        return f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey}?"
 
     @cached_property
     def groups(self) -> dict:
-        """All variable groups for this vintage, keyed by group code (fetched once, then cached)."""
+        """All variable groups for this endpoint, keyed by group code (fetched once, then cached)."""
         from morpc.req import get_json_safely
-        logger.debug(f"Fetching groups for {self.year} {self.survey.name}")
+        logger.debug(f"Fetching groups for {self.year} {self.survey}")
         kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         data = get_json_safely(
-            f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey.name}/groups.json", **kw
+            f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey}/groups.json", **kw
         )
         return dict(sorted({
             g['name']: {'description': g['description'], 'variables': g['variables']}
@@ -224,48 +208,48 @@ class Vintage:
 
 
 class Group:
-    """A variable group within a Census API survey vintage (e.g. ``'B01001'``).
+    """A variable group within a Census API endpoint (e.g. ``'B01001'``).
 
     Parameters
     ----------
-    vintage : Vintage
-        The survey vintage this group belongs to.
+    endpoint : Endpoint
+        The survey endpoint this group belongs to.
     code : str
         Group code (e.g. ``'B01001'``). Case-insensitive; stored upper-cased.
-        Validated against :attr:`Vintage.groups` at construction.
+        Validated against :attr:`Endpoint.groups` at construction.
     """
 
-    def __init__(self, vintage: Vintage, code: str) -> None:
-        if not isinstance(vintage, Vintage):
+    def __init__(self, endpoint: Endpoint, code: str) -> None:
+        if not isinstance(endpoint, Endpoint):
             raise TypeError(
-                f"vintage must be a Vintage instance, got {type(vintage).__name__!r}."
+                f"endpoint must be an Endpoint instance, got {type(endpoint).__name__!r}."
             )
-        self.vintage = vintage
+        self.endpoint = endpoint
         code = code.upper()
-        if code not in self.vintage.groups:
+        if code not in self.endpoint.groups:
             raise ValueError(
                 f"{code!r} is not a valid group in "
-                f"{self.vintage.survey.name!r} {self.vintage.year}."
+                f"{self.endpoint.survey!r} {self.endpoint.year}."
             )
         self.code = code
 
     def __repr__(self) -> str:
-        return f"Group({self.vintage.survey.name!r}, {self.vintage.year}, {self.code!r})"
+        return f"Group({self.endpoint.survey!r}, {self.endpoint.year}, {self.code!r})"
 
     def __eq__(self, other: object) -> bool:
         return (
             isinstance(other, Group)
-            and self.vintage == other.vintage
+            and self.endpoint == other.endpoint
             and self.code == other.code
         )
 
     def __hash__(self) -> int:
-        return hash((self.vintage.survey.name, self.vintage.year, self.code))
+        return hash((self.endpoint.survey, self.endpoint.year, self.code))
 
     @property
     def description(self) -> str:
-        """Group description (read from :attr:`Vintage.groups` — no extra network call)."""
-        return self.vintage.groups[self.code]['description']
+        """Group description (read from :attr:`Endpoint.groups` — no extra network call)."""
+        return self.endpoint.groups[self.code]['description']
 
     @property
     def universe(self) -> str:
@@ -273,14 +257,14 @@ class Group:
         from morpc.req import get_json_safely
         kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         data = get_json_safely(
-            f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}/groups",
+            f"{CENSUS_DATA_BASE_URL}/{self.endpoint.year}/{self.endpoint.survey}/groups",
             **kw,
         )
         match = [x for x in data['groups'] if x['name'] == self.code]
         if not match:
             raise ValueError(
                 f"Group {self.code!r} not found in "
-                f"{self.vintage.year} {self.vintage.survey.name}."
+                f"{self.endpoint.year} {self.endpoint.survey}."
             )
         return match[0]['universe ']  # trailing space is present in the Census API response
 
@@ -290,7 +274,7 @@ class Group:
         from morpc.req import get_json_safely
         kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         data = get_json_safely(
-            f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}"
+            f"{CENSUS_DATA_BASE_URL}/{self.endpoint.year}/{self.endpoint.survey}"
             f"/groups/{self.code}.json",
             **kw,
         )
@@ -400,7 +384,7 @@ def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
 # Naming helper
 # ---------------------------------------------------------------------------
 
-def censusapi_name(vintage: Vintage, scope: str | Scope, group: str | Group, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
+def censusapi_name(endpoint: Endpoint, scope: str | Scope, group: str | Group, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
     """Construct a canonical, machine-readable name for a CensusAPI dataset."""
     from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
@@ -415,7 +399,7 @@ def censusapi_name(vintage: Vintage, scope: str | Scope, group: str | Group, sum
 
     var_part = '-select-variables' if variables is not None else ''
     return (
-        f"census-{vintage.survey.name.replace('/', '-')}-{vintage.year}"
+        f"census-{endpoint.survey.replace('/', '-')}-{endpoint.year}"
         f"-{sumlevel_part}{scope_name}-{group_code}{var_part}"
     ).lower()
 
@@ -456,12 +440,12 @@ class CensusAPI:
 
     Parameters
     ----------
-    vintage : Vintage
-        Survey and year, e.g. ``Vintage('acs/acs5', 2023)``.
+    endpoint : Endpoint
+        Survey and vintage year, e.g. ``Endpoint('acs/acs5', 2023)``.
     group : str or Group
         Variable group code, e.g. ``'B01001'``. Strings are normalized to a
-        :class:`Group` using *vintage*. When a :class:`Group` instance is
-        passed, *vintage* is ignored and the group's own vintage is used.
+        :class:`Group` using *endpoint*. When a :class:`Group` instance is
+        passed, *endpoint* is ignored and the group's own endpoint is used.
     scope : str or Scope
         Geographic scope key (e.g. ``'region15'``) or a ``Scope`` instance.
         See ``morpc_census.geos.SCOPES`` for available keys.
@@ -477,7 +461,7 @@ class CensusAPI:
 
     def __init__(
         self,
-        vintage: Vintage,
+        endpoint: Endpoint,
         group: str | Group,
         scope: str | Scope,
         sumlevel: str | SumLevel | None = None,
@@ -499,7 +483,7 @@ class CensusAPI:
         # Normalize to a Group instance — validates survey, vintage year, and group code.
         self.VARIABLE_GROUP = (
             group if isinstance(group, Group)
-            else Group(vintage, group.upper())
+            else Group(endpoint, group.upper())
         )
 
         if self.VARIABLES is not None:
@@ -544,13 +528,13 @@ class CensusAPI:
 
     @property
     def SURVEY(self) -> str:
-        """Census survey endpoint (e.g. ``'acs/acs5'``)."""
-        return self.VARIABLE_GROUP.vintage.survey.name
+        """Census survey name (e.g. ``'acs/acs5'``)."""
+        return self.VARIABLE_GROUP.endpoint.survey
 
     @property
     def YEAR(self) -> int:
         """Vintage year."""
-        return self.VARIABLE_GROUP.vintage.year
+        return self.VARIABLE_GROUP.endpoint.year
 
     @property
     def GROUP(self) -> str:
@@ -559,7 +543,7 @@ class CensusAPI:
 
     @property
     def CONCEPT(self) -> str:
-        """Group description string (from cached :attr:`Vintage.groups`, no extra network call)."""
+        """Group description string (from cached :attr:`Endpoint.groups`, no extra network call)."""
         return self.VARIABLE_GROUP.description
 
     @cached_property
@@ -568,7 +552,7 @@ class CensusAPI:
         try:
             source = (
                 self.VARIABLE_GROUP if self.YEAR >= 2023
-                else Group(Vintage(self.VARIABLE_GROUP.vintage.survey, 2023), self.GROUP)
+                else Group(Endpoint(self.VARIABLE_GROUP.endpoint.survey, 2023), self.GROUP)
             )
             return source.universe
         except Exception as e:
@@ -605,7 +589,7 @@ class CensusAPI:
 
     def _build_name(self) -> str:
         return censusapi_name(
-            self.VARIABLE_GROUP.vintage,
+            self.VARIABLE_GROUP.endpoint,
             self.SCOPE,
             self.VARIABLE_GROUP,
             sumlevel=self.SUMLEVEL,
@@ -622,7 +606,7 @@ class CensusAPI:
         geo_param = geoinfo_from_scope_sumlevel(self.SCOPE, self.SUMLEVEL, output='params')
         params = {'get': get_param}
         params.update(geo_param)
-        return {'url': self.VARIABLE_GROUP.vintage.url, 'params': params}
+        return {'url': self.VARIABLE_GROUP.endpoint.url, 'params': params}
 
     # ------------------------------------------------------------------
     # Data transformation
