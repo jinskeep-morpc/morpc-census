@@ -113,13 +113,26 @@ def get_all_avail_endpoints():
     global _avail_endpoints_cache
     if _avail_endpoints_cache is None:
         from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         result = {}
-        for dataset in get_json_safely(CENSUS_DATA_BASE_URL)['dataset']:
+        for dataset in get_json_safely(CENSUS_DATA_BASE_URL, **kw)['dataset']:
             if 'c_vintage' in dataset:
                 endpoint = "/".join(dataset['c_dataset'])
                 result.setdefault(endpoint, []).append(dataset['c_vintage'])
         _avail_endpoints_cache = dict(sorted(result.items()))
     return _avail_endpoints_cache
+
+
+def _get_api_key() -> str | None:
+    """Return CENSUS_API_KEY from environment, with .env file as fallback.
+
+    dotenv convention (override=False): environment variables already set take
+    precedence over values in the .env file. Searches for .env starting from
+    the current working directory and walking up toward the filesystem root.
+    """
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(usecwd=True), override=False)
+    return os.environ.get('CENSUS_API_KEY')
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +213,10 @@ class Vintage:
         """All variable groups for this vintage, keyed by group code (fetched once, then cached)."""
         from morpc.req import get_json_safely
         logger.debug(f"Fetching groups for {self.year} {self.survey.name}")
-        data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey.name}/groups.json")
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
+        data = get_json_safely(
+            f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey.name}/groups.json", **kw
+        )
         return dict(sorted({
             g['name']: {'description': g['description'], 'variables': g['variables']}
             for g in data['groups']
@@ -255,8 +271,10 @@ class Group:
     def universe(self) -> str:
         """Universe description string."""
         from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         data = get_json_safely(
-            f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}/groups"
+            f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}/groups",
+            **kw,
         )
         match = [x for x in data['groups'] if x['name'] == self.code]
         if not match:
@@ -270,9 +288,11 @@ class Group:
     def variables(self) -> dict:
         """Variable metadata dict for this group (fetched once, then cached)."""
         from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         data = get_json_safely(
             f"{CENSUS_DATA_BASE_URL}/{self.vintage.year}/{self.vintage.survey.name}"
-            f"/groups/{self.code}.json"
+            f"/groups/{self.code}.json",
+            **kw,
         )
         return {
             k: data['variables'][k]
@@ -304,6 +324,9 @@ def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
         GEO_ID.  Defaults to 20.
     """
     from morpc.req import get_json_safely, get_text_safely
+    key = _get_api_key()
+    if key:
+        params = {**params, 'key': key}
     is_group_query = bool(re.findall(r'group\((.+)\)', params['get']))
 
     if is_group_query:

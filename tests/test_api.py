@@ -13,6 +13,7 @@ from morpc_census.api import (
     find_replace_variable_map,
     DimensionTable,
     SurveyTable,
+    _get_api_key,
     Vintage,
     Group,
     CensusAPI,
@@ -266,6 +267,39 @@ class TestCensusAPIClassNormalization:
             api.create_resource()
         assert 'franklin' in captured['title']
         assert 'counties' in captured['title']  # SumLevel('county').plural
+
+
+# ---------------------------------------------------------------------------
+# TestGetApiKey
+# ---------------------------------------------------------------------------
+
+class TestGetApiKey:
+    def test_returns_key_from_environment(self):
+        with patch.dict('os.environ', {'CENSUS_API_KEY': 'testkey123'}), \
+             patch('dotenv.load_dotenv'), patch('dotenv.find_dotenv', return_value=''):
+            assert _get_api_key() == 'testkey123'
+
+    def test_returns_none_when_not_set(self):
+        env = {k: v for k, v in __import__('os').environ.items() if k != 'CENSUS_API_KEY'}
+        with patch.dict('os.environ', env, clear=True), \
+             patch('dotenv.load_dotenv'), patch('dotenv.find_dotenv', return_value=''):
+            assert _get_api_key() is None
+
+    def test_dotenv_called_with_override_false(self):
+        """dotenv convention: environment variables take precedence over .env values."""
+        with patch.dict('os.environ', {}, clear=True), \
+             patch('dotenv.load_dotenv') as mock_ld, \
+             patch('dotenv.find_dotenv', return_value='/fake/.env'):
+            _get_api_key()
+        _, kwargs = mock_ld.call_args
+        assert kwargs.get('override') is False
+
+    def test_find_dotenv_called_with_usecwd(self):
+        with patch.dict('os.environ', {}, clear=True), \
+             patch('dotenv.load_dotenv'), \
+             patch('dotenv.find_dotenv', return_value='') as mock_fd:
+            _get_api_key()
+        mock_fd.assert_called_once_with(usecwd=True)
 
 
 # ---------------------------------------------------------------------------

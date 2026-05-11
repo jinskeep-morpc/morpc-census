@@ -1,5 +1,13 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Add Census API key support via python-dotenv (branch refactor/api-class-integration)
+
+Added `_get_api_key()` function that loads `CENSUS_API_KEY` following dotenv convention: `load_dotenv(..., override=False)` so environment variables already set in the shell take precedence over `.env` file values. Uses `find_dotenv(usecwd=True)` to search upward from the current working directory for a `.env` file.
+
+The key is injected into every Census API network call: `get_all_avail_endpoints`, `Vintage.groups`, `Group.universe`, `Group.variables`, and `fetch` (injected once at the top of `fetch` so both the group-query and variable-list code paths pick it up). When no key is found, calls proceed without the parameter (Census API still works, subject to unauthenticated rate limits).
+
+`python-dotenv` added to `pyproject.toml` dependencies. 4 new tests in `TestGetApiKey` covering: key from env var, None when not set, `override=False` enforcement, and `usecwd=True` on `find_dotenv`. 81 tests passing.
+
 ## 2026-05-11 — Replace CensusAPI plain-string attributes with class hierarchy properties (branch refactor/api-class-integration)
 
 `CensusAPI.SURVEY`, `YEAR`, `GROUP`, `CONCEPT` are now `@property` accessors that read directly from `self.VARIABLE_GROUP.vintage.survey.name`, `.vintage.year`, `.code`, and `.description` respectively. `UNIVERSE`, `VARS`, and `NAME` are `@cached_property` — computed once on first access, not eagerly in `__init__`.

@@ -18,7 +18,8 @@ dependencies = [
     "pandas",
     "geopandas",
     "frictionless",
-    "shapely"
+    "shapely",
+    "python-dotenv",
 ]
 
 [build-system]
