@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Remove redundant passthrough properties from CensusAPI (branch refactor/api-class-integration)
+
+Removed `SURVEY`, `YEAR`, `GROUP` (string), `CONCEPT`, and `scope_obj` properties — they were simple one-liner delegations that added noise without adding value. Callers navigate the hierarchy directly: `api.GROUP.endpoint.year`, `api.GROUP.endpoint.survey`, `api.GROUP.code`, `api.GROUP.description`, `api.SCOPE`.
+
+Renamed `VARIABLE_GROUP` → `GROUP` (the stored `Group` instance) to free the name and make attribute access shorter: `api.GROUP.code` vs `api.VARIABLE_GROUP.code`. Updated all internal usages in `UNIVERSE`, `VARS`, `_build_name`, `_build_request`, `melt`, `define_schema`, `create_resource`. Removed `test_scope_obj_returns_scope_instance`. 54 tests passing.
+
 ## 2026-05-11 — Collapse SurveyTable + Vintage into Endpoint class (branch refactor/api-class-integration)
 
 Removed `SurveyTable` and `Vintage` as separate classes. Replaced with a single `Endpoint(survey, year)` class that validates the survey name against `IMPLEMENTED_ENDPOINTS` and the year against the Census API's available vintages in one constructor. `Endpoint.survey` is now a plain string (no intermediate wrapper object). All properties formerly on `Vintage` (`url`, `groups`, `vintages`) and all validation formerly in `SurveyTable` now live directly on `Endpoint`.

@@ -481,15 +481,15 @@ class CensusAPI:
         )
 
         # Normalize to a Group instance — validates survey, vintage year, and group code.
-        self.VARIABLE_GROUP = (
+        self.GROUP = (
             group if isinstance(group, Group)
             else Group(endpoint, group.upper())
         )
 
         if self.VARIABLES is not None:
-            invalid = [v for v in self.VARIABLES if v not in self.VARIABLE_GROUP.variables]
+            invalid = [v for v in self.VARIABLES if v not in self.GROUP.variables]
             if invalid:
-                raise ValueError(f"Variables not found in {self.GROUP}: {invalid}")
+                raise ValueError(f"Variables not found in {self.GROUP.code}: {invalid}")
 
         self.logger = (
             logging.getLogger(__name__)
@@ -523,46 +523,28 @@ class CensusAPI:
             self.LONG = self.melt()
 
     # ------------------------------------------------------------------
-    # Properties — read from the class hierarchy
+    # Derived properties
     # ------------------------------------------------------------------
-
-    @property
-    def SURVEY(self) -> str:
-        """Census survey name (e.g. ``'acs/acs5'``)."""
-        return self.VARIABLE_GROUP.endpoint.survey
-
-    @property
-    def YEAR(self) -> int:
-        """Vintage year."""
-        return self.VARIABLE_GROUP.endpoint.year
-
-    @property
-    def GROUP(self) -> str:
-        """Variable group code (e.g. ``'B01001'``)."""
-        return self.VARIABLE_GROUP.code
-
-    @property
-    def CONCEPT(self) -> str:
-        """Group description string (from cached :attr:`Endpoint.groups`, no extra network call)."""
-        return self.VARIABLE_GROUP.description
 
     @cached_property
     def UNIVERSE(self) -> str:
         """Universe description string. Falls back to 2023 vintage when year < 2023."""
         try:
             source = (
-                self.VARIABLE_GROUP if self.YEAR >= 2023
-                else Group(Endpoint(self.VARIABLE_GROUP.endpoint.survey, 2023), self.GROUP)
+                self.GROUP if self.GROUP.endpoint.year >= 2023
+                else Group(Endpoint(self.GROUP.endpoint.survey, 2023), self.GROUP.code)
             )
             return source.universe
         except Exception as e:
-            self.logger.warning(f"Universe not defined for {self.SURVEY}/{self.GROUP}: {e}")
+            self.logger.warning(
+                f"Universe not defined for {self.GROUP.endpoint.survey}/{self.GROUP.code}: {e}"
+            )
             return 'Not defined in API — see CensusAPI.REQUEST for endpoint details'
 
     @cached_property
     def VARS(self) -> dict:
         """Variable metadata dict, filtered to :attr:`VARIABLES` when set."""
-        all_vars = dict(self.VARIABLE_GROUP.variables)
+        all_vars = dict(self.GROUP.variables)
         if self.VARIABLES is not None:
             return {k: v for k, v in all_vars.items() if k in self.VARIABLES}
         return all_vars
@@ -571,11 +553,6 @@ class CensusAPI:
     def NAME(self) -> str:
         """Canonical, machine-readable dataset name."""
         return self._build_name()
-
-    @property
-    def scope_obj(self):
-        """Return the Scope object for this dataset's geographic scope."""
-        return self.SCOPE
 
     @property
     def geoidfqs(self):
@@ -589,9 +566,9 @@ class CensusAPI:
 
     def _build_name(self) -> str:
         return censusapi_name(
-            self.VARIABLE_GROUP.endpoint,
+            self.GROUP.endpoint,
             self.SCOPE,
-            self.VARIABLE_GROUP,
+            self.GROUP,
             sumlevel=self.SUMLEVEL,
             variables=self.VARIABLES,
         )
@@ -601,12 +578,12 @@ class CensusAPI:
         from morpc_census.geos import geoinfo_from_scope_sumlevel
         get_param = (
             ','.join(self.VARIABLES) if self.VARIABLES is not None
-            else f"group({self.GROUP})"
+            else f"group({self.GROUP.code})"
         )
         geo_param = geoinfo_from_scope_sumlevel(self.SCOPE, self.SUMLEVEL, output='params')
         params = {'get': get_param}
         params.update(geo_param)
-        return {'url': self.VARIABLE_GROUP.endpoint.url, 'params': params}
+        return {'url': self.GROUP.endpoint.url, 'params': params}
 
     # ------------------------------------------------------------------
     # Data transformation
@@ -661,10 +638,10 @@ class CensusAPI:
             )
         )
 
-        long['reference_period'] = self.YEAR
+        long['reference_period'] = self.GROUP.endpoint.year
         long['universe'] = self.UNIVERSE
-        long['survey'] = self.SURVEY
-        long['concept'] = self.CONCEPT.capitalize()
+        long['survey'] = self.GROUP.endpoint.survey
+        long['concept'] = self.GROUP.description.capitalize()
 
         pivot_index = id_vars + [
             'reference_period', 'survey', 'concept', 'universe',
@@ -711,7 +688,7 @@ class CensusAPI:
                 "Either call melt() first or construct with return_long=True."
             )
 
-        self.logger.info(f"Defining schema for {self.GROUP} / {self.SURVEY} / {self.YEAR}.")
+        self.logger.info(f"Defining schema for {self.GROUP.code} / {self.GROUP.endpoint.survey} / {self.GROUP.endpoint.year}.")
 
         id_vars = ['GEO_ID', 'NAME'] if 'NAME' in self.DATA.columns else ['GEO_ID']
 
@@ -763,10 +740,11 @@ class CensusAPI:
         import frictionless
 
         sumlevel_str = f'{self.SUMLEVEL.plural} in ' if self.SUMLEVEL is not None else ''
-        title = f"{self.YEAR} {self.CONCEPT} for {sumlevel_str}{self.SCOPE.name}"
+        title = f"{self.GROUP.endpoint.year} {self.GROUP.description} for {sumlevel_str}{self.SCOPE.name}"
         description = (
-            f"Census API data for {self.GROUP}: {self.CONCEPT} "
-            f"from {self.SURVEY} in {self.YEAR} for {sumlevel_str}{self.SCOPE.name}."
+            f"Census API data for {self.GROUP.code}: {self.GROUP.description} "
+            f"from {self.GROUP.endpoint.survey} in {self.GROUP.endpoint.year} "
+            f"for {sumlevel_str}{self.SCOPE.name}."
         )
 
         descriptor = {

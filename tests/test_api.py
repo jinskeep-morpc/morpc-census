@@ -260,12 +260,6 @@ class TestCensusAPIClassNormalization:
         assert api.SUMLEVEL.name == 'county'
         assert isinstance(api.SUMLEVEL, SumLevel)
 
-    def test_scope_obj_returns_scope_instance(self):
-        from morpc_census.geos import Scope
-        api = self._make('franklin')
-        assert isinstance(api.scope_obj, Scope)
-        assert api.scope_obj is api.SCOPE
-
     def test_create_resource_title_uses_sumlevel_plural_and_scope_name(self):
         import frictionless
         api = self._make('franklin', sumlevel='county')
