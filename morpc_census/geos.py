@@ -421,7 +421,7 @@ def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['lis
     json = morpc.req.get_json_safely(url, params=params)
 
     if output == 'list':
-        return [row[0] for row in json[1:]]
+        return [GeoIDFQ.parse(row[0]) for row in json[1:]]
     if output == 'table':
         return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
     if output == 'json':
@@ -438,7 +438,7 @@ def geoids_from_scope(scope: str | Scope, output: Literal['list','table','json']
     baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
     json = get_json_safely(baseurl, params=sc.params)
     if output == 'list':
-        return [row[0] for row in json[1:]]
+        return [GeoIDFQ.parse(row[0]) for row in json[1:]]
     if output == 'table':
         return pd.DataFrame.from_records(json[1:], columns=json[0]).reset_index().drop(columns='index')
     if output == 'json':
@@ -456,14 +456,14 @@ def pseudos_from_scope_sumlevel(sumlevel: str | SumLevel, scope: str | Scope) ->
     sc = scope if isinstance(scope, Scope) else SCOPES[scope]
 
     logger.debug(f"Getting pseudo combinations for parents in {sc.name!r} at sumlevel {sl.name!r}")
-    parents = geoids_from_scope(sc)
+    parents = geoids_from_scope(sc)  # list[GeoIDFQ]
 
-    parent_sumlevel = GeoIDFQ.parse(parents[0]).sumlevel.sumlevel
+    parent_sumlevel = parents[0].sumlevel.sumlevel
     child = f"{sl.sumlevel}0000"
 
     if child in PSEUDOS[parent_sumlevel]:
         logger.info(f"Returning pseudos for {child} in {parents}")
-        return [f"{parent}${child}" for parent in parents]
+        return [f"{str(parent)}${child}" for parent in parents]
 
     logger.error(f"{child} is not an allowed child for parent sumlevel {parent_sumlevel!r}")
     raise ValueError(f"{sl.name!r} is not a valid child sumlevel for scope {sc.name!r}")
@@ -534,8 +534,8 @@ def geoinfo_from_scope_sumlevel(
         When sumlevel and scope are an invalid combination.
     """
     sc = scope if isinstance(scope, Scope) else SCOPES[scope]
-    scope_geoids = geoids_from_scope(sc)
-    scope_sl = GeoIDFQ.parse(scope_geoids[0]).sumlevel  # SumLevel of the scope's native geography
+    scope_geoids = geoids_from_scope(sc)  # list[GeoIDFQ]
+    scope_sl = scope_geoids[0].sumlevel   # SumLevel of the scope's native geography
 
     params: dict = {}
     geoinfo: DataFrame | None = None
@@ -581,7 +581,7 @@ def geoinfo_from_scope_sumlevel(
     if output == 'json':
         return geoinfo.set_index('GEO_ID').to_dict()['NAME']
     if output == 'list':
-        return geoinfo['GEO_ID'].to_list()
+        return [GeoIDFQ.parse(fq) for fq in geoinfo['GEO_ID']]
 
 def _fetch_layer(sumlevel: SumLevel, geoids: list[str], year: int | None, survey: str, chunk_size: int) -> "GeoDataFrame":
     """Fetch geometries for a single sumlevel from TIGERweb, chunking the geoid list as needed."""

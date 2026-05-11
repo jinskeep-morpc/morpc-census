@@ -1,5 +1,15 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Use GeoIDFQ throughout geoinfo/geoids functions (branch refactor/api-class-integration)
+
+`geoinfo_from_params` and `geoids_from_scope` with `output='list'` previously returned `list[str]` (raw GEOIDFQ strings). Changed to return `list[GeoIDFQ]` by wrapping each result in `GeoIDFQ.parse()` at the return point. `geoinfo_from_scope_sumlevel` with `output='list'` likewise updated.
+
+Two internal callers updated to use the GeoIDFQ objects directly instead of re-parsing:
+- `pseudos_from_scope_sumlevel`: `GeoIDFQ.parse(parents[0]).sumlevel.sumlevel` → `parents[0].sumlevel.sumlevel`; f-string changed to `str(parent)` to produce the full GEOIDFQ string for pseudo predicates
+- `geoinfo_from_scope_sumlevel`: `GeoIDFQ.parse(scope_geoids[0]).sumlevel` → `scope_geoids[0].sumlevel`
+
+`morpc_juris_part_to_full`, `census_geoid_to_morpc`, `morpc_geoid_to_census` are left unchanged — they deal with MORPC-specific sumlevel codes (M10, M11, M23, M24, M25) that are not valid Census GEOIDFQs and cannot be parsed by `GeoIDFQ.parse()`. 179 tests passing.
+
 ## 2026-05-11 — Move fetch to CensusAPI private methods; fix variable batching (branch refactor/api-class-integration)
 
 Removed the module-level `fetch` function and replaced it with three private methods on `CensusAPI`:
