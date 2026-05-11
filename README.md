@@ -57,3 +57,6 @@ data.save('./output')
 ## Demos and Documentation
 
 See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and documentation.
+
+
+This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
