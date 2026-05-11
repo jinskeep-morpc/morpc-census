@@ -285,99 +285,6 @@ class Group:
         }
 
 
-# ---------------------------------------------------------------------------
-# Low-level fetch
-# ---------------------------------------------------------------------------
-
-def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
-    """Fetch from the Census API and return a DataFrame indexed by GEO_ID.
-
-    Automatically batches requests when more than *var_batch_size* variables
-    are requested, to stay within the API's 50-variable limit.
-
-    Parameters
-    ----------
-    url : str
-        Base Census API endpoint URL, e.g.
-        ``https://api.census.gov/data/2022/acs/acs5?``
-    params : dict
-        Query parameters in ``requests`` format, including ``get``, ``for``,
-        and optionally ``in``.
-    var_batch_size : int
-        Variables per request batch.  Capped at 49 to leave one slot for
-        GEO_ID.  Defaults to 20.
-    """
-    from morpc.req import get_json_safely, get_text_safely
-    key = _get_api_key()
-    if key:
-        params = {**params, 'key': key}
-    is_group_query = bool(re.findall(r'group\((.+)\)', params['get']))
-
-    if is_group_query:
-        group = re.findall(r'group\((.+)\)', params['get'])[0]
-        logger.info(f"group({group}) query — bypassing variable-limit batching.")
-
-        params_string = "&".join(f"{k}={v}" for k, v in params.items())
-        text = get_text_safely(f"{url}{params_string}")
-
-        try:
-            census_data = pd.read_csv(
-                StringIO(text.replace('[', '').replace(']', '').rstrip(',')),
-                sep=',',
-                quotechar='"',
-            )
-            census_data = census_data.drop(
-                columns=[c for c in census_data.columns if c.startswith('Unnamed')]
-            )
-        except Exception as e:
-            logger.error(f"Failed to parse group response: {e}")
-            raise RuntimeError("Failed to parse Census API group response.") from e
-
-        return census_data
-
-    # Variable-list query — may need batching
-    if var_batch_size > 49:
-        logger.warning("var_batch_size exceeds API limit; capping at 49.")
-        var_batch_size = 49
-
-    all_vars = params['get'].split(',')
-    logger.info(f"Total variables requested: {len(all_vars)}")
-
-    remaining = all_vars
-    batch_num = 1
-    census_data = None
-
-    while remaining:
-        logger.info(f"Batch #{batch_num}: {len(remaining)} variables remaining.")
-
-        batch = remaining[:var_batch_size - 2]
-        if 'GEO_ID' not in batch:
-            batch.append('GEO_ID')
-            remaining = remaining[var_batch_size - 2:]
-        else:
-            try:
-                batch.append(remaining[var_batch_size - 2])
-            except IndexError:
-                pass
-            remaining = remaining[var_batch_size - 1:]
-
-        batch_params = json.loads(json.dumps(params))
-        batch_params['get'] = ','.join(batch)
-
-        records = get_json_safely(url, params=batch_params)
-        columns = records.pop(0)
-        df = pd.DataFrame.from_records(records, columns=columns).filter(
-            items=batch, axis='columns'
-        )
-
-        if census_data is None:
-            census_data = df.set_index('GEO_ID').copy()
-        else:
-            census_data = census_data.join(df.set_index('GEO_ID')).reset_index()
-
-        batch_num += 1
-
-    return census_data
 
 
 # ---------------------------------------------------------------------------
@@ -510,7 +417,9 @@ class CensusAPI:
             f"with params {self.request['params']}."
         )
         try:
-            self.data = fetch(self.request['url'], self.request['params']).reset_index()
+            self.data = self._fetch()
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"Failed to retrieve data: {e}")
             raise RuntimeError("Failed to retrieve data from Census API.") from e
@@ -593,6 +502,67 @@ class CensusAPI:
         params = {'get': get_param}
         params.update(geo_param)
         return {'url': self.endpoint.url, 'params': params}
+
+    def _fetch(self) -> pd.DataFrame:
+        """Dispatch to the group or variable-list fetch path and return raw data."""
+        key = _get_api_key()
+        params = dict(self.request['params'])
+        if key:
+            params['key'] = key
+        url = self.request['url']
+        if self.group is not None:
+            return self._fetch_group(url, params)
+        return self._fetch_variables(url, params)
+
+    def _fetch_group(self, url: str, params: dict) -> pd.DataFrame:
+        """Fetch all variables in a group using the Census API's group() query form.
+
+        The group() form returns all variables at once without a variable-count limit,
+        but the response is a flat text stream rather than JSON.
+        """
+        from morpc.req import get_text_safely
+
+        self.logger.info(f"Fetching group({self.group.code}) — all variables, no limit.")
+        params_string = "&".join(f"{k}={v}" for k, v in params.items())
+        text = get_text_safely(f"{url}{params_string}")
+        try:
+            df = pd.read_csv(
+                StringIO(text.replace('[', '').replace(']', '').rstrip(',')),
+                sep=',', quotechar='"',
+            )
+            return df.drop(columns=[c for c in df.columns if c.startswith('Unnamed')])
+        except Exception as e:
+            self.logger.error(f"Failed to parse group response: {e}")
+            raise RuntimeError("Failed to parse Census API group response.") from e
+
+    def _fetch_variables(self, url: str, params: dict) -> pd.DataFrame:
+        """Fetch a specific variable list, batching into chunks of 49.
+
+        The Census API allows at most 50 fields per request; GEO_ID occupies one slot,
+        leaving 49 for data variables. Each batch includes GEO_ID for row alignment,
+        and all batch results are joined on GEO_ID into a single DataFrame.
+        """
+        from morpc.req import get_json_safely
+
+        BATCH_SIZE = 49
+        variables = self.variables
+        batches = [variables[i:i + BATCH_SIZE] for i in range(0, len(variables), BATCH_SIZE)]
+        self.logger.info(
+            f"Fetching {len(variables)} variable(s) in {len(batches)} batch(es)."
+        )
+
+        frames = []
+        for i, batch in enumerate(batches, 1):
+            self.logger.info(f"Batch {i}/{len(batches)}: {len(batch)} variable(s).")
+            batch_params = {**params, 'get': ','.join(['GEO_ID'] + batch)}
+            records = get_json_safely(url, params=batch_params)
+            columns = records.pop(0)
+            frames.append(
+                pd.DataFrame.from_records(records, columns=columns).set_index('GEO_ID')
+            )
+
+        result = frames[0] if len(frames) == 1 else frames[0].join(frames[1:])
+        return result.reset_index()
 
     # ------------------------------------------------------------------
     # Data transformation

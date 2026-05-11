@@ -220,7 +220,7 @@ class TestCensusAPIClassNormalization:
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
              patch('morpc.req.get_json_safely', side_effect=self._census_json), \
              patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
-             patch('morpc_census.api.fetch', return_value=self._fake_data):
+             patch.object(CensusAPI, '_fetch', return_value=self._fake_data):
             ep = Endpoint('acs/acs5', 2023)
             return CensusAPI(ep, scope, group=group, sumlevel=sumlevel, variables=variables, return_long=False)
 
@@ -276,6 +276,81 @@ class TestCensusAPIClassNormalization:
 # TestCensusAPIGroupOptional
 # ---------------------------------------------------------------------------
 
+class TestFetchVariablesBatching:
+    """Tests for _fetch_variables batching logic."""
+
+    _fake_endpoints = {'acs/acs5': [2023]}
+    _geo = '0500000US39049'
+
+    def _make_api(self, n_variables):
+        """Build a CensusAPI with _fetch stubbed so we can call _fetch_variables directly."""
+        variables = [f'B01001_{i:03d}E' for i in range(1, n_variables + 1)]
+        stub = pd.DataFrame({'GEO_ID': [self._geo]})
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+             patch.object(CensusAPI, '_fetch', return_value=stub):
+            ep = Endpoint('acs/acs5', 2023)
+            return CensusAPI(ep, 'franklin', variables=variables, return_long=False)
+
+    def _response(self, variables):
+        """Simulate a Census API JSON list-of-lists response for the given variables."""
+        return [['GEO_ID'] + list(variables), [self._geo] + ['1'] * len(variables)]
+
+    def test_single_request_when_49_variables(self):
+        api = self._make_api(49)
+        with patch('morpc.req.get_json_safely', return_value=self._response(api.variables)) as mock:
+            result = api._fetch_variables(api.request['url'], {})
+        mock.assert_called_once()
+        assert 'GEO_ID' in result.columns
+        assert set(api.variables).issubset(set(result.columns))
+
+    def test_two_requests_when_50_variables(self):
+        api = self._make_api(50)
+        responses = [self._response(api.variables[:49]), self._response(api.variables[49:])]
+        with patch('morpc.req.get_json_safely', side_effect=responses) as mock:
+            result = api._fetch_variables(api.request['url'], {})
+        assert mock.call_count == 2
+        assert set(api.variables).issubset(set(result.columns))
+
+    def test_three_requests_when_98_variables(self):
+        api = self._make_api(98)
+        responses = [
+            self._response(api.variables[:49]),
+            self._response(api.variables[49:]),
+        ]
+        with patch('morpc.req.get_json_safely', side_effect=responses) as mock:
+            result = api._fetch_variables(api.request['url'], {})
+        assert mock.call_count == 2  # ceil(98/49) == 2
+        assert set(api.variables).issubset(set(result.columns))
+
+    def test_batched_results_joined_on_geoid(self):
+        api = self._make_api(50)
+        batch1 = [['GEO_ID'] + api.variables[:49], [self._geo] + ['A'] * 49]
+        batch2 = [['GEO_ID'] + api.variables[49:], [self._geo] + ['B']]
+        with patch('morpc.req.get_json_safely', side_effect=[batch1, batch2]):
+            result = api._fetch_variables(api.request['url'], {})
+        row = result.loc[0]
+        assert row['GEO_ID'] == self._geo
+        assert row[api.variables[0]] == 'A'
+        assert row[api.variables[49]] == 'B'
+
+    def test_geoid_included_in_every_batch_request(self):
+        api = self._make_api(50)
+        responses = [self._response(api.variables[:49]), self._response(api.variables[49:])]
+        with patch('morpc.req.get_json_safely', side_effect=responses) as mock:
+            api._fetch_variables(api.request['url'], {})
+        for call in mock.call_args_list:
+            get_param = call.kwargs['params']['get']
+            assert get_param.startswith('GEO_ID,')
+
+    def test_single_row_result(self):
+        api = self._make_api(50)
+        responses = [self._response(api.variables[:49]), self._response(api.variables[49:])]
+        with patch('morpc.req.get_json_safely', side_effect=responses):
+            result = api._fetch_variables(api.request['url'], {})
+        assert len(result) == 1
+
+
 class TestCensusAPIGroupOptional:
     """Test CensusAPI behavior when group is None."""
 
@@ -285,7 +360,7 @@ class TestCensusAPIGroupOptional:
     def _make_no_group(self, variables):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
              patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
-             patch('morpc_census.api.fetch', return_value=self._fake_data):
+             patch.object(CensusAPI, '_fetch', return_value=self._fake_data):
             ep = Endpoint('acs/acs5', 2023)
             return CensusAPI(ep, 'franklin', variables=variables, return_long=False)
 

@@ -1,5 +1,19 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Move fetch to CensusAPI private methods; fix variable batching (branch refactor/api-class-integration)
+
+Removed the module-level `fetch` function and replaced it with three private methods on `CensusAPI`:
+
+- `_fetch()` — dispatcher: injects the API key, then routes to `_fetch_group` or `_fetch_variables` based on whether `self.group` is set (no regex needed)
+- `_fetch_group(url, params)` — uses `get_text_safely` to retrieve the group() form response (a flat text stream, not valid JSON) and parses it with `pd.read_csv`
+- `_fetch_variables(url, params)` — slices `self.variables` into 49-variable batches, issues one `get_json_safely` call per batch with GEO_ID prepended, then joins all result frames on GEO_ID in a single operation
+
+Fixed two bugs in the old `fetch` variable-list path:
+1. Batches of 18 (default `var_batch_size=20` minus 2) instead of the intended 49; the batch-size parameter was confusing and unnecessary now that the limit is a fixed API invariant
+2. After the second iteration, `census_data` had GEO_ID as a column (post-`reset_index`), so the third batch's `join` would align on positional index instead of GEO_ID — silently producing wrong data
+
+`fetch` removed from `morpc_census/__init__.py` exports. `CensusAPI.__init__` now calls `self._fetch()` directly (no `.reset_index()` needed — both paths return with GEO_ID as a column). Test mocks updated from `patch('morpc_census.api.fetch', ...)` to `patch.object(CensusAPI, '_fetch', ...)`. Added `TestFetchVariablesBatching` (6 tests): single batch at 49 vars, two batches at 50 vars, two batches at 98 vars, join correctness, GEO_ID in every batch request, single-row result. 68 tests passing.
+
 ## 2026-05-11 — Make `group` optional in CensusAPI; add variables-only mode (branch refactor/api-class-integration)
 
 `CensusAPI.__init__` signature changed: `group` is now `str | Group | None = None` (moved before `sumlevel`). A `ValueError` is raised at construction if both `group` and `variables` are `None`. Three modes are now supported:

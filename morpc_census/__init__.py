@@ -7,7 +7,6 @@ from .api import (
     CensusAPI,
     DimensionTable,
     get_all_avail_endpoints,
-    fetch,
     CENSUS_DATA_BASE_URL,
     IMPLEMENTED_ENDPOINTS,
     MISSING_VALUES,
