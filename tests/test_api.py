@@ -46,35 +46,42 @@ def _make_long():
 # ---------------------------------------------------------------------------
 
 class TestCensusapiName:
+    _fake_endpoints = {'acs/acs5': [2020, 2023], 'dec/pl': [2020]}
+
+    @pytest.fixture(autouse=True)
+    def mock_endpoints(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints):
+            yield
+
     def test_no_sumlevel_no_variables(self):
-        name = censusapi_name('acs/acs5', 2023, 'franklin', 'B01001')
+        name = censusapi_name(Vintage('acs/acs5', 2023), 'franklin', 'B01001')
         assert name == 'census-acs-acs5-2023-franklin-b01001'
 
     def test_with_sumlevel_tract(self):
         # HIERARCHY_STRING_FROM_CENSUSNAME['tract'] == 'COUNTY-TRACT'
         # 'COUNTY-TRACT'.replace('-', '').lower() == 'countytract'
-        name = censusapi_name('acs/acs5', 2023, 'franklin', 'B01001', sumlevel='tract')
+        name = censusapi_name(Vintage('acs/acs5', 2023), 'franklin', 'B01001', sumlevel='tract')
         assert name == 'census-acs-acs5-2023-countytract-franklin-b01001'
 
     def test_with_sumlevel_county(self):
         # HIERARCHY_STRING_FROM_CENSUSNAME['county'] == 'COUNTY'
-        name = censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel='county')
+        name = censusapi_name(Vintage('acs/acs5', 2023), 'ohio', 'B01001', sumlevel='county')
         assert name == 'census-acs-acs5-2023-county-ohio-b01001'
 
     def test_with_variables_appends_suffix(self):
         name = censusapi_name(
-            'acs/acs5', 2023, 'franklin', 'B01001',
+            Vintage('acs/acs5', 2023), 'franklin', 'B01001',
             variables=['B01001_001E', 'B01001_002E'],
         )
         assert name.endswith('-select-variables')
 
     def test_no_variables_no_suffix(self):
-        name = censusapi_name('acs/acs5', 2023, 'franklin', 'B01001')
+        name = censusapi_name(Vintage('acs/acs5', 2023), 'franklin', 'B01001')
         assert 'select-variables' not in name
 
     def test_sumlevel_and_variables_combined(self):
         name = censusapi_name(
-            'acs/acs5', 2023, 'franklin', 'B01001',
+            Vintage('acs/acs5', 2023), 'franklin', 'B01001',
             sumlevel='tract',
             variables=['B01001_001E'],
         )
@@ -82,35 +89,37 @@ class TestCensusapiName:
         assert name.endswith('-select-variables')
 
     def test_result_is_lowercase(self):
-        name = censusapi_name('acs/acs5', 2023, 'Franklin', 'B01001')
+        name = censusapi_name(Vintage('acs/acs5', 2023), 'Franklin', 'B01001')
         assert name == name.lower()
 
     def test_dec_survey_table(self):
-        name = censusapi_name('dec/pl', 2020, 'ohio', 'P1')
+        name = censusapi_name(Vintage('dec/pl', 2020), 'ohio', 'P1')
         assert name == 'census-dec-pl-2020-ohio-p1'
 
     def test_accepts_scope_instance(self):
         from morpc_census.geos import Scope
-        name = censusapi_name('acs/acs5', 2023, Scope('franklin'), 'B01001')
+        name = censusapi_name(Vintage('acs/acs5', 2023), Scope('franklin'), 'B01001')
         assert name == 'census-acs-acs5-2023-franklin-b01001'
 
     def test_accepts_sumlevel_instance(self):
         from morpc_census.geos import SumLevel
-        name = censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel=SumLevel('county'))
+        name = censusapi_name(Vintage('acs/acs5', 2023), 'ohio', 'B01001', sumlevel=SumLevel('county'))
         assert name == 'census-acs-acs5-2023-county-ohio-b01001'
 
     def test_scope_instance_matches_string(self):
         from morpc_census.geos import Scope
+        v = Vintage('acs/acs5', 2023)
         assert (
-            censusapi_name('acs/acs5', 2023, Scope('franklin'), 'B01001')
-            == censusapi_name('acs/acs5', 2023, 'franklin', 'B01001')
+            censusapi_name(v, Scope('franklin'), 'B01001')
+            == censusapi_name(v, 'franklin', 'B01001')
         )
 
     def test_sumlevel_instance_matches_string(self):
         from morpc_census.geos import SumLevel
+        v = Vintage('acs/acs5', 2023)
         assert (
-            censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel=SumLevel('county'))
-            == censusapi_name('acs/acs5', 2023, 'ohio', 'B01001', sumlevel='county')
+            censusapi_name(v, 'ohio', 'B01001', sumlevel=SumLevel('county'))
+            == censusapi_name(v, 'ohio', 'B01001', sumlevel='county')
         )
 
 
@@ -213,7 +222,8 @@ class TestCensusAPIClassNormalization:
              patch('morpc.req.get_json_safely', side_effect=self._census_json), \
              patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
              patch('morpc_census.api.fetch', return_value=self._fake_data):
-            return CensusAPI('acs/acs5', 2023, 'B01001', scope, sumlevel=sumlevel, return_long=False)
+            v = Vintage('acs/acs5', 2023)
+            return CensusAPI(v, 'B01001', scope, sumlevel=sumlevel, return_long=False)
 
     def test_scope_string_stored_as_scope_instance(self):
         from morpc_census.geos import Scope

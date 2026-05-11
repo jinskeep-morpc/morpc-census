@@ -1,5 +1,13 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Switch CensusAPI and censusapi_name to Vintage + Group classes (branch refactor/api-class-integration)
+
+`CensusAPI.__init__` signature changed from `(survey_table: str | SurveyTable, year: int, group, ...)` to `(vintage: Vintage, group: str | Group, ...)`. When `group` is a string it is normalized to `Group(vintage, group.upper())`; when it's already a `Group` instance, it's used directly and the `vintage` arg is ignored (the group carries its own vintage). This completes the push to have callers work with class instances rather than loose strings and ints.
+
+`censusapi_name` signature likewise changed from `(survey_table: str, year: int, scope, group: str, ...)` to `(vintage: Vintage, scope, group: str | Group, ...)`. Accepts a `Group` instance for `group` (uses `.code`). `CensusAPI._build_name` now delegates directly to `censusapi_name` rather than duplicating the string-building logic.
+
+`TestCensusapiName`: added `mock_endpoints` autouse fixture (patches `get_all_avail_endpoints`); all 12 test calls updated to pass `Vintage(...)` as first arg. `TestCensusAPIClassNormalization._make`: `Vintage('acs/acs5', 2023)` constructed inside the mock context and passed to `CensusAPI`. 63 tests passing.
+
 ## 2026-05-11 — Add Census API key support via python-dotenv (branch refactor/api-class-integration)
 
 Added `_get_api_key()` function that loads `CENSUS_API_KEY` following dotenv convention: `load_dotenv(..., override=False)` so environment variables already set in the shell take precedence over `.env` file values. Uses `find_dotenv(usecwd=True)` to search upward from the current working directory for a `.env` file.

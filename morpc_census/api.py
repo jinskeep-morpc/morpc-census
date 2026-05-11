@@ -400,11 +400,12 @@ def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
 # Naming helper
 # ---------------------------------------------------------------------------
 
-def censusapi_name(survey_table: str, year: int, scope: str | Scope, group: str, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
+def censusapi_name(vintage: Vintage, scope: str | Scope, group: str | Group, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
     """Construct a canonical, machine-readable name for a CensusAPI dataset."""
     from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
     scope_name = scope.name if isinstance(scope, _Scope) else scope
+    group_code = group.code if isinstance(group, Group) else group
 
     if sumlevel is not None:
         sl = sumlevel if isinstance(sumlevel, _SumLevel) else _SumLevel(sumlevel)
@@ -414,8 +415,8 @@ def censusapi_name(survey_table: str, year: int, scope: str | Scope, group: str,
 
     var_part = '-select-variables' if variables is not None else ''
     return (
-        f"census-{survey_table.replace('/', '-')}-{year}"
-        f"-{sumlevel_part}{scope_name}-{group}{var_part}"
+        f"census-{vintage.survey.name.replace('/', '-')}-{vintage.year}"
+        f"-{sumlevel_part}{scope_name}-{group_code}{var_part}"
     ).lower()
 
 
@@ -455,13 +456,12 @@ class CensusAPI:
 
     Parameters
     ----------
-    survey_table : str or SurveyTable
-        Dataset endpoint, e.g. ``'acs/acs5'``, ``'dec/pl'``.
-        See :data:`IMPLEMENTED_ENDPOINTS`.
-    year : int
-        Vintage year, e.g. ``2023``.
+    vintage : Vintage
+        Survey and year, e.g. ``Vintage('acs/acs5', 2023)``.
     group : str or Group
-        Variable group code, e.g. ``'B01001'``.
+        Variable group code, e.g. ``'B01001'``. Strings are normalized to a
+        :class:`Group` using *vintage*. When a :class:`Group` instance is
+        passed, *vintage* is ignored and the group's own vintage is used.
     scope : str or Scope
         Geographic scope key (e.g. ``'region15'``) or a ``Scope`` instance.
         See ``morpc_census.geos.SCOPES`` for available keys.
@@ -477,8 +477,7 @@ class CensusAPI:
 
     def __init__(
         self,
-        survey_table: str | SurveyTable,
-        year: int,
+        vintage: Vintage,
         group: str | Group,
         scope: str | Scope,
         sumlevel: str | SumLevel | None = None,
@@ -497,10 +496,10 @@ class CensusAPI:
             [v.upper() for v in variables] if variables is not None else None
         )
 
-        # Normalize to a Group instance — validates survey, year, and group code.
+        # Normalize to a Group instance — validates survey, vintage year, and group code.
         self.VARIABLE_GROUP = (
             group if isinstance(group, Group)
-            else Group(Vintage(survey_table, int(year)), group.upper())
+            else Group(vintage, group.upper())
         )
 
         if self.VARIABLES is not None:
@@ -605,15 +604,13 @@ class CensusAPI:
     # ------------------------------------------------------------------
 
     def _build_name(self) -> str:
-        sumlevel_part = (
-            f"{(self.SUMLEVEL.hierarchy_string or self.SUMLEVEL.name).replace('-', '').lower()}-"
-            if self.SUMLEVEL else ''
+        return censusapi_name(
+            self.VARIABLE_GROUP.vintage,
+            self.SCOPE,
+            self.VARIABLE_GROUP,
+            sumlevel=self.SUMLEVEL,
+            variables=self.VARIABLES,
         )
-        var_part = '-select-variables' if self.VARIABLES is not None else ''
-        return (
-            f"census-{self.SURVEY.replace('/', '-')}-{self.YEAR}"
-            f"-{sumlevel_part}{self.SCOPE.name}-{self.GROUP}{var_part}"
-        ).lower()
 
     def _build_request(self) -> dict:
         """Build the Census API request dict from already-normalized instance attributes."""
