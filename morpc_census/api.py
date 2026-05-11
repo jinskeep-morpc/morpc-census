@@ -574,47 +574,46 @@ class CensusAPI:
         Returns
         -------
         pandas.DataFrame
-            Columns: GEO_ID, [NAME,] reference_period, survey, concept,
+            Columns: GEOIDFQ, [NAME,] reference_period, survey, concept,
             universe, variable_label, variable, and one or more of
             estimate / moe / percent_estimate / percent_moe / total.
         """
         self.logger.info("Melting data to long format.")
 
-        id_vars = ['GEO_ID', 'NAME'] if 'NAME' in self.data.columns else ['GEO_ID']
-        long = self.data.melt(id_vars=id_vars, var_name='variable', value_name='value')
-
-        # Keep only the requested variables
-        long = long.loc[long['variable'].isin(self.vars)]
-
-        # Determine the type suffix (E, M, PE, PM, N)
-        def _type_code(var):
-            match = re.findall(r'_[0-9]+([A-Z]{1,2})$', var)
-            if match:
-                return match[0]
-            # Fall back to the first label segment for non-standard codes
-            label = self.vars.get(var, {}).get('label', '')
-            return label.split('!!')[0].lower() if label else ''
-
-        long['variable_type'] = long['variable'].map(
-            lambda v: VARIABLE_TYPES.get(_type_code(v), _type_code(v))
+        has_name = 'NAME' in self.data.columns
+        long = self.data.melt(
+            id_vars=['GEO_ID', 'NAME'] if has_name else ['GEO_ID'],
+            var_name='variable',
+            value_name='value',
         )
+        long = long.rename(columns={'GEO_ID': 'GEOIDFQ'})
+        id_vars = ['GEOIDFQ', 'NAME'] if has_name else ['GEOIDFQ']
+
+        long = long.loc[long['variable'].isin(self.vars.keys())]
+
+        # Resolve type suffix to a VARIABLE_TYPES value (E→estimate, M→moe, etc.)
+        def _variable_type(var):
+            m = re.search(r'_[0-9]+([A-Z]{1,2})$', var)
+            code = m.group(1) if m else self.vars.get(var, {}).get('label', '').split('!!')[0].lower()
+            return VARIABLE_TYPES.get(code, code)
+
+        long['variable_type'] = long['variable'].map(_variable_type)
         long = long.loc[long['variable_type'].isin(VARIABLE_TYPES.values())]
 
-        # Human-readable label (everything after the first '!!')
-        def _var_label(var):
+        # Human-readable label: everything after the first '!!'
+        def _variable_label(var):
             label = self.vars.get(var, {}).get('label', var)
-            return re.split('!!', label, maxsplit=1)[1] if '!!' in label else label
+            _, sep, tail = label.partition('!!')
+            return tail if sep else label
 
-        long['variable_label'] = long['variable'].map(_var_label)
+        long['variable_label'] = long['variable'].map(_variable_label)
 
-        # Strip the type suffix to get the base variable code (B01001_001E → B01001_001)
-        long['variable'] = long['variable'].map(
-            lambda v: (
-                re.findall(r'([A-Z0-9_]+[0-9]+)[A-Z]+$', v)[0]
-                if v[-1].isalpha() and re.findall(r'([A-Z0-9_]+[0-9]+)[A-Z]+$', v)
-                else v
-            )
-        )
+        # Strip type suffix: B01001_001E → B01001_001
+        def _base_code(var):
+            m = re.match(r'^([A-Z0-9_]+[0-9]+)[A-Z]+$', var)
+            return m.group(1) if m else var
+
+        long['variable'] = long['variable'].map(_base_code)
 
         long['reference_period'] = self.endpoint.year
         long['universe'] = self.universe
@@ -635,7 +634,7 @@ class CensusAPI:
             self.logger.error(f"Pivot failed: {e}")
             raise
 
-        long = long.sort_values(by=['GEO_ID', 'variable', 'reference_period'])
+        long = long.sort_values(by=['GEOIDFQ', 'variable', 'reference_period'])
 
         for col in long.columns:
             if col in VARIABLE_TYPES.values():
@@ -669,10 +668,8 @@ class CensusAPI:
         group_tag = f"{self.group.code} / " if self.group is not None else ''
         self.logger.info(f"Defining schema for {group_tag}{self.endpoint.survey} / {self.endpoint.year}.")
 
-        id_vars = ['GEO_ID', 'NAME'] if 'NAME' in self.data.columns else ['GEO_ID']
-
         fixed_fields = [
-            {'name': 'GEO_ID', 'type': 'string', 'description': 'Census geography identifier'},
+            {'name': 'GEOIDFQ', 'type': 'string', 'description': 'Census geography fully-qualified identifier'},
             {'name': 'reference_period', 'type': 'integer', 'description': 'Reference year'},
             {'name': 'survey', 'type': 'string', 'description': 'Census survey endpoint'},
             {'name': 'concept', 'type': 'string', 'description': 'Table concept description'},
@@ -680,7 +677,7 @@ class CensusAPI:
             {'name': 'variable_label', 'type': 'string', 'description': 'Human-readable variable label'},
             {'name': 'variable', 'type': 'string', 'description': 'Base variable code'},
         ]
-        if 'NAME' in id_vars:
+        if 'NAME' in self.long.columns:
             fixed_fields.insert(1, {'name': 'NAME', 'type': 'string', 'description': 'Geography name'})
 
         fixed_names = {f['name'] for f in fixed_fields}
@@ -696,7 +693,7 @@ class CensusAPI:
         descriptor = {
             'fields': fixed_fields + value_fields,
             'missingValues': MISSING_VALUES,
-            'primaryKey': ['GEO_ID', 'reference_period', 'variable'],
+            'primaryKey': ['GEOIDFQ', 'reference_period', 'variable'],
         }
 
         result = frictionless.Schema.validate_descriptor(descriptor)
@@ -836,7 +833,7 @@ class DimensionTable:
         self.variable_type = [
             c for c in self.long.columns
             if c not in (
-                'concept', 'universe', 'survey', 'GEO_ID', 'NAME',
+                'concept', 'universe', 'survey', 'GEOIDFQ', 'NAME',
                 'reference_period', 'variable_label', 'variable',
             )
         ]
@@ -855,7 +852,7 @@ class DimensionTable:
             self.long = (
                 self.long
                 .groupby([
-                    'concept', 'universe', 'GEO_ID', 'NAME',
+                    'concept', 'universe', 'GEOIDFQ', 'NAME',
                     'reference_period', 'variable_label', 'variable',
                 ])
                 .sum()
@@ -897,7 +894,7 @@ class DimensionTable:
         wide = wide.set_index(list(self.desc_table.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
-        wide = wide.sort_index(level='GEO_ID', axis=1).drop_duplicates()
+        wide = wide.sort_index(level='GEOIDFQ', axis=1).drop_duplicates()
 
         if droplevels is None:
             return wide

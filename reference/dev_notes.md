@@ -1,5 +1,21 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Clean up melt(); rename GEO_ID → GEOIDFQ in long output (branch refactor/api-class-integration)
+
+`CensusAPI.melt()` reworked:
+- `_type_code` inner function replaced by `_variable_type` which folds the `VARIABLE_TYPES` lookup in directly, so the lambda no longer calls it twice
+- `_var_label` replaced by `_variable_label` using `str.partition('!!')` instead of `re.split`
+- Variable-stripping lambda replaced by `_base_code` using a single `re.match` (was calling `re.findall` twice per value)
+- `long['variable'].isin(self.vars)` → `.isin(self.vars.keys())` for explicit dict-key intent
+
+`GEO_ID` column renamed to `GEOIDFQ` in the melt output (the Census API's `GEO_ID` field always carries the full GEOIDFQ string, not a short-form geoid). Updated everywhere this column is referenced:
+- `define_schema()`: field name `'GEO_ID'` → `'GEOIDFQ'`; primaryKey updated; `'NAME' in self.data.columns` → `'NAME' in self.long.columns` (checks the already-transformed data)
+- `DimensionTable.__init__`: exclusion list and groupby updated
+- `DimensionTable.wide()`: `sort_index(level='GEO_ID', ...)` → `'GEOIDFQ'`
+- `tests/_make_long()`: column renamed
+
+179 tests passing.
+
 ## 2026-05-11 — Use GeoIDFQ throughout geoinfo/geoids functions (branch refactor/api-class-integration)
 
 `geoinfo_from_params` and `geoids_from_scope` with `output='list'` previously returned `list[str]` (raw GEOIDFQ strings). Changed to return `list[GeoIDFQ]` by wrapping each result in `GeoIDFQ.parse()` at the return point. `geoinfo_from_scope_sumlevel` with `output='list'` likewise updated.
