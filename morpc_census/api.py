@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import re
-from collections import OrderedDict
 from functools import cached_property
 from io import StringIO
 from pathlib import Path
@@ -433,12 +432,12 @@ class CensusAPI:
 
     Parameters
     ----------
-    survey_table : str
+    survey_table : str or SurveyTable
         Dataset endpoint, e.g. ``'acs/acs5'``, ``'dec/pl'``.
         See :data:`IMPLEMENTED_ENDPOINTS`.
     year : int
         Vintage year, e.g. ``2023``.
-    group : str
+    group : str or Group
         Variable group code, e.g. ``'B01001'``.
     scope : str or Scope
         Geographic scope key (e.g. ``'region15'``) or a ``Scope`` instance.
@@ -476,29 +475,22 @@ class CensusAPI:
         )
 
         # Normalize to a Group instance — validates survey, year, and group code.
-        if isinstance(group, Group):
-            self.VARIABLE_GROUP = group
-        else:
-            self.VARIABLE_GROUP = Group(Vintage(survey_table, int(year)), group.upper())
-
-        self.SURVEY = self.VARIABLE_GROUP.vintage.survey.name
-        self.YEAR = self.VARIABLE_GROUP.vintage.year
-        self.GROUP = self.VARIABLE_GROUP.code
+        self.VARIABLE_GROUP = (
+            group if isinstance(group, Group)
+            else Group(Vintage(survey_table, int(year)), group.upper())
+        )
 
         if self.VARIABLES is not None:
             invalid = [v for v in self.VARIABLES if v not in self.VARIABLE_GROUP.variables]
             if invalid:
                 raise ValueError(f"Variables not found in {self.GROUP}: {invalid}")
 
-        self.NAME = censusapi_name(self.SURVEY, self.YEAR, self.SCOPE, self.GROUP, self.SUMLEVEL, variables)
         self.logger = (
             logging.getLogger(__name__)
             .getChild(self.__class__.__name__)
             .getChild(self.NAME)
         )
         self.logger.info(f"Initializing CensusAPI for {self.NAME}.")
-
-        self._fetch_metadata()
 
         self.logger.info("Building request URL and parameters.")
         self.REQUEST = self._build_request()
@@ -525,29 +517,80 @@ class CensusAPI:
             self.LONG = self.melt()
 
     # ------------------------------------------------------------------
+    # Properties — read from the class hierarchy
+    # ------------------------------------------------------------------
+
+    @property
+    def SURVEY(self) -> str:
+        """Census survey endpoint (e.g. ``'acs/acs5'``)."""
+        return self.VARIABLE_GROUP.vintage.survey.name
+
+    @property
+    def YEAR(self) -> int:
+        """Vintage year."""
+        return self.VARIABLE_GROUP.vintage.year
+
+    @property
+    def GROUP(self) -> str:
+        """Variable group code (e.g. ``'B01001'``)."""
+        return self.VARIABLE_GROUP.code
+
+    @property
+    def CONCEPT(self) -> str:
+        """Group description string (from cached :attr:`Vintage.groups`, no extra network call)."""
+        return self.VARIABLE_GROUP.description
+
+    @cached_property
+    def UNIVERSE(self) -> str:
+        """Universe description string. Falls back to 2023 vintage when year < 2023."""
+        try:
+            source = (
+                self.VARIABLE_GROUP if self.YEAR >= 2023
+                else Group(Vintage(self.VARIABLE_GROUP.vintage.survey, 2023), self.GROUP)
+            )
+            return source.universe
+        except Exception as e:
+            self.logger.warning(f"Universe not defined for {self.SURVEY}/{self.GROUP}: {e}")
+            return 'Not defined in API — see CensusAPI.REQUEST for endpoint details'
+
+    @cached_property
+    def VARS(self) -> dict:
+        """Variable metadata dict, filtered to :attr:`VARIABLES` when set."""
+        all_vars = dict(self.VARIABLE_GROUP.variables)
+        if self.VARIABLES is not None:
+            return {k: v for k, v in all_vars.items() if k in self.VARIABLES}
+        return all_vars
+
+    @cached_property
+    def NAME(self) -> str:
+        """Canonical, machine-readable dataset name."""
+        return self._build_name()
+
+    @property
+    def scope_obj(self):
+        """Return the Scope object for this dataset's geographic scope."""
+        return self.SCOPE
+
+    @property
+    def geoidfqs(self):
+        """Return the GEO_ID column parsed as a list of GeoIDFQ objects."""
+        from morpc_census.geos import GeoIDFQ
+        return [GeoIDFQ.parse(g) for g in self.DATA['GEO_ID']]
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _fetch_metadata(self):
-        """Populate CONCEPT, UNIVERSE, and VARS from the Census API."""
-        self.CONCEPT = self.VARIABLE_GROUP.description
-
-        try:
-            if self.YEAR >= 2023:
-                self.UNIVERSE = self.VARIABLE_GROUP.universe
-            else:
-                self.UNIVERSE = Group(Vintage(self.SURVEY, 2023), self.GROUP).universe
-        except Exception as e:
-            self.UNIVERSE = (
-                'Not defined in API — see CensusAPI.REQUEST for endpoint details'
-            )
-            self.logger.warning(
-                f"Universe not defined for {self.SURVEY}/{self.GROUP}: {e}"
-            )
-
-        self.VARS = dict(self.VARIABLE_GROUP.variables)
-        if self.VARIABLES is not None:
-            self.VARS = {k: v for k, v in self.VARS.items() if k in self.VARIABLES}
+    def _build_name(self) -> str:
+        sumlevel_part = (
+            f"{(self.SUMLEVEL.hierarchy_string or self.SUMLEVEL.name).replace('-', '').lower()}-"
+            if self.SUMLEVEL else ''
+        )
+        var_part = '-select-variables' if self.VARIABLES is not None else ''
+        return (
+            f"census-{self.SURVEY.replace('/', '-')}-{self.YEAR}"
+            f"-{sumlevel_part}{self.SCOPE.name}-{self.GROUP}{var_part}"
+        ).lower()
 
     def _build_request(self) -> dict:
         """Build the Census API request dict from already-normalized instance attributes."""
@@ -560,24 +603,6 @@ class CensusAPI:
         params = {'get': get_param}
         params.update(geo_param)
         return {'url': self.VARIABLE_GROUP.vintage.url, 'params': params}
-
-    def validate(self) -> None:
-        """No-op — validation now happens during Group construction in __init__."""
-
-    # ------------------------------------------------------------------
-    # Convenience properties
-    # ------------------------------------------------------------------
-
-    @property
-    def scope_obj(self):
-        """Return the Scope object for this dataset's geographic scope."""
-        return self.SCOPE
-
-    @property
-    def geoidfqs(self):
-        """Return the GEO_ID column parsed as a list of GeoIDFQ objects."""
-        from morpc_census.geos import GeoIDFQ
-        return [GeoIDFQ.parse(g) for g in self.DATA['GEO_ID']]
 
     # ------------------------------------------------------------------
     # Data transformation

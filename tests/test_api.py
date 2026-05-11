@@ -259,7 +259,6 @@ class TestCensusAPIClassNormalization:
     def test_create_resource_title_uses_sumlevel_plural_and_scope_name(self):
         import frictionless
         api = self._make('franklin', sumlevel='county')
-        api.CONCEPT = 'Sex by Age'
         api.FILENAME = 'test.csv'
         api.SCHEMA_FILENAME = 'test.schema.yaml'
         captured = {}

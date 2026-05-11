@@ -1,5 +1,15 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Replace CensusAPI plain-string attributes with class hierarchy properties (branch refactor/api-class-integration)
+
+`CensusAPI.SURVEY`, `YEAR`, `GROUP`, `CONCEPT` are now `@property` accessors that read directly from `self.VARIABLE_GROUP.vintage.survey.name`, `.vintage.year`, `.code`, and `.description` respectively. `UNIVERSE`, `VARS`, and `NAME` are `@cached_property` — computed once on first access, not eagerly in `__init__`.
+
+Removed `_fetch_metadata()` entirely (its logic is now spread across the three cached_properties). Removed `validate()` no-op. Removed unused `OrderedDict` import. Moved `_build_name()` ahead of `_build_request()` in the class body. `CensusAPI.__init__` no longer sets `self.SURVEY`, `self.YEAR`, `self.GROUP`, `self.CONCEPT`, `self.UNIVERSE`, `self.VARS`, or calls `censusapi_name()` — all of those come from the class hierarchy lazily.
+
+The `UNIVERSE` fallback (use 2023 vintage when year < 2023) now passes the already-normalized `SurveyTable` instance (`self.VARIABLE_GROUP.vintage.survey`) to the fallback `Vintage`, avoiding a redundant string re-validation.
+
+Test: removed `api.CONCEPT = 'Sex by Age'` (was masking the property; property already returns the right value from mock data). 77 tests passing.
+
 ## 2026-05-07 — Move network helpers into class methods (branch refactor/api-class-integration)
 
 Removed `get_table_groups`, `get_group_variables`, `get_group_universe` as standalone module functions. Logic now lives directly in the class that uses it: `Vintage.groups`, `Group.variables`, and `Group.universe` each do their own `get_json_safely` call. All three removed from `__init__.py` exports — callers access the data through class instances instead.
