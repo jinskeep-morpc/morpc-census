@@ -1,5 +1,21 @@
 # morpc-census dev notes
 
+## 2026-05-11 — Make `group` optional in CensusAPI; add variables-only mode (branch refactor/api-class-integration)
+
+`CensusAPI.__init__` signature changed: `group` is now `str | Group | None = None` (moved before `sumlevel`). A `ValueError` is raised at construction if both `group` and `variables` are `None`. Three modes are now supported:
+
+- **group only** — fetches all variables in the group via `group(CODE)` query
+- **group + variables** — validates that variables are a subset of the group; fetches only those variables
+- **variables only** — fetches the listed variables directly; `self.group = None`
+
+`self.endpoint` is now stored as an instance attribute and is always set (it comes from `self.group.endpoint` when group is present, otherwise from the `endpoint` arg directly). This allows `universe`, `vars`, `_build_name`, `_build_request`, `define_schema`, `create_resource`, and `melt` to all use `self.endpoint.*` instead of `self.group.endpoint.*`.
+
+Guarded `self.group is None` paths added to: `universe` (returns fallback string), `vars` (returns `{v: {} for v in self.variables}` placeholder dict), `melt` (`concept` field is `''` when no group), `define_schema` (log tag skips group code), `create_resource` (title/description use variable list instead of group description).
+
+`censusapi_name` updated: `group` param is now `str | Group | None = None`; when `None`, the group segment is omitted from the name string.
+
+`tests/test_api.py`: `_make` updated to `CensusAPI(ep, scope, group='B01001', ...)` (new positional order). Added `TestCensusAPIGroupOptional` (8 tests): raises on no-group/no-variables, stores `None` group, uppercases variables, returns placeholder `vars`, returns fallback universe string, name excludes group part, request uses variable list. 62 tests passing.
+
 ## 2026-05-11 — Rename CensusAPI and DimensionTable instance attributes to snake_case (branch refactor/api-class-integration)
 
 ALL_CAPS instance attributes are a non-standard convention; PEP 8 reserves that style for module-level constants. Renamed all instance attributes on `CensusAPI` and `DimensionTable` to snake_case: `SCOPE`→`scope`, `SUMLEVEL`→`sumlevel`, `VARIABLES`→`variables`, `GROUP`→`group`, `REQUEST`→`request`, `DATA`→`data`, `LONG`→`long`, `UNIVERSE`→`universe`, `VARS`→`vars`, `NAME`→`name`, `FILENAME`→`filename`, `SCHEMA_FILENAME`→`schema_filename`, `SCHEMA`→`schema`, `DATAPATH`→`datapath`, `DESC_TABLE`→`desc_table`. `DimensionTable.WIDE`→`_wide` (can't use `wide`, that's an existing method). Updated tests accordingly. 54 tests passing.

@@ -216,13 +216,13 @@ class TestCensusAPIClassNormalization:
             return self._vars_json
         raise ValueError(f"Unexpected URL in test: {url}")
 
-    def _make(self, scope, sumlevel=None):
+    def _make(self, scope, sumlevel=None, group='B01001', variables=None):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
              patch('morpc.req.get_json_safely', side_effect=self._census_json), \
              patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
              patch('morpc_census.api.fetch', return_value=self._fake_data):
             ep = Endpoint('acs/acs5', 2023)
-            return CensusAPI(ep, 'B01001', scope, sumlevel=sumlevel, return_long=False)
+            return CensusAPI(ep, scope, group=group, sumlevel=sumlevel, variables=variables, return_long=False)
 
     def test_scope_string_stored_as_scope_instance(self):
         from morpc_census.geos import Scope
@@ -270,6 +270,59 @@ class TestCensusAPIClassNormalization:
             api.create_resource()
         assert 'franklin' in captured['title']
         assert 'counties' in captured['title']  # SumLevel('county').plural
+
+
+# ---------------------------------------------------------------------------
+# TestCensusAPIGroupOptional
+# ---------------------------------------------------------------------------
+
+class TestCensusAPIGroupOptional:
+    """Test CensusAPI behavior when group is None."""
+
+    _fake_endpoints = {'acs/acs5': [2022, 2023]}
+    _fake_data = pd.DataFrame({'GEO_ID': ['0500000US39049'], 'NAME': ['Franklin County']})
+
+    def _make_no_group(self, variables):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+             patch('morpc_census.api.fetch', return_value=self._fake_data):
+            ep = Endpoint('acs/acs5', 2023)
+            return CensusAPI(ep, 'franklin', variables=variables, return_long=False)
+
+    def test_no_group_no_variables_raises(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints):
+            ep = Endpoint('acs/acs5', 2023)
+            with pytest.raises(ValueError, match="At least one of 'group' or 'variables'"):
+                CensusAPI(ep, 'franklin')
+
+    def test_variables_only_stores_none_group(self):
+        api = self._make_no_group(['B01001_001E', 'B01001_002E'])
+        assert api.group is None
+
+    def test_variables_only_stores_variables(self):
+        api = self._make_no_group(['B01001_001E', 'B01001_002E'])
+        assert api.variables == ['B01001_001E', 'B01001_002E']
+
+    def test_variables_uppercased(self):
+        api = self._make_no_group(['b01001_001e'])
+        assert api.variables == ['B01001_001E']
+
+    def test_vars_returns_placeholder_dict_when_no_group(self):
+        api = self._make_no_group(['B01001_001E'])
+        assert api.vars == {'B01001_001E': {}}
+
+    def test_universe_returns_fallback_string_when_no_group(self):
+        api = self._make_no_group(['B01001_001E'])
+        assert 'no group' in api.universe
+
+    def test_name_has_no_group_part_when_no_group(self):
+        api = self._make_no_group(['B01001_001E'])
+        assert 'none' not in api.name
+        assert 'b01001' not in api.name
+
+    def test_build_request_uses_variable_list_when_no_group(self):
+        api = self._make_no_group(['B01001_001E', 'B01001_002E'])
+        assert api.request['params']['get'] == 'B01001_001E,B01001_002E'
 
 
 # ---------------------------------------------------------------------------

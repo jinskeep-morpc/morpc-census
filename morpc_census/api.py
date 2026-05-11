@@ -384,12 +384,12 @@ def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
 # Naming helper
 # ---------------------------------------------------------------------------
 
-def censusapi_name(endpoint: Endpoint, scope: str | Scope, group: str | Group, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
+def censusapi_name(endpoint: Endpoint, scope: str | Scope, group: str | Group | None = None, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
     """Construct a canonical, machine-readable name for a CensusAPI dataset."""
     from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
     scope_name = scope.name if isinstance(scope, _Scope) else scope
-    group_code = group.code if isinstance(group, Group) else group
+    group_code = group.code if isinstance(group, Group) else group  # None when no group
 
     if sumlevel is not None:
         sl = sumlevel if isinstance(sumlevel, _SumLevel) else _SumLevel(sumlevel)
@@ -397,10 +397,11 @@ def censusapi_name(endpoint: Endpoint, scope: str | Scope, group: str | Group, s
     else:
         sumlevel_part = ''
 
+    group_part = f"-{group_code}" if group_code is not None else ''
     var_part = '-select-variables' if variables is not None else ''
     return (
         f"census-{endpoint.survey.replace('/', '-')}-{endpoint.year}"
-        f"-{sumlevel_part}{scope_name}-{group_code}{var_part}"
+        f"-{sumlevel_part}{scope_name}{group_part}{var_part}"
     ).lower()
 
 
@@ -442,19 +443,19 @@ class CensusAPI:
     ----------
     endpoint : Endpoint
         Survey and vintage year, e.g. ``Endpoint('acs/acs5', 2023)``.
-    group : str or Group
-        Variable group code, e.g. ``'B01001'``. Strings are normalized to a
-        :class:`Group` using *endpoint*. When a :class:`Group` instance is
-        passed, *endpoint* is ignored and the group's own endpoint is used.
     scope : str or Scope
         Geographic scope key (e.g. ``'region15'``) or a ``Scope`` instance.
         See ``morpc_census.geos.SCOPES`` for available keys.
+    group : str, Group, or None
+        Variable group code, e.g. ``'B01001'``. Required if *variables* is
+        not provided. When omitted, *variables* must be given and are fetched
+        directly without group validation.
     sumlevel : str or SumLevel, optional
         Geographic summary level query name (e.g. ``'county'``, ``'tract'``)
         or a ``SumLevel`` instance.  See ``morpc_census.geos.SumLevel``.
     variables : list of str, optional
-        Specific variables to retrieve.  If ``None`` all variables in the
-        group are retrieved.
+        Specific variables to retrieve. Required when *group* is not provided.
+        When both are given, variables must be a subset of the group's variables.
     return_long : bool
         If ``True`` (default) compute ``self.long`` immediately after fetch.
     """
@@ -462,12 +463,15 @@ class CensusAPI:
     def __init__(
         self,
         endpoint: Endpoint,
-        group: str | Group,
         scope: str | Scope,
+        group: str | Group | None = None,
         sumlevel: str | SumLevel | None = None,
         variables: list[str] | None = None,
         return_long: bool = True,
     ):
+        if group is None and variables is None:
+            raise ValueError("At least one of 'group' or 'variables' must be provided.")
+
         from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
         self.scope = scope if isinstance(scope, _Scope) else _Scope(scope.lower())
@@ -480,13 +484,13 @@ class CensusAPI:
             [v.upper() for v in variables] if variables is not None else None
         )
 
-        # Normalize to a Group instance — validates survey, vintage year, and group code.
-        self.group = (
-            group if isinstance(group, Group)
-            else Group(endpoint, group.upper())
-        )
+        if group is not None:
+            self.group = group if isinstance(group, Group) else Group(endpoint, group.upper())
+        else:
+            self.group = None
+        self.endpoint = self.group.endpoint if self.group is not None else endpoint
 
-        if self.variables is not None:
+        if self.variables is not None and self.group is not None:
             invalid = [v for v in self.variables if v not in self.group.variables]
             if invalid:
                 raise ValueError(f"Variables not found in {self.group.code}: {invalid}")
@@ -529,25 +533,30 @@ class CensusAPI:
     @cached_property
     def universe(self) -> str:
         """Universe description string. Falls back to 2023 vintage when year < 2023."""
+        if self.group is None:
+            return 'Not defined — no group specified'
         try:
             source = (
-                self.group if self.group.endpoint.year >= 2023
-                else Group(Endpoint(self.group.endpoint.survey, 2023), self.group.code)
+                self.group if self.endpoint.year >= 2023
+                else Group(Endpoint(self.endpoint.survey, 2023), self.group.code)
             )
             return source.universe
         except Exception as e:
             self.logger.warning(
-                f"Universe not defined for {self.group.endpoint.survey}/{self.group.code}: {e}"
+                f"Universe not defined for {self.endpoint.survey}/{self.group.code}: {e}"
             )
-            return 'Not defined in API — see CensusAPI.REQUEST for endpoint details'
+            return 'Not defined in API — see CensusAPI.request for endpoint details'
 
     @cached_property
     def vars(self) -> dict:
-        """Variable metadata dict, filtered to :attr:`VARIABLES` when set."""
-        all_vars = dict(self.group.variables)
-        if self.variables is not None:
-            return {k: v for k, v in all_vars.items() if k in self.variables}
-        return all_vars
+        """Variable metadata dict. When group is set, includes label metadata and respects
+        the variables filter. Without a group, returns placeholder entries keyed by variable code."""
+        if self.group is not None:
+            all_vars = dict(self.group.variables)
+            if self.variables is not None:
+                return {k: v for k, v in all_vars.items() if k in self.variables}
+            return all_vars
+        return {v: {} for v in self.variables}
 
     @cached_property
     def name(self) -> str:
@@ -566,7 +575,7 @@ class CensusAPI:
 
     def _build_name(self) -> str:
         return censusapi_name(
-            self.group.endpoint,
+            self.endpoint,
             self.scope,
             self.group,
             sumlevel=self.sumlevel,
@@ -583,7 +592,7 @@ class CensusAPI:
         geo_param = geoinfo_from_scope_sumlevel(self.scope, self.sumlevel, output='params')
         params = {'get': get_param}
         params.update(geo_param)
-        return {'url': self.group.endpoint.url, 'params': params}
+        return {'url': self.endpoint.url, 'params': params}
 
     # ------------------------------------------------------------------
     # Data transformation
@@ -613,7 +622,8 @@ class CensusAPI:
             if match:
                 return match[0]
             # Fall back to the first label segment for non-standard codes
-            return self.vars[var]['label'].split('!!')[0].lower()
+            label = self.vars.get(var, {}).get('label', '')
+            return label.split('!!')[0].lower() if label else ''
 
         long['variable_type'] = long['variable'].map(
             lambda v: VARIABLE_TYPES.get(_type_code(v), _type_code(v))
@@ -621,13 +631,11 @@ class CensusAPI:
         long = long.loc[long['variable_type'].isin(VARIABLE_TYPES.values())]
 
         # Human-readable label (everything after the first '!!')
-        long['variable_label'] = long['variable'].map(
-            lambda v: (
-                re.split('!!', self.vars[v]['label'], maxsplit=1)[1]
-                if '!!' in self.vars[v]['label']
-                else self.vars[v]['label']
-            )
-        )
+        def _var_label(var):
+            label = self.vars.get(var, {}).get('label', var)
+            return re.split('!!', label, maxsplit=1)[1] if '!!' in label else label
+
+        long['variable_label'] = long['variable'].map(_var_label)
 
         # Strip the type suffix to get the base variable code (B01001_001E → B01001_001)
         long['variable'] = long['variable'].map(
@@ -638,10 +646,10 @@ class CensusAPI:
             )
         )
 
-        long['reference_period'] = self.group.endpoint.year
+        long['reference_period'] = self.endpoint.year
         long['universe'] = self.universe
-        long['survey'] = self.group.endpoint.survey
-        long['concept'] = self.group.description.capitalize()
+        long['survey'] = self.endpoint.survey
+        long['concept'] = self.group.description.capitalize() if self.group is not None else ''
 
         pivot_index = id_vars + [
             'reference_period', 'survey', 'concept', 'universe',
@@ -688,7 +696,8 @@ class CensusAPI:
                 "Either call melt() first or construct with return_long=True."
             )
 
-        self.logger.info(f"Defining schema for {self.group.code} / {self.group.endpoint.survey} / {self.group.endpoint.year}.")
+        group_tag = f"{self.group.code} / " if self.group is not None else ''
+        self.logger.info(f"Defining schema for {group_tag}{self.endpoint.survey} / {self.endpoint.year}.")
 
         id_vars = ['GEO_ID', 'NAME'] if 'NAME' in self.data.columns else ['GEO_ID']
 
@@ -740,12 +749,25 @@ class CensusAPI:
         import frictionless
 
         sumlevel_str = f'{self.sumlevel.plural} in ' if self.sumlevel is not None else ''
-        title = f"{self.group.endpoint.year} {self.group.description} for {sumlevel_str}{self.scope.name}"
-        description = (
-            f"Census API data for {self.group.code}: {self.group.description} "
-            f"from {self.group.endpoint.survey} in {self.group.endpoint.year} "
-            f"for {sumlevel_str}{self.scope.name}."
-        )
+        year = self.endpoint.year
+        survey = self.endpoint.survey
+        if self.group is not None:
+            title = f"{year} {self.group.description} for {sumlevel_str}{self.scope.name}"
+            description = (
+                f"Census API data for {self.group.code}: {self.group.description} "
+                f"from {survey} in {year} "
+                f"for {sumlevel_str}{self.scope.name}."
+            )
+        else:
+            vars_str = ', '.join(self.variables[:3])
+            if len(self.variables) > 3:
+                vars_str += f', ... ({len(self.variables)} total)'
+            title = f"{year} selected variables for {sumlevel_str}{self.scope.name}"
+            description = (
+                f"Census API data for {vars_str} "
+                f"from {survey} in {year} "
+                f"for {sumlevel_str}{self.scope.name}."
+            )
 
         descriptor = {
             'name': self.name,
@@ -786,7 +808,7 @@ class CensusAPI:
         output = Path(output_path)
         output.mkdir(parents=True, exist_ok=True)
 
-        self.dataPATH = output
+        self.datapath = output
         self.filename = f"{self.name}.long.csv"
         self.schema_filename = f"{self.name}.schema.yaml"
 
