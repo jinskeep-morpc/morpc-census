@@ -820,8 +820,36 @@ class DimensionTable:
         pandas.DataFrame
             Index = ``variable``, columns = dimension names.
         """
+        # One label per variable code — different vintages may use the same code
+        # with slightly different label text (e.g. trailing ':' present or absent).
         unique = (self.long[['variable', 'variable_label']]
-                  .drop_duplicates().set_index('variable'))
+                  .drop_duplicates(subset='variable')
+                  .set_index('variable')
+                  .copy())
+
+        # Normalize: older Census vintages omit the trailing ':' from subtotal
+        # segments.  Rebuild each label so that any segment which is a strict
+        # prefix of another label (i.e. has children in the label tree) gets a
+        # ':' suffix.  Existing ':' suffixes are also preserved, so labels that
+        # are already in the standard convention pass through unchanged.
+        clean_labels = set(
+            '!!'.join(p.rstrip(':') for p in lbl.split('!!'))
+            for lbl in unique['variable_label']
+        )
+
+        def normalize_label(label):
+            parts = label.split('!!')
+            stripped = [p.rstrip(':') for p in parts]
+            result = []
+            for i, (orig, part) in enumerate(zip(parts, stripped)):
+                prefix = '!!'.join(stripped[:i + 1])
+                has_children = any(
+                    other.startswith(prefix + '!!') for other in clean_labels
+                )
+                result.append(part + ':' if (orig.endswith(':') or has_children) else part)
+            return '!!'.join(result)
+
+        unique['variable_label'] = unique['variable_label'].map(normalize_label)
 
         def split_path(label):
             parts = label.split('!!')

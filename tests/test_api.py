@@ -203,6 +203,50 @@ def _make_long_cross():
 
 
 # ---------------------------------------------------------------------------
+# Shared fixture for cross-vintage label inconsistency
+# ---------------------------------------------------------------------------
+
+def _make_long_timeseries():
+    """Two years of B01001-like data with age groups.
+
+    The 2018 vintage omits the trailing ':' on subtotal segments; 2018 rows
+    appear first so drop_duplicates keeps the colon-free labels.  After
+    normalization by tree structure, _parse_dims should produce the same
+    dims shape as a single-year table built from the 2023 labels.
+    """
+    rows_2018 = [
+        # variable,  label (no ':'),             est, moe, year
+        ('B01_001', 'Total',                     95,  5, 2018),
+        ('B01_002', 'Total!!Male',               48,  3, 2018),
+        ('B01_003', 'Total!!Male!!Under 5',      20,  2, 2018),
+        ('B01_004', 'Total!!Female',             47,  3, 2018),
+        ('B01_005', 'Total!!Female!!Under 5',    19,  2, 2018),
+    ]
+    rows_2023 = [
+        ('B01_001', 'Total:',                   100,  5, 2023),
+        ('B01_002', 'Total:!!Male:',             50,  3, 2023),
+        ('B01_003', 'Total:!!Male:!!Under 5',    21,  2, 2023),
+        ('B01_004', 'Total:!!Female:',           50,  3, 2023),
+        ('B01_005', 'Total:!!Female:!!Under 5',  20,  2, 2023),
+    ]
+    rows = rows_2018 + rows_2023
+    variables, labels, estimates, moes, years = zip(*rows)
+    n = len(rows)
+    return pd.DataFrame({
+        'variable':        list(variables),
+        'variable_label':  list(labels),
+        'geoidfq':         ['0500000US39049'] * n,
+        'name':            ['Franklin County, Ohio'] * n,
+        'concept':         ['Test'] * n,
+        'universe':        ['Population'] * n,
+        'survey':          ['acs/acs5'] * n,
+        'reference_period': list(years),
+        'estimate':        list(estimates),
+        'moe':             list(moes),
+    })
+
+
+# ---------------------------------------------------------------------------
 # TestDimensionTableParseDims
 # ---------------------------------------------------------------------------
 
@@ -261,6 +305,49 @@ class TestDimensionTableParseDims:
         assert dims.columns[1] == 'nativity'
         assert dims.columns[2] == 'dim_2'
         assert dims.columns[3] == 'dim_3'
+
+
+# ---------------------------------------------------------------------------
+# TestDimensionTableCrossVintage
+# ---------------------------------------------------------------------------
+
+class TestDimensionTableCrossVintage:
+    """_parse_dims must handle cross-vintage concatenations where older vintages
+    omit the trailing ':' from subtotal segments."""
+
+    def test_same_column_count_as_single_vintage(self):
+        # Both single-vintage (2023 only) and combined should give the same n
+        single = DimensionTable(
+            _make_long_timeseries().loc[
+                _make_long_timeseries()['reference_period'] == 2023
+            ]
+        ).dims
+        combined = DimensionTable(_make_long_timeseries()).dims
+        assert combined.shape[1] == single.shape[1]
+
+    def test_no_duplicate_variable_rows(self):
+        # Each variable code must appear exactly once in dims
+        dims = DimensionTable(_make_long_timeseries()).dims
+        assert dims.index.is_unique
+
+    def test_row_count_equals_unique_variables(self):
+        long_ts = _make_long_timeseries()
+        dims = DimensionTable(long_ts).dims
+        assert len(dims) == long_ts['variable'].nunique()
+
+    def test_subtotals_normalized_with_colon(self):
+        # 'Total' (no ':') and 'Male' / 'Female' (no ':') should become
+        # 'Total:' and 'Male:' / 'Female:' after tree-structure normalization
+        dims = DimensionTable(_make_long_timeseries()).dims
+        assert dims.iloc[:, 0].eq('Total:').all()
+        assert dims.loc['B01_002', dims.columns[1]] == 'Male:'
+        assert dims.loc['B01_004', dims.columns[1]] == 'Female:'
+
+    def test_leaf_column_has_no_colon(self):
+        dims = DimensionTable(_make_long_timeseries()).dims
+        last_col = dims.columns[-1]
+        non_empty = dims[last_col].loc[dims[last_col] != '']
+        assert not non_empty.str.endswith(':').any()
 
 
 # ---------------------------------------------------------------------------

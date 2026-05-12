@@ -588,6 +588,20 @@ Three Census API request sites in `geos.py` were passing no API key, causing ano
 
 Tests: `TestDimensionTableDescriptionTable` replaced by `TestDimensionTableParseDims`, `TestDimensionTableDrop`, `TestDimensionTableRemap` — 23 new tests, all pass. 197 total passing.
 
+## 2026-05-12 — Fix DimensionTable._parse_dims() — inflated dims on cross-vintage concat (branch refactor/api-class-integration)
+
+**Bug**: `DimensionTable(pd.concat([b01001_2018.long, b01001.long])).wide()` produced a 5-level row MultiIndex instead of 3, with `('', '', 'Total', '', '')` as the grand total row instead of `('Total', '', '')`.
+
+**Root cause**: Two related issues in `_parse_dims`:
+1. `drop_duplicates()` was called on both `variable` and `variable_label`, so the same variable code (e.g. `B01001_001`) appeared twice in `unique` — once with the 2018 label `'Total'` (no colon) and once with the 2023 label `'Total:'` (colon). Both versions entered the alignment calculation.
+2. Older Census API vintages omit the trailing `:` from subtotal segment labels (e.g. `'Total!!Male!!Under 5 years'` instead of `'Total:!!Male:!!Under 5 years'`). With both formats present, S (max subtotal depth) and L (max leaf depth) inflated independently — S=2 from 2023, L=3 from 2018 → n=5.
+
+**Fix**: 
+- `drop_duplicates(subset='variable')` — one label per variable code; the first occurrence wins
+- Label normalization via tree structure: strip all trailing `:` to form a set of clean label paths, then for each segment, add `:` if (a) the original segment already had `:` (Census convention preserved), or (b) the segment's path prefix has children in the clean label set (older vintages fixed by tree structure). Normalization runs before S/L computation, so both vintages produce the same dimensions.
+
+5 new tests in `TestDimensionTableCrossVintage`. 202 total passing.
+
 ## 2026-05-12 — Fix DimensionTable.percent() — values appearing in column headers (branch refactor/api-class-integration)
 
 **Bug**: `percent()` returned a table where dimension values (e.g. `('Total', 'Male')`) appeared as column headers instead of row index values.
