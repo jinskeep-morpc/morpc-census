@@ -307,6 +307,29 @@ class TestDimensionTableParseDims:
         assert dims.columns[2] == 'dim_2'
         assert dims.columns[3] == 'dim_3'
 
+    def test_dims_columns_are_ordered_categoricals(self):
+        dims = DimensionTable(_make_long()).dims
+        for col in dims.columns:
+            assert hasattr(dims[col], 'cat'), f"column {col!r} is not categorical"
+            assert dims[col].cat.ordered, f"column {col!r} is not ordered"
+
+    def test_dims_categorical_order_matches_variable_order(self):
+        # _make_long returns B01_001 (Total:), B01_002 (Male:), B01_003 (Female:)
+        # The second column categories should appear in that order: Total:, Male:, Female:
+        dims = DimensionTable(_make_long()).dims
+        second_col = dims.iloc[:, 1]
+        cats = list(second_col.cat.categories)
+        # Male: comes before Female: in the fixture variable order
+        assert cats.index('Male:') < cats.index('Female:')
+
+    def test_dims_categorical_order_preserved_across_cross_vintage(self):
+        # Cross-vintage fixture: 2018 labels lack ':', but after normalization
+        # Male: and Female: should still appear in variable order
+        dims = DimensionTable(_make_long_timeseries()).dims
+        second_col = dims.iloc[:, 1]
+        cats = [c for c in second_col.cat.categories if c != '']
+        assert cats.index('Male:') < cats.index('Female:')
+
 
 # ---------------------------------------------------------------------------
 # TestDimensionTableCrossVintage
