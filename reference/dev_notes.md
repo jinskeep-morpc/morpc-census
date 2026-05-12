@@ -1,5 +1,16 @@
 # morpc-census dev notes
 
+## 2026-05-12 — Add RaceDimensionTable class (branch feat/race-dimension-table, closes #59)
+
+New `RaceDimensionTable(DimensionTable)` subclass in `morpc_census/api.py`. Accepts a concatenated `CensusAPI.long` DataFrame from multiple racial iteration group fetches (e.g. B17020A–I) and preprocesses it before delegating to `DimensionTable`:
+
+- Extracts race letter from variable code (`B17020A_001` → `A`) and maps to a label via `RACE_TABLE_MAP` (or a caller-supplied `race_map`). Rows with unmapped codes are silently dropped.
+- Normalizes variable code by stripping the race letter (`B17020A_001` → `B17020_001`) so all groups share the same variable namespace.
+- Normalizes `concept` (strips trailing parenthetical race qualifier) and `universe` (replaces leading `"<Race> alone"` prefix with `"Population"`) so both fields are identical across races and do not inflate the column MultiIndex.
+- Removes `'race'` from `variable_type` after `super().__init__`, so `race` becomes a column-level dimension in `wide()` / `percent()`. The inherited `percent()` naturally computes within-race percentages with no override.
+
+Exported from `morpc_census/__init__.py`. 11 new tests in `TestRaceDimensionTable`. 103 tests passing.
+
 ## 2026-05-12 — Fix variable_label in variables-only mode (branch refactor/api-class-integration)
 
 `CensusAPI.vars` previously returned `{v: {} for v in self.variables}` when no group was set, causing `melt` to fall back to the raw variable code (e.g. `B01001_001E`) as the `variable_label` instead of the human-readable label (`Total:!!Male:!!Under 5 years`).
