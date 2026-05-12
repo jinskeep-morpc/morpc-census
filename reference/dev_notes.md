@@ -1,5 +1,15 @@
 # morpc-census dev notes
 
+## 2026-05-12 — Add RaceDimensionTable class (branch feat/race-dimension-table, closes #59)
+
+New `RaceDimensionTable(DimensionTable)` subclass in `morpc_census/api.py`. Accepts a concatenated `CensusAPI.long` DataFrame from multiple racial iteration group fetches (e.g. B17020A–I) and preprocesses it before delegating to `DimensionTable`:
+
+- Extracts race letter from variable code (`B17020A_001` → `A`) and maps to a label via `RACE_TABLE_MAP` (or a caller-supplied `race_map`). Rows with unmapped codes are silently dropped.
+- Normalizes variable code by stripping the race letter (`B17020A_001` → `B17020_001`) so all groups share the same variable namespace.
+- Normalizes `concept` (strips trailing parenthetical race qualifier) and `universe` (replaces leading `"<Race> alone"` prefix with `"Population"`) so both fields are identical across races and do not inflate the column MultiIndex.
+- Removes `'race'` from `variable_type` after `super().__init__`, so `race` becomes a column-level dimension in `wide()` / `percent()`. The inherited `percent()` naturally computes within-race percentages with no override.
+
+Exported from `morpc_census/__init__.py`. 11 new tests in `TestRaceDimensionTable`. 103 tests passing.
 ## 2026-05-12 — Revise poverty/race demo notebook: markdown cells, MOE, suppression (branch doc/poverty-race-demo)
 
 Rewrote `doc/03-morpc-poverty-race-demo.ipynb` in response to three requests:
