@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-12 — Fix variable_label in variables-only mode (branch refactor/api-class-integration)
+
+`CensusAPI.vars` previously returned `{v: {} for v in self.variables}` when no group was set, causing `melt` to fall back to the raw variable code (e.g. `B01001_001E`) as the `variable_label` instead of the human-readable label (`Total:!!Male:!!Under 5 years`).
+
+Fix: infer the group code from each variable name via regex (`B01001_001E` → `B01001`), group variables by inferred code, then fetch the `groups/{code}.json` metadata endpoint (one call per unique group) to get labels. Falls back to empty dict if the fetch fails. Tests updated — `test_vars_returns_placeholder_dict_when_no_group` replaced with two new tests covering the happy path and the error fallback. 203 total passing.
+
 ## 2026-05-11 — Clean up melt(); rename GEO_ID → GEOIDFQ in long output (branch refactor/api-class-integration)
 
 `CensusAPI.melt()` reworked:

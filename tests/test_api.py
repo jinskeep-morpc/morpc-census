@@ -642,9 +642,21 @@ class TestCensusAPIGroupOptional:
         api = self._make_no_group(['b01001_001e'])
         assert api.variables == ['B01001_001E']
 
-    def test_vars_returns_placeholder_dict_when_no_group(self):
+    def test_vars_fetches_labels_from_group_endpoint_when_no_group(self):
+        fake_group_vars = {
+            'variables': {
+                'B01001_001E': {'label': 'Estimate!!Total:', 'concept': 'SEX BY AGE'},
+                'B01001_002E': {'label': 'Estimate!!Total:!!Male:', 'concept': 'SEX BY AGE'},
+            }
+        }
         api = self._make_no_group(['B01001_001E'])
-        assert api.vars == {'B01001_001E': {}}
+        with patch('morpc.req.get_json_safely', return_value=fake_group_vars):
+            assert api.vars['B01001_001E']['label'] == 'Estimate!!Total:'
+
+    def test_vars_falls_back_to_empty_dict_on_fetch_error(self):
+        api = self._make_no_group(['B01001_001E'])
+        with patch('morpc.req.get_json_safely', side_effect=Exception('network error')):
+            assert api.vars == {'B01001_001E': {}}
 
     def test_universe_returns_fallback_string_when_no_group(self):
         api = self._make_no_group(['B01001_001E'])

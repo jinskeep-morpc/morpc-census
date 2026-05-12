@@ -450,14 +450,44 @@ class CensusAPI:
 
     @cached_property
     def vars(self) -> dict:
-        """Variable metadata dict. When group is set, includes label metadata and respects
-        the variables filter. Without a group, returns placeholder entries keyed by variable code."""
+        """Variable metadata dict including label. When group is set, fetches via the group
+        endpoint and respects the variables filter. Without a group, infers the group code
+        from each variable name (e.g. B01001_001E → B01001) and fetches the group metadata
+        to obtain human-readable labels."""
         if self.group is not None:
             all_vars = dict(self.group.variables)
             if self.variables is not None:
                 return {k: v for k, v in all_vars.items() if k in self.variables}
             return all_vars
-        return {v: {} for v in self.variables}
+
+        from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
+
+        # Group variable codes by their table prefix (B01001_001E → B01001)
+        group_map: dict[str, list[str]] = {}
+        for v in self.variables:
+            m = re.match(r'^([A-Z][A-Z0-9]+)_\d+', v)
+            if m:
+                group_map.setdefault(m.group(1), []).append(v)
+
+        result: dict[str, dict] = {}
+        for gc, gc_vars in group_map.items():
+            try:
+                data = get_json_safely(
+                    f"{CENSUS_DATA_BASE_URL}/{self.endpoint.year}"
+                    f"/{self.endpoint.survey}/groups/{gc}.json",
+                    **kw,
+                )
+                gvars = data.get('variables', {})
+                for v in gc_vars:
+                    result[v] = gvars.get(v, {})
+            except Exception:
+                for v in gc_vars:
+                    result[v] = {}
+
+        for v in self.variables:
+            result.setdefault(v, {})
+        return result
 
     @cached_property
     def name(self) -> str:
