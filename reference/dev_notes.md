@@ -560,3 +560,30 @@ Three Census API request sites in `geos.py` were passing no API key, causing ano
 - Single "Network required" note at section header instead of inline on every cell
 - 11 sections: Endpoints, Groups, Scopes, Fetching, Long output, GEOIDFQs, Sumlevel, Variables-only, DimensionTable, Time series, Saving
 - Added `_VALUE_FIELD_DEFS` module-level dict for schema field definitions.
+
+## 2026-05-12 — Rework DimensionTable (branch refactor/api-class-integration)
+
+`DimensionTable` redesigned around explicit dimension parsing.
+
+**`_parse_dims(dim_names=None)`** replaces `create_description_table()`:
+- Splits each `variable_label` by `!!` into subtotals (ending with `:`) and leaves (no `:`)
+- Subtotals are left-aligned into the first S columns; leaves into the next L columns (S and L are the max depths across all variables)
+- This keeps the same concept in the same column even when paths have different depths — e.g. B05004 where Sex appears as a leaf at depth 2, 3, or 4 depending on the nativity level
+- Result stored as `self.dims` (DataFrame indexed by `variable`); `:` suffix preserved for drop() logic, stripped for display in `wide()`
+
+**`drop(dim, method='summarize')`** replaces `droplevels` parameter in `wide()`/`percent()`:
+- `method='summarize'`: keep only rows where `dim == ''` (already aggregated over that dimension); returns a new `DimensionTable`
+- `method='aggregate'`: sum leaf rows (dim != '') per group; propagate MOE via `sqrt(sum(moe_i²))`; returns a new `DimensionTable`
+- Aggregate only uses leaf rows (where dropped dim is non-empty) to avoid double-counting pre-computed subtotal rows
+
+**`remap(variable_map)`** (moved from `__init__`):
+- Applies `find_replace_variable_map`, aggregates collapsed rows, fixes MOE via `sqrt(sum(moe²))` (was `.sum()` which is wrong for ACS MOE)
+- Returns `self` for chaining; rebuilds `self.dims` after relabeling
+
+**`wide()`**: simplified — no `droplevels` parameter, no MISSING_VALUES list comprehension (uses `df.replace(dict, np.nan)`)
+
+**`percent(decimals=2)`**: identifies total row explicitly via `all(v == '' for v in vals[1:])` instead of fragile `.T.iloc[:, 0]` position assumption
+
+**Removed**: `create_description_table()`, `variable_map`/`variable_order` constructor parameters
+
+Tests: `TestDimensionTableDescriptionTable` replaced by `TestDimensionTableParseDims`, `TestDimensionTableDrop`, `TestDimensionTableRemap` — 23 new tests, all pass. 197 total passing.

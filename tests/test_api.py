@@ -162,32 +162,205 @@ class TestFindReplaceVariableMap:
 
 
 # ---------------------------------------------------------------------------
-# TestDimensionTableDescriptionTable
+# Shared fixture for cross-dimension alignment (B05004-like)
 # ---------------------------------------------------------------------------
 
-class TestDimensionTableDescriptionTable:
-    def test_returns_dataframe(self):
-        desc = DimensionTable(_make_long()).create_description_table()
-        assert isinstance(desc, pd.DataFrame)
+def _make_long_cross():
+    """Long DataFrame with a cross-cutting dimension (nativity × sex).
 
-    def test_indexed_by_variable(self):
+    Mirrors B05004 structure: sex appears at multiple depths.
+    After _parse_dims the sex dimension should always be in the last column.
+    """
+    rows = [
+        # variable,    label,                                       est, moe
+        ('B05_001', 'Total:',                                       300, 10),
+        ('B05_002', 'Total:!!Male',                                 150,  7),
+        ('B05_003', 'Total:!!Female',                               150,  7),
+        ('B05_004', 'Total:!!Native:',                              200,  8),
+        ('B05_005', 'Total:!!Native:!!Male',                        100,  5),
+        ('B05_006', 'Total:!!Native:!!Female',                      100,  5),
+        ('B05_007', 'Total:!!Foreign-born:',                        100,  6),
+        ('B05_008', 'Total:!!Foreign-born:!!Male',                   50,  4),
+        ('B05_009', 'Total:!!Foreign-born:!!Female',                 50,  4),
+        ('B05_010', 'Total:!!Foreign-born:!!Naturalized:',           60,  4),
+        ('B05_011', 'Total:!!Foreign-born:!!Naturalized:!!Male',     30,  3),
+        ('B05_012', 'Total:!!Foreign-born:!!Naturalized:!!Female',   30,  3),
+    ]
+    variables, labels, estimates, moes = zip(*rows)
+    n = len(rows)
+    return pd.DataFrame({
+        'variable': list(variables),
+        'variable_label': list(labels),
+        'geoidfq': ['0500000US39049'] * n,
+        'name': ['Franklin County, Ohio'] * n,
+        'concept': ['Test'] * n,
+        'universe': ['Population'] * n,
+        'survey': ['acs/acs5'] * n,
+        'reference_period': [2023] * n,
+        'estimate': list(estimates),
+        'moe': list(moes),
+    })
+
+
+# ---------------------------------------------------------------------------
+# TestDimensionTableParseDims
+# ---------------------------------------------------------------------------
+
+class TestDimensionTableParseDims:
+    def test_dims_is_dataframe(self):
+        assert isinstance(DimensionTable(_make_long()).dims, pd.DataFrame)
+
+    def test_dims_indexed_by_variable(self):
         long = _make_long()
-        desc = DimensionTable(long).create_description_table()
-        assert desc.index.name == 'variable'
-        assert set(long['variable'].unique()).issubset(set(desc.index))
+        dims = DimensionTable(long).dims
+        assert dims.index.name == 'variable'
+        assert set(long['variable'].unique()) == set(dims.index)
 
-    def test_splits_double_bang_into_columns(self):
-        desc = DimensionTable(_make_long()).create_description_table()
-        assert desc.shape[1] >= 2
-
-    def test_row_count_matches_unique_variables(self):
+    def test_dims_row_count_matches_unique_variables(self):
         long = _make_long()
-        desc = DimensionTable(long).create_description_table()
-        assert len(desc) == long['variable'].nunique()
+        dims = DimensionTable(long).dims
+        assert len(dims) == long['variable'].nunique()
 
-    def test_single_level_label_lands_in_first_column(self):
-        desc = DimensionTable(_make_long()).create_description_table()
-        assert desc.loc['B01_001'].iloc[0] != ''
+    def test_dims_column_count_equals_max_subtotal_plus_max_leaf_depth(self):
+        # _make_long: all subtotals (Male:, Female: end with ':'), 0 leaves → 2 cols
+        dims = DimensionTable(_make_long()).dims
+        assert dims.shape[1] == 2
+
+    def test_dims_total_in_first_column(self):
+        dims = DimensionTable(_make_long()).dims
+        assert dims.iloc[:, 0].eq('Total:').all()
+
+    def test_dims_subtotals_left_aligned(self):
+        # Male: and Female: are subtotals → should be in second column, not third
+        dims = DimensionTable(_make_long()).dims
+        assert dims.loc['B01_002', dims.columns[1]] == 'Male:'
+        assert dims.loc['B01_003', dims.columns[1]] == 'Female:'
+
+    def test_dims_leaf_aligned_to_last_column(self):
+        # Cross-dim fixture: Male/Female are leaves → always in the last column
+        dims = DimensionTable(_make_long_cross()).dims
+        last_col = dims.columns[-1]
+        sex_rows = ['B05_002', 'B05_003', 'B05_005', 'B05_006',
+                    'B05_008', 'B05_009', 'B05_011', 'B05_012']
+        assert all(dims.loc[v, last_col] in ('Male', 'Female') for v in sex_rows)
+
+    def test_dims_subtotals_not_in_leaf_column(self):
+        # Nativity subtotals (Native:, Foreign-born:, Naturalized:) should NOT be in last col
+        dims = DimensionTable(_make_long_cross()).dims
+        last_col = dims.columns[-1]
+        assert not dims.loc[:, last_col].str.endswith(':').any()
+
+    def test_dim_names_parameter_renames_columns(self):
+        dims = DimensionTable(_make_long(), dim_names=['total', 'sex']).dims
+        assert list(dims.columns) == ['total', 'sex']
+
+    def test_dim_names_partial_renames_remainder(self):
+        # 4-column cross fixture; supply only 2 names → rest get dim_2, dim_3
+        dims = DimensionTable(_make_long_cross(), dim_names=['total', 'nativity']).dims
+        assert dims.columns[0] == 'total'
+        assert dims.columns[1] == 'nativity'
+        assert dims.columns[2] == 'dim_2'
+        assert dims.columns[3] == 'dim_3'
+
+
+# ---------------------------------------------------------------------------
+# TestDimensionTableDrop
+# ---------------------------------------------------------------------------
+
+class TestDimensionTableDrop:
+    def test_drop_returns_dimension_table(self):
+        dt = DimensionTable(_make_long())
+        result = dt.drop('dim_1')
+        assert isinstance(result, DimensionTable)
+
+    def test_drop_summarize_keeps_aggregate_rows(self):
+        # _make_long: dim_1 is 'Male:' / 'Female:' / ''. Summarize keeps '' rows.
+        dt = DimensionTable(_make_long())
+        result = dt.drop('dim_1', method='summarize')
+        assert set(result.long['variable']) == {'B01_001'}
+
+    def test_drop_summarize_removes_leaf_rows(self):
+        # Cross-dim: dropping the sex (leaf) column keeps nativity totals only
+        dt = DimensionTable(_make_long_cross())
+        last_col = dt.dims.columns[-1]
+        result = dt.drop(last_col, method='summarize')
+        # No rows with Male or Female in the sex column should remain
+        assert result.dims[result.dims.columns[-1]].isin(['Male', 'Female']).sum() == 0
+
+    def test_drop_reduces_dim_count_by_one(self):
+        dt = DimensionTable(_make_long())
+        result = dt.drop('dim_1', method='summarize')
+        assert len(result.dims.columns) == len(dt.dims.columns) - 1
+
+    def test_drop_invalid_dim_raises(self):
+        import pytest
+        dt = DimensionTable(_make_long())
+        with pytest.raises(ValueError, match="not in"):
+            dt.drop('nonexistent')
+
+    def test_drop_invalid_method_raises(self):
+        import pytest
+        dt = DimensionTable(_make_long())
+        with pytest.raises(ValueError, match="method must be"):
+            dt.drop('dim_1', method='invalid')
+
+    def test_drop_aggregate_sums_estimates(self):
+        # Drop sex from cross-dim fixture; Native total should be sum of Native+Male + Native+Female
+        dt = DimensionTable(_make_long_cross())
+        last_col = dt.dims.columns[-1]
+        result = dt.drop(last_col, method='aggregate')
+        # Find the Native: row
+        native_var = result.dims.loc[result.dims['dim_1'] == 'Native:'].index[0]
+        native_est = result.long.loc[result.long['variable'] == native_var, 'estimate'].iloc[0]
+        assert native_est == 200  # 100 + 100
+
+    def test_drop_aggregate_propagates_moe(self):
+        import numpy as np
+        dt = DimensionTable(_make_long_cross())
+        last_col = dt.dims.columns[-1]
+        result = dt.drop(last_col, method='aggregate')
+        native_var = result.dims.loc[result.dims['dim_1'] == 'Native:'].index[0]
+        native_moe = result.long.loc[result.long['variable'] == native_var, 'moe'].iloc[0]
+        expected_moe = np.sqrt(5**2 + 5**2)
+        assert abs(native_moe - expected_moe) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# TestDimensionTableRemap
+# ---------------------------------------------------------------------------
+
+class TestDimensionTableRemap:
+    def test_remap_returns_self(self):
+        dt = DimensionTable(_make_long())
+        result = dt.remap({'Male:': 'Men:', 'Female:': 'Women:'})
+        assert result is dt
+
+    def test_remap_updates_variable_labels(self):
+        dt = DimensionTable(_make_long())
+        dt.remap({'Male:': 'Men:', 'Female:': 'Women:'})
+        assert 'Male:' not in dt.long['variable_label'].values
+        assert any('Men:' in v for v in dt.long['variable_label'].values)
+
+    def test_remap_rebuilds_dims(self):
+        dt = DimensionTable(_make_long())
+        dt.remap({'Male:': 'Men:', 'Female:': 'Women:'})
+        assert 'Male:' not in dt.dims.values.flatten()
+
+    def test_remap_aggregates_duplicate_labels(self):
+        # Map both Male: and Female: to the same label → two rows collapse into one
+        dt = DimensionTable(_make_long())
+        dt.remap({'Male:': 'People:', 'Female:': 'People:'})
+        # After remapping, only two unique variable_labels: Total: and People:
+        assert dt.long['variable_label'].nunique() == 2
+
+    def test_remap_sums_estimates_for_collapsed_rows(self):
+        dt = DimensionTable(_make_long())
+        dt.remap({'Male:': 'People:', 'Female:': 'People:'})
+        people_var = dt.long.loc[
+            dt.long['variable_label'].str.contains('People:'), 'variable'
+        ].iloc[0]
+        est = dt.long.loc[dt.long['variable'] == people_var, 'estimate'].iloc[0]
+        assert est == 100  # 50 + 50
 
 
 # ---------------------------------------------------------------------------

@@ -781,15 +781,13 @@ class DimensionTable:
     Parameters
     ----------
     long_data : pandas.DataFrame
-        The ``LONG`` DataFrame produced by :class:`CensusAPI`.
-    variable_map : dict, optional
-        Mapping of existing variable labels to new collapsed labels.
-        Must be accompanied by *variable_order*.
-    variable_order : dict, optional
-        Sort-order mapping for the collapsed labels.
+        The ``long`` DataFrame produced by :class:`CensusAPI`.
+    dim_names : list of str, optional
+        Names for the dimension columns parsed from ``variable_label``.
+        Auto-named ``dim_0``, ``dim_1``, … when omitted.
     """
 
-    def __init__(self, long_data, variable_map=None, variable_order=None):
+    def __init__(self, long_data, dim_names=None):
         self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.long = long_data.copy()
 
@@ -801,171 +799,260 @@ class DimensionTable:
             )
         ]
 
-        if variable_map is not None:
-            if variable_order is None:
-                raise ValueError("variable_order is required when variable_map is provided.")
-            self.logger.info(
-                f"Applying variable map: {list(variable_map)} → {list(variable_order)}."
-            )
-            self.long['variable_label'], self.long['variable'] = find_replace_variable_map(
-                self.long['variable_label'], self.long['variable'], map=variable_map
-            )
-            # TODO: propagate MOE correctly through aggregation
-            # https://github.com/morpc/morpc-py/issues/113
-            self.long = (
-                self.long
-                .groupby([
-                    'concept', 'universe', 'geoidfq', 'name',
-                    'reference_period', 'variable_label', 'variable',
-                ])
-                .sum()
-                .reset_index()
+        self.dims = self._parse_dims(dim_names)
+
+    def _parse_dims(self, dim_names=None):
+        """Parse ``variable_label`` into a structured dimension DataFrame.
+
+        Each ``!!``-delimited label is split into subtotal segments (ending
+        with ``:``) and leaf segments (no trailing ``:``).  Subtotals are
+        left-aligned into the first *S* columns; leaves are left-aligned into
+        the next *L* columns, where *S* and *L* are the maximum depths across
+        all variables.  This keeps the same concept in the same column even
+        when paths have different depths (e.g. B05004 Sex by Nativity).
+
+        The ``':'`` suffix is preserved in the stored values so ``drop()`` can
+        distinguish aggregate rows from leaf rows.  It is stripped for display
+        in ``wide()``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Index = ``variable``, columns = dimension names.
+        """
+        unique = (self.long[['variable', 'variable_label']]
+                  .drop_duplicates().set_index('variable'))
+
+        def split_path(label):
+            parts = label.split('!!')
+            return (
+                [p for p in parts if p.endswith(':')],
+                [p for p in parts if not p.endswith(':')],
             )
 
-    def wide(self, droplevels=None):
-        """Pivot LONG data to wide format.
+        paths = unique['variable_label'].map(split_path)
+        S = paths.map(lambda x: len(x[0])).max()
+        L = paths.map(lambda x: len(x[1])).max()
+
+        def align(subtotals, leaves):
+            return (subtotals + [''] * (S - len(subtotals)) +
+                    leaves    + [''] * (L - len(leaves)))
+
+        rows = paths.map(lambda x: align(*x))
+        n = S + L
+        dims = pd.DataFrame(rows.tolist(), index=unique.index)
+        named = list(dim_names or [])
+        dims.columns = named[:n] + [f'dim_{i}' for i in range(len(named), n)]
+        return dims
+
+    def remap(self, variable_map):
+        """Apply variable label substitutions and aggregate collapsed rows.
 
         Parameters
         ----------
-        droplevels : int or list of int, optional
-            Index levels to collapse (see below).
+        variable_map : dict
+            Label substrings to replace; see :func:`find_replace_variable_map`.
+
+        Returns
+        -------
+        self
+        """
+        self.logger.info(f"Remapping variables: {list(variable_map)}.")
+        self.long['variable_label'], self.long['variable'] = find_replace_variable_map(
+            self.long['variable_label'], self.long['variable'], map=variable_map
+        )
+
+        group_cols = [c for c in self.long.columns if c not in self.variable_type]
+        long_work = self.long.copy()
+        agg_dict = {}
+
+        if 'moe' in self.variable_type:
+            long_work['_moe_sq'] = pd.to_numeric(long_work['moe'], errors='coerce') ** 2
+            agg_dict['_moe_sq'] = 'sum'
+
+        for col in self.variable_type:
+            if col != 'moe':
+                long_work[col] = pd.to_numeric(long_work[col], errors='coerce')
+                agg_dict[col] = 'sum'
+
+        self.long = long_work.groupby(group_cols).agg(agg_dict).reset_index()
+
+        if 'moe' in self.variable_type:
+            self.long['moe'] = np.sqrt(self.long['_moe_sq'])
+            self.long = self.long.drop(columns=['_moe_sq'])
+
+        self.dims = self._parse_dims(dim_names=list(self.dims.columns))
+        return self
+
+    def drop(self, dim, method='summarize'):
+        """Drop a dimension level, returning a new DimensionTable.
+
+        Parameters
+        ----------
+        dim : str
+            Name of the dimension column (from ``self.dims``) to drop.
+        method : {'summarize', 'aggregate'}
+            ``'summarize'``: keep only rows where *dim* is absent (``''``),
+            i.e. rows that are already aggregated across this dimension.
+            Rows that carry a specific value for *dim* are discarded.
+
+            ``'aggregate'``: group all remaining rows by the other dimensions
+            and geography, sum estimates, and propagate MOE via
+            ``sqrt(sum(moe_i²))``.
+
+        Returns
+        -------
+        DimensionTable
+        """
+        if dim not in self.dims.columns:
+            raise ValueError(f"Dimension '{dim}' not in {list(self.dims.columns)}.")
+
+        other_dims = [d for d in self.dims.columns if d != dim]
+
+        if method == 'summarize':
+            # Keep only rows where this dimension is absent — i.e. already aggregated
+            # across it.  Rows where dim is 'Male:', 'Spanish:', etc. represent a
+            # specific value of that dimension and are discarded.
+            mask = self.dims[dim] == ''
+            keep_vars = set(self.dims.index[mask])
+            new_long = self.long.loc[self.long['variable'].isin(keep_vars)].copy()
+            new_dims = (self.dims.loc[self.dims.index.isin(keep_vars)]
+                        .drop(columns=[dim]))
+
+        elif method == 'aggregate':
+            new_long, new_dims = self._aggregate_dim(dim, other_dims)
+
+        else:
+            raise ValueError(f"method must be 'summarize' or 'aggregate', got '{method}'.")
+
+        result = DimensionTable.__new__(DimensionTable)
+        result.logger = self.logger
+        result.long = new_long.reset_index(drop=True)
+        result.dims = new_dims
+        result.variable_type = self.variable_type
+        return result
+
+    def _aggregate_dim(self, drop_dim, other_dims):
+        """Sum over drop_dim; propagate MOE as sqrt(sum(moe_i²)).
+
+        Only leaf rows (where drop_dim is non-empty) are summed.  Subtotal
+        rows (drop_dim == '') are pre-computed totals and would double-count
+        if included in the aggregation.
+        """
+        geo_meta = [c for c in self.long.columns
+                    if c not in ('variable', 'variable_label') + tuple(self.variable_type)]
+
+        long_d = self.long.copy()
+        for d in self.dims.columns:
+            long_d[d] = long_d['variable'].map(self.dims[d])
+
+        # Exclude subtotal rows for this dimension — they are pre-computed totals
+        long_d = long_d.loc[long_d[drop_dim] != ''].copy()
+
+        for col in self.variable_type:
+            long_d[col] = pd.to_numeric(long_d[col], errors='coerce')
+
+        agg_dict = {col: 'sum' for col in self.variable_type if col != 'moe'}
+        if 'moe' in self.variable_type:
+            long_d['_moe_sq'] = long_d['moe'] ** 2
+            agg_dict['_moe_sq'] = 'sum'
+
+        group_cols = geo_meta + other_dims
+        grouped = long_d.groupby(group_cols).agg(agg_dict).reset_index()
+
+        if 'moe' in self.variable_type:
+            grouped['moe'] = np.sqrt(grouped['_moe_sq'])
+            grouped = grouped.drop(columns=['_moe_sq'])
+
+        prefix = self.long['variable'].iloc[0].split('_')[0]
+        unique_dim_combos = (grouped[other_dims].drop_duplicates()
+                             .reset_index(drop=True))
+        unique_dim_combos['variable'] = [
+            f"{prefix}_A{i:03d}" for i in range(len(unique_dim_combos))
+        ]
+        unique_dim_combos['variable_label'] = unique_dim_combos[other_dims].apply(
+            lambda row: '!!'.join(v for v in row if v), axis=1
+        )
+
+        grouped = grouped.merge(
+            unique_dim_combos[['variable', 'variable_label'] + other_dims],
+            on=other_dims,
+        ).drop(columns=other_dims)
+
+        new_long = grouped[list(self.long.columns)]
+        new_dims = unique_dim_combos.set_index('variable')[other_dims]
+        return new_long, new_dims
+
+    def wide(self):
+        """Pivot long data to wide format.
 
         Returns
         -------
         pandas.DataFrame
-            Wide-format DataFrame with a MultiIndex on columns (GEO_ID × value type).
+            Rows indexed by dimension labels; columns are a MultiIndex of
+            ``(value_type, geoidfq, …)``.
         """
-        self.desc_table = self.create_description_table()
+        long = self.long.replace(dict.fromkeys(MISSING_VALUES, np.nan))
 
-        long = self.long.copy()
-        for col in long.columns:
-            long[col] = [np.nan if v in MISSING_VALUES else v for v in long[col]]
+        col_dims = [c for c in long.columns
+                    if c not in ('variable', 'variable_label') + tuple(self.variable_type)]
 
-        non_value_cols = [
-            c for c in long.columns
-            if c not in ('variable', 'estimate', 'total', 'variable_label', 'moe')
-        ]
         wide = long.pivot(
             index='variable',
-            columns=non_value_cols,
+            columns=col_dims,
             values=self.variable_type,
         )
 
+        # Strip ':' from dim values for display
+        display_dims = self.dims.apply(lambda col: col.str.rstrip(':').str.strip())
+
         col_level_names = wide.columns.names
         wide.columns = wide.columns.to_list()
-        wide = wide.join(self.desc_table)
-        wide = wide.set_index(list(self.desc_table.columns))
+        wide = wide.join(display_dims)
+        wide = wide.set_index(list(display_dims.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
-        wide = wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
-        if droplevels is None:
-            return wide
+        return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
-        index_names = list(wide.index.names)
-        wide = wide.reset_index()
+    def percent(self, decimals=2):
+        """Compute column percentages relative to the grand total row.
 
-        if len(index_names) == 1:
-            self.logger.error("Cannot drop the only remaining index level.")
-            raise RuntimeError("Cannot drop the only remaining index level.")
-
-        if not isinstance(droplevels, list):
-            droplevels = [droplevels]
-
-        for level in droplevels:
-            if level not in index_names:
-                raise ValueError(f"Level {level} not in index {index_names}.")
-
-            if level == index_names[-1]:
-                wide = wide.loc[wide[level] == ''].drop(columns=[level])
-
-            elif level == 0:
-                self.logger.warning(
-                    "Dropping the Total level may cause issues with percentage calculations."
-                )
-                wide = wide.loc[wide[index_names[1]] != ''].drop(columns=[level])
-
-            else:
-                wide = pd.concat([
-                    wide.loc[wide[level] == ''],
-                    wide.loc[wide[index_names[index_names.index(level) + 1]] != ''],
-                ])
-                wide = (
-                    wide.groupby([c for c in index_names if c != level])
-                    .sum()
-                    .reset_index()
-                    .drop(columns=[level])
-                )
-
-            index_names.remove(level)
-
-        return wide.set_index([c for c in index_names if c not in droplevels])
-
-    def percent(self, droplevels=None, decimals=2):
-        """Compute column percentages relative to the Total row.
+        The grand total is identified as the row where all dimension columns
+        after the first are ``''`` (empty).
 
         Returns
         -------
         pandas.DataFrame
         """
-        self._wide = self.wide(droplevels=droplevels)
+        wide = self.wide()
 
-        total = self._wide.T.iloc[:, 0].copy()
-        pct = self._wide.T.iloc[:, 1:].copy()
-        for col in pct:
+        idx = wide.index
+        if isinstance(idx, pd.MultiIndex):
+            total_locs = [all(v == '' for v in vals[1:]) for vals in idx]
+        else:
+            total_locs = [v == '' for v in idx]
+
+        if not any(total_locs):
+            raise ValueError(
+                "No grand total row found. Expected a row where all "
+                "dimension columns after the first are ''."
+            )
+
+        wt = wide.T
+        total_col = total_locs.index(True)
+
+        total = wt.iloc[:, total_col].copy()
+        pct = wt.drop(wt.columns[total_col], axis=1).copy()
+
+        for col in pct.columns:
             pct[col] = (pct[col].astype(float) / total.astype(float) * 100).round(decimals)
 
-        pct.columns = pct.columns.droplevel(0)
         pct = pct.reset_index()
-        pct['universe'] = [f'% of {u.lower()}' for u in pct['universe']]
+        if 'universe' in pct.columns:
+            pct['universe'] = pct['universe'].apply(
+                lambda u: f'% of {u.lower()}' if u else u
+            )
 
-        non_value_cols = [
-            c for c in self._wide.T.reset_index().columns
-            if c not in self.variable_type
-        ]
+        non_value_cols = [c for c in pct.columns if c not in self.variable_type]
         return pct.set_index(non_value_cols).T
-
-    def create_description_table(self):
-        """Build a structured label table from variable_label strings.
-
-        Splits ``!!``-delimited labels into columns and assigns each
-        label fragment to the column where it appears most frequently,
-        producing a tidy dimension table for use as a wide-format index.
-
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        var_df = (
-            self.long[['variable', 'variable_label']]
-            .drop_duplicates()
-            .set_index('variable')
-        )
-        var_df = var_df.join(
-            var_df['variable_label'].str.split('!!', expand=True)
-        ).drop(columns='variable_label')
-
-        # Collect every unique fragment and the columns it appears in
-        all_values = [
-            v for col in var_df.columns
-            for v in var_df[col].dropna().unique()
-        ]
-
-        col_freq = {}
-        for val in set(all_values):
-            col_freq[val] = {
-                col: var_df[col].value_counts().get(val, 0)
-                for col in var_df.columns
-            }
-
-        # Map each fragment to the column where it appears most often
-        dominant_col = {val: max(freq, key=freq.get) for val, freq in col_freq.items()}
-
-        # Rebuild var_df placing each fragment in its dominant column
-        var_df_out = pd.DataFrame('', index=var_df.index, columns=var_df.columns)
-        for idx, row in var_df.iterrows():
-            for fragment in row.dropna():
-                if fragment in dominant_col:
-                    var_df_out.loc[idx, dominant_col[fragment]] = fragment
-
-        return var_df_out
