@@ -1118,3 +1118,76 @@ class DimensionTable:
                 pct[col] = pd.NA
 
         return pct
+
+
+# ---------------------------------------------------------------------------
+# RaceDimensionTable
+# ---------------------------------------------------------------------------
+
+class RaceDimensionTable(DimensionTable):
+    """DimensionTable for concatenated racial iteration group data.
+
+    Accepts a concatenated ``CensusAPI.long`` DataFrame from multiple racial
+    iteration group fetches (e.g. B17020A, B17020B, …) and preprocesses it
+    before delegating to :class:`DimensionTable`:
+
+    - Extracts the race letter from each variable code and maps it to a
+      human-readable label via *race_map*, adding a ``race`` column.
+    - Normalizes variable codes so all groups share the same variable
+      namespace (``B17020A_001`` → ``B17020_001``).
+    - Normalizes ``concept`` (strips the trailing parenthetical race
+      qualifier) and ``universe`` (replaces the leading ``"<Race> alone"``
+      prefix with ``"Population"``) so both fields are identical across
+      races and do not inflate the column MultiIndex.
+    - Rows whose race code is not present in *race_map* are silently dropped.
+
+    The ``race`` column is excluded from ``variable_type`` and therefore
+    becomes a column-level dimension in :meth:`wide` and :meth:`percent`.
+    Because each race occupies its own column group, the inherited
+    :meth:`percent` naturally computes within-race percentages (each race's
+    Total row is its own denominator).
+
+    Parameters
+    ----------
+    long_data : pandas.DataFrame
+        Concatenation of ``CensusAPI.long`` outputs from racial iteration
+        group fetches (e.g. B17020A through B17020I).
+    race_map : dict, optional
+        Mapping from single uppercase race code letter to human-readable
+        label.  Defaults to :data:`RACE_TABLE_MAP`.  Rows whose extracted
+        code is absent from the map are dropped before further processing.
+    dim_names : list of str, optional
+        Forwarded to :class:`DimensionTable`.
+    """
+
+    def __init__(self, long_data, race_map=None, dim_names=None):
+        effective_map = race_map if race_map is not None else RACE_TABLE_MAP
+        processed = self._preprocess(long_data.copy(), effective_map)
+        super().__init__(processed, dim_names)
+        self.variable_type = [c for c in self.variable_type if c != 'race']
+
+    def _preprocess(self, long, race_map):
+        parsed = long['variable'].str.extract(r'^([A-Z]\d+)([A-Z])_(\d+)')
+        # parsed columns: 0 = group prefix (e.g. 'B17020'),
+        #                 1 = race letter   (e.g. 'A'),
+        #                 2 = variable number (e.g. '001')
+
+        long['race'] = parsed[1].map(race_map)
+        mask = long['race'].notna()
+        long = long[mask].copy()
+        parsed = parsed[mask]
+
+        long['variable'] = (parsed[0] + '_' + parsed[2]).to_numpy()
+
+        if 'concept' in long.columns:
+            long['concept'] = long['concept'].str.replace(
+                r'\s*\([^)]+\)\s*$', '', regex=True
+            ).str.strip()
+
+        if 'universe' in long.columns:
+            long['universe'] = long['universe'].str.replace(
+                r'^.+?\s+alone\s+', 'Population ', regex=True,
+                flags=re.IGNORECASE,
+            )
+
+        return long

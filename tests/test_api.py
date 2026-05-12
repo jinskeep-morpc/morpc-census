@@ -12,6 +12,7 @@ from morpc_census.api import (
     censusapi_name,
     find_replace_variable_map,
     DimensionTable,
+    RaceDimensionTable,
     Endpoint,
     _get_api_key,
     Group,
@@ -471,6 +472,102 @@ class TestDimensionTableRemap:
         ].iloc[0]
         est = dt.long.loc[dt.long['variable'] == people_var, 'estimate'].iloc[0]
         assert est == 100  # 50 + 50
+
+
+# ---------------------------------------------------------------------------
+# TestRaceDimensionTable
+# ---------------------------------------------------------------------------
+
+def _make_long_racial():
+    """Minimal concatenated long DataFrame from two racial iteration groups.
+
+    Simulates B17020A (White Alone) and B17020B (Black or African American
+    Alone), each with three variables: total, below-poverty subtotal, and
+    one age leaf row.
+    """
+    groups = [
+        ('A', 'POVERTY STATUS BY AGE (WHITE ALONE)',
+         'White alone for whom poverty status is determined'),
+        ('B', 'POVERTY STATUS BY AGE (BLACK OR AFRICAN AMERICAN ALONE)',
+         'Black or African American alone for whom poverty status is determined'),
+    ]
+    rows = []
+    for code, concept, universe in groups:
+        for num, label, est, moe in [
+            ('001', 'Total:',                                    200, 10),
+            ('002', 'Total:!!Below poverty level:',               50,  5),
+            ('003', 'Total:!!Below poverty level:!!Under 6 years', 20,  4),
+        ]:
+            rows.append({
+                'variable':       f'B17020{code}_{num}',
+                'variable_label': label,
+                'geoidfq':        '0500000US39049',
+                'name':           'Franklin County, Ohio',
+                'concept':        concept,
+                'universe':       universe,
+                'survey':         'acs/acs5',
+                'reference_period': 2023,
+                'estimate':       est,
+                'moe':            moe,
+            })
+    return pd.DataFrame(rows)
+
+
+class TestRaceDimensionTable:
+    def test_race_column_added(self):
+        assert 'race' in RaceDimensionTable(_make_long_racial()).long.columns
+
+    def test_race_values_mapped(self):
+        rdt = RaceDimensionTable(_make_long_racial())
+        assert set(rdt.long['race']) == {
+            'White Alone', 'Black or African American Alone'
+        }
+
+    def test_variable_normalized(self):
+        rdt = RaceDimensionTable(_make_long_racial())
+        assert rdt.long['variable'].str.match(r'^B17020_\d+$').all()
+
+    def test_variable_type_excludes_race(self):
+        assert 'race' not in RaceDimensionTable(_make_long_racial()).variable_type
+
+    def test_race_in_wide_column_index(self):
+        wide = RaceDimensionTable(_make_long_racial()).wide()
+        assert 'race' in wide.columns.names
+
+    def test_wide_has_column_per_race(self):
+        wide = RaceDimensionTable(_make_long_racial()).wide()
+        races = set(wide.columns.get_level_values('race').unique())
+        assert races == {'White Alone', 'Black or African American Alone'}
+
+    def test_percent_within_each_race(self):
+        pct = RaceDimensionTable(_make_long_racial()).percent()
+        # Fixture: below-poverty (50) / total (200) = 25% for each race
+        est_cols = [c for c in pct.columns if c[0] == 'estimate']
+        for col in est_cols:
+            below_row = pct[col][pct[col].notna()].iloc[0]
+            assert below_row == 25.0
+
+    def test_unknown_race_code_dropped(self):
+        long = _make_long_racial()
+        extra = long.iloc[:3].copy()
+        extra['variable'] = extra['variable'].str.replace('B17020A', 'B17020Z')
+        combined = pd.concat([long, extra], ignore_index=True)
+        rdt = RaceDimensionTable(combined)
+        assert 'Z' not in rdt.long['race'].values
+        assert len(rdt.long) == len(long)
+
+    def test_custom_race_map(self):
+        custom = {'A': 'White', 'B': 'Black'}
+        rdt = RaceDimensionTable(_make_long_racial(), race_map=custom)
+        assert set(rdt.long['race']) == {'White', 'Black'}
+
+    def test_concept_normalized(self):
+        rdt = RaceDimensionTable(_make_long_racial())
+        assert (rdt.long['concept'] == 'POVERTY STATUS BY AGE').all()
+
+    def test_universe_normalized(self):
+        rdt = RaceDimensionTable(_make_long_racial())
+        assert rdt.long['universe'].str.startswith('Population').all()
 
 
 # ---------------------------------------------------------------------------
