@@ -640,25 +640,26 @@ class CensusAPI:
         frictionless.Schema
         """
         import frictionless
-        from frictionless import errors
 
         if not hasattr(self, 'long'):
             raise RuntimeError(
-                "define_schema() requires LONG data. "
-                "Either call melt() first or construct with return_long=True."
+                "define_schema() requires long data. "
+                "Construct with return_long=True or call melt() first."
             )
 
-        group_tag = f"{self.group.code} / " if self.group is not None else ''
-        self.logger.info(f"Defining schema for {group_tag}{self.endpoint.survey} / {self.endpoint.year}.")
+        self.logger.info(
+            f"Defining schema for {self.endpoint.survey} / {self.endpoint.year}"
+            + (f" / {self.group.code}" if self.group is not None else '') + "."
+        )
 
         fixed_fields = [
-            {'name': 'geoidfq', 'type': 'string', 'description': 'Census geography fully-qualified identifier'},
+            {'name': 'geoidfq',          'type': 'string',  'description': 'Census geography fully-qualified identifier'},
             {'name': 'reference_period', 'type': 'integer', 'description': 'Reference year'},
-            {'name': 'survey', 'type': 'string', 'description': 'Census survey endpoint'},
-            {'name': 'concept', 'type': 'string', 'description': 'Table concept description'},
-            {'name': 'universe', 'type': 'string', 'description': 'Universe for the table'},
-            {'name': 'variable_label', 'type': 'string', 'description': 'Human-readable variable label'},
-            {'name': 'variable', 'type': 'string', 'description': 'Base variable code'},
+            {'name': 'survey',           'type': 'string',  'description': 'Census survey endpoint'},
+            {'name': 'concept',          'type': 'string',  'description': 'Table concept description'},
+            {'name': 'universe',         'type': 'string',  'description': 'Universe for the table'},
+            {'name': 'variable_label',   'type': 'string',  'description': 'Human-readable variable label'},
+            {'name': 'variable',         'type': 'string',  'description': 'Base variable code'},
         ]
         if 'name' in self.long.columns:
             fixed_fields.insert(1, {'name': 'name', 'type': 'string', 'description': 'Geography name'})
@@ -669,8 +670,7 @@ class CensusAPI:
             if col in fixed_names:
                 continue
             if col not in _VALUE_FIELD_DEFS:
-                self.logger.error(f"Unexpected column '{col}' in LONG data.")
-                raise errors.SchemaError(note=f"Unknown column: {col}")
+                raise ValueError(f"Unexpected column {col!r} in long data.")
             value_fields.append(_VALUE_FIELD_DEFS[col])
 
         descriptor = {
@@ -678,11 +678,9 @@ class CensusAPI:
             'missingValues': MISSING_VALUES,
             'primaryKey': ['geoidfq', 'reference_period', 'variable'],
         }
-
         result = frictionless.Schema.validate_descriptor(descriptor)
         if not result.valid:
-            self.logger.error(f"Schema invalid: {result}")
-            raise errors.SchemaError(note=str(result))
+            raise ValueError(f"Schema descriptor invalid: {result}")
 
         return frictionless.Schema.from_descriptor(descriptor)
 
@@ -698,42 +696,30 @@ class CensusAPI:
         """
         import frictionless
 
-        sumlevel_str = f'{self.sumlevel.plural} in ' if self.sumlevel is not None else ''
-        year = self.endpoint.year
-        survey = self.endpoint.survey
-        if self.group is not None:
-            title = f"{year} {self.group.description} for {sumlevel_str}{self.scope.name}"
-            description = (
-                f"Census API data for {self.group.code}: {self.group.description} "
-                f"from {survey} in {year} "
-                f"for {sumlevel_str}{self.scope.name}."
-            )
-        else:
-            vars_str = ', '.join(self.variables[:3])
-            if len(self.variables) > 3:
-                vars_str += f', ... ({len(self.variables)} total)'
-            title = f"{year} selected variables for {sumlevel_str}{self.scope.name}"
-            description = (
-                f"Census API data for {vars_str} "
-                f"from {survey} in {year} "
-                f"for {sumlevel_str}{self.scope.name}."
-            )
+        year, survey, scope = self.endpoint.year, self.endpoint.survey, self.scope.name
+        sumlevel_prefix = f'{self.sumlevel.plural} in ' if self.sumlevel is not None else ''
 
-        descriptor = {
+        if self.group is not None:
+            subject = f"{self.group.code}: {self.group.description}"
+            title = f"{year} {self.group.description} for {sumlevel_prefix}{scope}"
+        else:
+            vars_summary = ', '.join(self.variables[:3])
+            if len(self.variables) > 3:
+                vars_summary += f', ... ({len(self.variables)} total)'
+            subject = vars_summary
+            title = f"{year} selected variables for {sumlevel_prefix}{scope}"
+
+        return frictionless.Resource.from_descriptor({
             'name': self.name,
             'title': title,
-            'description': description,
+            'description': (
+                f"Census API data for {subject} from {survey} {year} "
+                f"for {sumlevel_prefix}{scope}."
+            ),
             'path': self.filename,
             'schema': self.schema_filename,
-            'sources': [
-                {
-                    'title': 'US Census Bureau API',
-                    'path': self.request['url'],
-                    '_params': self.request['params'],
-                }
-            ],
-        }
-        return frictionless.Resource.from_descriptor(descriptor)
+            'sources': [{'title': 'US Census Bureau API', 'path': self.request['url'], '_params': self.request['params']}],
+        })
 
     def save(self, output_path):
         """Write data, schema, and resource files to *output_path*.
@@ -747,42 +733,36 @@ class CensusAPI:
         ----------
         output_path : str or path-like
         """
+        import contextlib
         import frictionless
 
         if not hasattr(self, 'long'):
             raise RuntimeError(
-                "save() requires LONG data. "
+                "save() requires long data. "
                 "Construct with return_long=True or call melt() first."
             )
 
         output = Path(output_path)
         output.mkdir(parents=True, exist_ok=True)
 
-        self.datapath = output
-        self.filename = f"{self.name}.long.csv"
+        self.datapath        = output
+        self.filename        = f"{self.name}.long.csv"
         self.schema_filename = f"{self.name}.schema.yaml"
+        resource_filename    = f"{self.name}.resource.yaml"
 
-        # Data
         self.logger.info(f"Writing data to {output / self.filename}.")
         self.long.to_csv(output / self.filename, index=False)
 
-        # Schema
         self.logger.info(f"Writing schema to {output / self.schema_filename}.")
         self.schema = self.define_schema()
         self.schema.to_yaml(str(output / self.schema_filename))
 
-        # Resource — frictionless resolves relative paths from CWD
-        resource = self.create_resource()
-        resource_filename = f"{self.name}.resource.yaml"
+        # frictionless resolves resource paths relative to CWD
         self.logger.info(f"Writing resource to {output / resource_filename}.")
-
-        cwd = os.getcwd()
-        try:
-            os.chdir(output)
+        resource = self.create_resource()
+        with contextlib.chdir(output):
             resource.to_yaml(resource_filename)
             result = frictionless.Resource(resource_filename).validate()
-        finally:
-            os.chdir(cwd)
 
         if not result.valid:
             self.logger.error(f"Resource validation failed: {result.stats}")
