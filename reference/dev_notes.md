@@ -587,3 +587,11 @@ Three Census API request sites in `geos.py` were passing no API key, causing ano
 **Removed**: `create_description_table()`, `variable_map`/`variable_order` constructor parameters
 
 Tests: `TestDimensionTableDescriptionTable` replaced by `TestDimensionTableParseDims`, `TestDimensionTableDrop`, `TestDimensionTableRemap` — 23 new tests, all pass. 197 total passing.
+
+## 2026-05-12 — Fix DimensionTable.percent() — values appearing in column headers (branch refactor/api-class-integration)
+
+**Bug**: `percent()` returned a table where dimension values (e.g. `('Total', 'Male')`) appeared as column headers instead of row index values.
+
+**Root cause**: The implementation transposed `wide()`, dropped the total column, called `reset_index()`, then tried to identify metadata columns via `non_value_cols = [c for c in pct.columns if c not in self.variable_type]`. After `reset_index()` on a transposed DataFrame, the columns were MultiIndex tuples like `('Total', 'Male')` and `('Total', 'Female')`. These tuples are not in `variable_type` (`['estimate', 'moe']`), so they were included in `non_value_cols` and became index levels. The subsequent `.T` then put them into column headers.
+
+**Fix**: Replaced the transpose-and-reconstruct approach with a direct operation on the `wide()` output — find the total row by integer position, divide each column individually by its total value, drop the total row, and return. Output has the same structure as `wide()` (dimension values as row index, geographies as column MultiIndex) but with percentage values and no total row.
