@@ -1,5 +1,6 @@
 
 import logging
+import os
 logger  = logging.getLogger(__name__)
 
 import re
@@ -111,7 +112,8 @@ class SumLevel:
 
         sumlevel_code = SUMLEVEL_FROM_CENSUSQUERY[self.name]
         url = f"https://api.census.gov/data/{year}/geoinfo/geography.json"
-        json = get_json_safely(url)
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
+        json = get_json_safely(url, **kw)
 
         query_requirements: dict = {}
         for item in json['fips']:
@@ -398,6 +400,12 @@ PSEUDOS = {'010': [
  }
 
 
+def _get_api_key() -> str | None:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(usecwd=True), override=False)
+    return os.environ.get('CENSUS_API_KEY')
+
+
 def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['list','table','json'] = 'table') -> list | DataFrame:
     """Return GEOIDFQs from a Census geoinfo query using ucgid, for/in, or both parameters."""
     import morpc.req
@@ -417,6 +425,8 @@ def geoinfo_from_params(param_dict: dict, year: int = 2024, output: Literal['lis
         if 'in' in param_dict:
             params.update({'in': param_dict['in']})
 
+    if k := _get_api_key():
+        params['key'] = k
     logger.info(f"Getting GEOIDS from {url} and params: {params}.")
     json = morpc.req.get_json_safely(url, params=params)
 
@@ -436,7 +446,10 @@ def geoids_from_scope(scope: str | Scope, output: Literal['list','table','json']
     sc = scope if isinstance(scope, Scope) else SCOPES[scope]
     logger.debug(f"Fetching geoids from scope {sc.name!r}.")
     baseurl = "https://api.census.gov/data/2023/geoinfo?get=GEO_ID"
-    json = get_json_safely(baseurl, params=sc.params)
+    params = dict(sc.params)
+    if k := _get_api_key():
+        params['key'] = k
+    json = get_json_safely(baseurl, params=params)
     if output == 'list':
         return [GeoIDFQ.parse(row[0]) for row in json[1:]]
     if output == 'table':

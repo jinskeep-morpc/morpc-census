@@ -516,6 +516,14 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
 
+## 2026-05-12 — Add API key handling to geos.py (branch refactor/api-class-integration)
+
+Three Census API request sites in `geos.py` were passing no API key, causing anonymous requests that are rate-limited. Added `_get_api_key()` (same implementation as in `api.py`, defined locally to avoid a circular import) and wired it in:
+
+- `SumLevel.get_query_req()`: passes `params={'key': k}` when key is set
+- `geoinfo_from_params()`: appends `key` to the existing params dict before the request
+- `geoids_from_scope()`: copies `sc.params` to avoid mutating the Scope object, then appends `key`
+
 ## 2026-05-11 — Rewrite census demo notebook (branch refactor/api-class-integration)
 
 `doc/02-morpc-census-demo.ipynb` rewritten from scratch with a user-focused narrative. Old notebook used the pre-refactor API (`CensusAPI('acs/acs5', 2023, 'B01001', scope='region15')` positional form, `.LONG`/`.DATA`/`.FILENAME` uppercase attrs, `GEO_ID` column, `get_table_groups`/`get_group_variables` standalone functions). New notebook:
