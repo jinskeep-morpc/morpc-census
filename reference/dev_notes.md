@@ -10,6 +10,25 @@ New `RaceDimensionTable(DimensionTable)` subclass in `morpc_census/api.py`. Acce
 - Removes `'race'` from `variable_type` after `super().__init__`, so `race` becomes a column-level dimension in `wide()` / `percent()`. The inherited `percent()` naturally computes within-race percentages with no override.
 
 Exported from `morpc_census/__init__.py`. 11 new tests in `TestRaceDimensionTable`. 103 tests passing.
+## 2026-05-12 — Revise poverty/race demo notebook: markdown cells, MOE, suppression (branch doc/poverty-race-demo)
+
+Rewrote `doc/03-morpc-poverty-race-demo.ipynb` in response to three requests:
+
+1. **Markdown-first** — all explanatory `#` comments removed from code cells and replaced with preceding markdown cells; section headers, formula explanations, and caveats now in prose
+2. **MOE throughout** — `wide_moe` pivot added alongside `wide_est`; CV computed per county × race using Census Bureau's derived proportion formula (ratio form, falling back to sum-in-quadrature when under-root is negative); same pattern applied to the non-white time-series derivation (MOE of differences in quadrature, then ratio formula for the derived rate)
+3. **Suppression** — `SUPPRESS_CV = 0.40` constant defined at import; `rates.where(cvs <= SUPPRESS_CV)` masks unreliable cells; styled table uses `na_rep='—'`; time-series chart applies same mask, producing visible gaps for suppressed county/year combinations
+
+## 2026-05-12 — Add poverty/race use-case demo notebook (branch doc/poverty-race-demo)
+
+New notebook `doc/03-morpc-poverty-race-demo.ipynb` covering a full analysis scenario:
+
+1. **Discovery** — `ep.groups` filtered for "poverty"; inspect B17001 variable structure and racial iteration convention (B17001A–I mapped by `RACE_TABLE_MAP`)
+2. **Fetch** — B17001 full group for total poverty context; all 9 racial iteration tables in a single variables-only `CensusAPI` call (18 vars: `_001E` + `_002E` per table)
+3. **Snapshot** — pivot to poverty rates per race × county; styled heatmap table + horizontal bar chart of region-wide totals
+4. **Time series** — loop 2019–2023 fetching 4 variables per year (`B17001_001E`, `_002E`, `B17001H_001E`, `_002E`); compute non-white poverty rate = (total − White-not-Hispanic below poverty) / (total − White-not-Hispanic total); line chart per county
+5. **Map** — compute 2019→2023 change in percentage points; join to `fetch_geos_from_scope_sumlevel('region15')` on `GEOIDFQ`; diverging choropleth centered at zero with county labels
+
+Closes #57.
 
 ## 2026-05-12 — Fix variable_label in variables-only mode (branch refactor/api-class-integration)
 
