@@ -1,5 +1,17 @@
 # morpc-census dev notes
 
+## 2026-05-12 — Add poverty/race use-case demo notebook (branch doc/poverty-race-demo)
+
+New notebook `doc/03-morpc-poverty-race-demo.ipynb` covering a full analysis scenario:
+
+1. **Discovery** — `ep.groups` filtered for "poverty"; inspect B17001 variable structure and racial iteration convention (B17001A–I mapped by `RACE_TABLE_MAP`)
+2. **Fetch** — B17001 full group for total poverty context; all 9 racial iteration tables in a single variables-only `CensusAPI` call (18 vars: `_001E` + `_002E` per table)
+3. **Snapshot** — pivot to poverty rates per race × county; styled heatmap table + horizontal bar chart of region-wide totals
+4. **Time series** — loop 2019–2023 fetching 4 variables per year (`B17001_001E`, `_002E`, `B17001H_001E`, `_002E`); compute non-white poverty rate = (total − White-not-Hispanic below poverty) / (total − White-not-Hispanic total); line chart per county
+5. **Map** — compute 2019→2023 change in percentage points; join to `fetch_geos_from_scope_sumlevel('region15')` on `GEOIDFQ`; diverging choropleth centered at zero with county labels
+
+Closes #57.
+
 ## 2026-05-12 — Fix variable_label in variables-only mode (branch refactor/api-class-integration)
 
 `CensusAPI.vars` previously returned `{v: {} for v in self.variables}` when no group was set, causing `melt` to fall back to the raw variable code (e.g. `B01001_001E`) as the `variable_label` instead of the human-readable label (`Total:!!Male:!!Under 5 years`).
