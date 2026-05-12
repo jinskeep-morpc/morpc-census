@@ -901,6 +901,13 @@ class DimensionTable:
         dims = pd.DataFrame(rows.tolist(), index=unique.index)
         named = list(dim_names or [])
         dims.columns = named[:n] + [f'dim_{i}' for i in range(len(named), n)]
+
+        # Convert each column to an ordered categorical using first-appearance order
+        # (Census variables are returned in their defined hierarchical order).
+        for col in dims.columns:
+            seen = list(dict.fromkeys(dims[col]))
+            dims[col] = pd.Categorical(dims[col], categories=seen, ordered=True)
+
         return dims
 
     def remap(self, variable_map):
@@ -933,7 +940,7 @@ class DimensionTable:
                 long_work[col] = pd.to_numeric(long_work[col], errors='coerce')
                 agg_dict[col] = 'sum'
 
-        self.long = long_work.groupby(group_cols).agg(agg_dict).reset_index()
+        self.long = long_work.groupby(group_cols, observed=True).agg(agg_dict).reset_index()
 
         if 'moe' in self.variable_type:
             self.long['moe'] = np.sqrt(self.long['_moe_sq'])
@@ -1016,7 +1023,7 @@ class DimensionTable:
             agg_dict['_moe_sq'] = 'sum'
 
         group_cols = geo_meta + other_dims
-        grouped = long_d.groupby(group_cols).agg(agg_dict).reset_index()
+        grouped = long_d.groupby(group_cols, observed=True).agg(agg_dict).reset_index()
 
         if 'moe' in self.variable_type:
             grouped['moe'] = np.sqrt(grouped['_moe_sq'])
