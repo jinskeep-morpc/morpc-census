@@ -572,47 +572,38 @@ class CensusAPI:
         """
         self.logger.info("Melting data to long format.")
 
-        has_name = 'name' in self.data.columns
-        long = self.data.melt(
-            id_vars=['GEO_ID', 'NAME'] if has_name else ['GEO_ID'],
-            var_name='variable',
-            value_name='value',
+        # Step 1 — melt to one row per (geography, variable)
+        has_name = 'NAME' in self.data.columns
+        geo_cols = ['GEO_ID', 'NAME'] if has_name else ['GEO_ID']
+        id_cols  = ['geoidfq', 'name'] if has_name else ['geoidfq']
+        long = (
+            self.data
+            .melt(id_vars=geo_cols, var_name='variable', value_name='value')
+            .rename(columns={'GEO_ID': 'geoidfq', 'NAME': 'name'})
         )
-        long = long.rename(columns={'GEO_ID': 'geoidfq', 'NAME': 'name'})
-        id_vars = ['geoidfq', 'name'] if has_name else ['geoidfq']
 
-        long = long.loc[long['variable'].isin(self.vars.keys())]
+        # Step 2 — drop non-data columns (state/county/NAME/annotation codes)
+        long = long.loc[long['variable'].isin(self.vars)]
 
-        # Resolve type suffix to a VARIABLE_TYPES value (E→estimate, M→moe, etc.)
-        def _variable_type(var):
-            m = re.search(r'_[0-9]+([A-Z]{1,2})$', var)
-            code = m.group(1) if m else self.vars.get(var, {}).get('label', '').split('!!')[0].lower()
-            return VARIABLE_TYPES.get(code, code)
+        # Step 3 — human-readable label (strip leading "Estimate!!" prefix)
+        labels = long['variable'].map(lambda v: self.vars.get(v, {}).get('label', v))
+        long['variable_label'] = labels.str.split('!!', n=1).str[-1]
 
-        long['variable_type'] = long['variable'].map(_variable_type)
-        long = long.loc[long['variable_type'].isin(VARIABLE_TYPES.values())]
+        # Step 4 — parse base code and value type from variable code
+        #   B01001_001E  →  base='B01001_001', type_code='E' → 'estimate'
+        parsed = long['variable'].str.extract(r'^([A-Z0-9_]+[0-9]+)([A-Z]{1,2})$')
+        long['variable'] = parsed[0].fillna(long['variable'])
+        long['variable_type'] = parsed[1].map(VARIABLE_TYPES)
+        long = long.loc[long['variable_type'].notna()]
 
-        # Human-readable label: everything after the first '!!'
-        def _variable_label(var):
-            label = self.vars.get(var, {}).get('label', var)
-            _, sep, tail = label.partition('!!')
-            return tail if sep else label
-
-        long['variable_label'] = long['variable'].map(_variable_label)
-
-        # Strip type suffix: B01001_001E → B01001_001
-        def _base_code(var):
-            m = re.match(r'^([A-Z0-9_]+[0-9]+)[A-Z]+$', var)
-            return m.group(1) if m else var
-
-        long['variable'] = long['variable'].map(_base_code)
-
+        # Step 5 — attach dataset metadata
         long['reference_period'] = self.endpoint.year
-        long['universe'] = self.universe
         long['survey'] = self.endpoint.survey
+        long['universe'] = self.universe
         long['concept'] = self.group.description.capitalize() if self.group is not None else ''
 
-        pivot_index = id_vars + [
+        # Step 6 — pivot value types into separate columns
+        pivot_index = id_cols + [
             'reference_period', 'survey', 'concept', 'universe',
             'variable_label', 'variable',
         ]
@@ -628,12 +619,12 @@ class CensusAPI:
 
         long = long.sort_values(by=['geoidfq', 'variable', 'reference_period'])
 
-        for col in long.columns:
-            if col in VARIABLE_TYPES.values():
-                long[col] = pd.to_numeric(
-                    long[col].where(~long[col].isin(MISSING_VALUES), other=np.nan),
-                    errors='coerce',
-                )
+        # Step 7 — coerce value columns to numeric; Census missing codes → NaN
+        for col in [c for c in long.columns if c in VARIABLE_TYPES.values()]:
+            long[col] = pd.to_numeric(
+                long[col].where(~long[col].isin(MISSING_VALUES), other=np.nan),
+                errors='coerce',
+            )
 
         return long
 
