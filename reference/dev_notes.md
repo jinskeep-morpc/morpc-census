@@ -516,6 +516,14 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
 
+## 2026-05-12 — Lowercase column names in long output; cached Group.universe (branch refactor/api-class-integration)
+
+User changes to `api.py`:
+- `melt()` now renames `GEO_ID` → `geoidfq` and `NAME` → `name` (lowercase) in the long output; all downstream references updated (`sort_values`, `define_schema`, `DimensionTable`, `DimensionTable.wide`)
+- `Group.universe` promoted from `@property` to `@cached_property` to avoid repeated network calls for the same group
+
+Test update: `_make_long()` fixture in `tests/test_api.py` updated to use `'geoidfq'` and `'name'` to match the new output schema.
+
 ## 2026-05-12 — Add API key handling to geos.py (branch refactor/api-class-integration)
 
 Three Census API request sites in `geos.py` were passing no API key, causing anonymous requests that are rate-limited. Added `_get_api_key()` (same implementation as in `api.py`, defined locally to avoid a circular import) and wired it in:

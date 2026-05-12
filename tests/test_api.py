@@ -29,8 +29,8 @@ def _make_long():
     return pd.DataFrame({
         'variable': ['B01_001', 'B01_002', 'B01_003'],
         'variable_label': ['Total:', 'Total:!!Male:', 'Total:!!Female:'],
-        'GEOIDFQ': ['0500000US39049'] * 3,
-        'NAME': ['Franklin County, Ohio'] * 3,
+        'geoidfq': ['0500000US39049'] * 3,
+        'name': ['Franklin County, Ohio'] * 3,
         'concept': ['Test concept'] * 3,
         'universe': ['Population'] * 3,
         'survey': ['acs/acs5'] * 3,
