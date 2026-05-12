@@ -1,5 +1,17 @@
 # morpc-census dev notes
 
+## 2026-05-12 — DimensionTable: dimension columns as ordered categoricals (branch fix/dimension-table-categoricals, closes #58)
+
+`DimensionTable._parse_dims()` now converts each column of the returned `dims` DataFrame to `pandas.CategoricalDtype(ordered=True)` after building it. Categories are set in first-appearance order across the Census variable list, which is the hierarchical order the Census API uses (e.g., income-to-poverty thresholds low-to-high, age bands youngest-to-oldest). This lets callers sort and group dimensions without supplying an explicit sort key.
+
+Also fixed two `FutureWarning`s about `observed=False` in `groupby` calls in `remap()` and `_aggregate_dim()` — both now pass `observed=True`, which is the correct behavior when operating on categoricals (we only want to aggregate the combinations that actually exist in the data).
+
+Three new tests added to `TestDimensionTableParseDims`:
+- `test_dims_columns_are_ordered_categoricals` — all columns have `.cat.ordered == True`
+- `test_dims_categorical_order_matches_variable_order` — Male: before Female: in the standard fixture
+- `test_dims_categorical_order_preserved_across_cross_vintage` — order preserved after vintage normalization
+
+95 tests passing.
 ## 2026-05-12 — Add RaceDimensionTable class (branch feat/race-dimension-table, closes #59)
 
 New `RaceDimensionTable(DimensionTable)` subclass in `morpc_census/api.py`. Accepts a concatenated `CensusAPI.long` DataFrame from multiple racial iteration group fetches (e.g. B17020A–I) and preprocesses it before delegating to `DimensionTable`:
