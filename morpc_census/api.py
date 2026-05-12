@@ -1018,8 +1018,9 @@ class DimensionTable:
     def percent(self, decimals=2):
         """Compute column percentages relative to the grand total row.
 
-        The grand total is identified as the row where all dimension columns
-        after the first are ``''`` (empty).
+        The grand total is the row where all dimension columns after the first
+        are ``''`` (empty).  Returns the same structure as :meth:`wide` with
+        the total row removed and values expressed as percentages.
 
         Returns
         -------
@@ -1029,30 +1030,26 @@ class DimensionTable:
 
         idx = wide.index
         if isinstance(idx, pd.MultiIndex):
-            total_locs = [all(v == '' for v in vals[1:]) for vals in idx]
+            total_mask = [all(v == '' for v in vals[1:]) for vals in idx]
         else:
-            total_locs = [v == '' for v in idx]
+            total_mask = [v == '' for v in idx]
 
-        if not any(total_locs):
+        if not any(total_mask):
             raise ValueError(
                 "No grand total row found. Expected a row where all "
                 "dimension columns after the first are ''."
             )
 
-        wt = wide.T
-        total_col = total_locs.index(True)
+        total_pos = total_mask.index(True)
+        total_row = wide.iloc[[total_pos]]
+        non_total = wide.drop(wide.index[total_pos])
 
-        total = wt.iloc[:, total_col].copy()
-        pct = wt.drop(wt.columns[total_col], axis=1).copy()
-
+        pct = non_total.astype(float)
         for col in pct.columns:
-            pct[col] = (pct[col].astype(float) / total.astype(float) * 100).round(decimals)
+            total_val = float(total_row[col].iloc[0])
+            if pd.notna(total_val) and total_val != 0:
+                pct[col] = (pct[col] / total_val * 100).round(decimals)
+            else:
+                pct[col] = pd.NA
 
-        pct = pct.reset_index()
-        if 'universe' in pct.columns:
-            pct['universe'] = pct['universe'].apply(
-                lambda u: f'% of {u.lower()}' if u else u
-            )
-
-        non_value_cols = [c for c in pct.columns if c not in self.variable_type]
-        return pct.set_index(non_value_cols).T
+        return pct
