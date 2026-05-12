@@ -1,5 +1,167 @@
 # morpc-census dev notes
 
+## 2026-05-12 — Fix variable_label in variables-only mode (branch refactor/api-class-integration)
+
+`CensusAPI.vars` previously returned `{v: {} for v in self.variables}` when no group was set, causing `melt` to fall back to the raw variable code (e.g. `B01001_001E`) as the `variable_label` instead of the human-readable label (`Total:!!Male:!!Under 5 years`).
+
+Fix: infer the group code from each variable name via regex (`B01001_001E` → `B01001`), group variables by inferred code, then fetch the `groups/{code}.json` metadata endpoint (one call per unique group) to get labels. Falls back to empty dict if the fetch fails. Tests updated — `test_vars_returns_placeholder_dict_when_no_group` replaced with two new tests covering the happy path and the error fallback. 203 total passing.
+
+## 2026-05-11 — Clean up melt(); rename GEO_ID → GEOIDFQ in long output (branch refactor/api-class-integration)
+
+`CensusAPI.melt()` reworked:
+- `_type_code` inner function replaced by `_variable_type` which folds the `VARIABLE_TYPES` lookup in directly, so the lambda no longer calls it twice
+- `_var_label` replaced by `_variable_label` using `str.partition('!!')` instead of `re.split`
+- Variable-stripping lambda replaced by `_base_code` using a single `re.match` (was calling `re.findall` twice per value)
+- `long['variable'].isin(self.vars)` → `.isin(self.vars.keys())` for explicit dict-key intent
+
+`GEO_ID` column renamed to `GEOIDFQ` in the melt output (the Census API's `GEO_ID` field always carries the full GEOIDFQ string, not a short-form geoid). Updated everywhere this column is referenced:
+- `define_schema()`: field name `'GEO_ID'` → `'GEOIDFQ'`; primaryKey updated; `'NAME' in self.data.columns` → `'NAME' in self.long.columns` (checks the already-transformed data)
+- `DimensionTable.__init__`: exclusion list and groupby updated
+- `DimensionTable.wide()`: `sort_index(level='GEO_ID', ...)` → `'GEOIDFQ'`
+- `tests/_make_long()`: column renamed
+
+179 tests passing.
+
+## 2026-05-11 — Use GeoIDFQ throughout geoinfo/geoids functions (branch refactor/api-class-integration)
+
+`geoinfo_from_params` and `geoids_from_scope` with `output='list'` previously returned `list[str]` (raw GEOIDFQ strings). Changed to return `list[GeoIDFQ]` by wrapping each result in `GeoIDFQ.parse()` at the return point. `geoinfo_from_scope_sumlevel` with `output='list'` likewise updated.
+
+Two internal callers updated to use the GeoIDFQ objects directly instead of re-parsing:
+- `pseudos_from_scope_sumlevel`: `GeoIDFQ.parse(parents[0]).sumlevel.sumlevel` → `parents[0].sumlevel.sumlevel`; f-string changed to `str(parent)` to produce the full GEOIDFQ string for pseudo predicates
+- `geoinfo_from_scope_sumlevel`: `GeoIDFQ.parse(scope_geoids[0]).sumlevel` → `scope_geoids[0].sumlevel`
+
+`morpc_juris_part_to_full`, `census_geoid_to_morpc`, `morpc_geoid_to_census` are left unchanged — they deal with MORPC-specific sumlevel codes (M10, M11, M23, M24, M25) that are not valid Census GEOIDFQs and cannot be parsed by `GeoIDFQ.parse()`. 179 tests passing.
+
+## 2026-05-11 — Move fetch to CensusAPI private methods; fix variable batching (branch refactor/api-class-integration)
+
+Removed the module-level `fetch` function and replaced it with three private methods on `CensusAPI`:
+
+- `_fetch()` — dispatcher: injects the API key, then routes to `_fetch_group` or `_fetch_variables` based on whether `self.group` is set (no regex needed)
+- `_fetch_group(url, params)` — uses `get_text_safely` to retrieve the group() form response (a flat text stream, not valid JSON) and parses it with `pd.read_csv`
+- `_fetch_variables(url, params)` — slices `self.variables` into 49-variable batches, issues one `get_json_safely` call per batch with GEO_ID prepended, then joins all result frames on GEO_ID in a single operation
+
+Fixed two bugs in the old `fetch` variable-list path:
+1. Batches of 18 (default `var_batch_size=20` minus 2) instead of the intended 49; the batch-size parameter was confusing and unnecessary now that the limit is a fixed API invariant
+2. After the second iteration, `census_data` had GEO_ID as a column (post-`reset_index`), so the third batch's `join` would align on positional index instead of GEO_ID — silently producing wrong data
+
+`fetch` removed from `morpc_census/__init__.py` exports. `CensusAPI.__init__` now calls `self._fetch()` directly (no `.reset_index()` needed — both paths return with GEO_ID as a column). Test mocks updated from `patch('morpc_census.api.fetch', ...)` to `patch.object(CensusAPI, '_fetch', ...)`. Added `TestFetchVariablesBatching` (6 tests): single batch at 49 vars, two batches at 50 vars, two batches at 98 vars, join correctness, GEO_ID in every batch request, single-row result. 68 tests passing.
+
+## 2026-05-11 — Make `group` optional in CensusAPI; add variables-only mode (branch refactor/api-class-integration)
+
+`CensusAPI.__init__` signature changed: `group` is now `str | Group | None = None` (moved before `sumlevel`). A `ValueError` is raised at construction if both `group` and `variables` are `None`. Three modes are now supported:
+
+- **group only** — fetches all variables in the group via `group(CODE)` query
+- **group + variables** — validates that variables are a subset of the group; fetches only those variables
+- **variables only** — fetches the listed variables directly; `self.group = None`
+
+`self.endpoint` is now stored as an instance attribute and is always set (it comes from `self.group.endpoint` when group is present, otherwise from the `endpoint` arg directly). This allows `universe`, `vars`, `_build_name`, `_build_request`, `define_schema`, `create_resource`, and `melt` to all use `self.endpoint.*` instead of `self.group.endpoint.*`.
+
+Guarded `self.group is None` paths added to: `universe` (returns fallback string), `vars` (returns `{v: {} for v in self.variables}` placeholder dict), `melt` (`concept` field is `''` when no group), `define_schema` (log tag skips group code), `create_resource` (title/description use variable list instead of group description).
+
+`censusapi_name` updated: `group` param is now `str | Group | None = None`; when `None`, the group segment is omitted from the name string.
+
+`tests/test_api.py`: `_make` updated to `CensusAPI(ep, scope, group='B01001', ...)` (new positional order). Added `TestCensusAPIGroupOptional` (8 tests): raises on no-group/no-variables, stores `None` group, uppercases variables, returns placeholder `vars`, returns fallback universe string, name excludes group part, request uses variable list. 62 tests passing.
+
+## 2026-05-11 — Rename CensusAPI and DimensionTable instance attributes to snake_case (branch refactor/api-class-integration)
+
+ALL_CAPS instance attributes are a non-standard convention; PEP 8 reserves that style for module-level constants. Renamed all instance attributes on `CensusAPI` and `DimensionTable` to snake_case: `SCOPE`→`scope`, `SUMLEVEL`→`sumlevel`, `VARIABLES`→`variables`, `GROUP`→`group`, `REQUEST`→`request`, `DATA`→`data`, `LONG`→`long`, `UNIVERSE`→`universe`, `VARS`→`vars`, `NAME`→`name`, `FILENAME`→`filename`, `SCHEMA_FILENAME`→`schema_filename`, `SCHEMA`→`schema`, `DATAPATH`→`datapath`, `DESC_TABLE`→`desc_table`. `DimensionTable.WIDE`→`_wide` (can't use `wide`, that's an existing method). Updated tests accordingly. 54 tests passing.
+
+## 2026-05-11 — Remove redundant passthrough properties from CensusAPI (branch refactor/api-class-integration)
+
+Removed `SURVEY`, `YEAR`, `GROUP` (string), `CONCEPT`, and `scope_obj` properties — they were simple one-liner delegations that added noise without adding value. Callers navigate the hierarchy directly: `api.GROUP.endpoint.year`, `api.GROUP.endpoint.survey`, `api.GROUP.code`, `api.GROUP.description`, `api.SCOPE`.
+
+Renamed `VARIABLE_GROUP` → `GROUP` (the stored `Group` instance) to free the name and make attribute access shorter: `api.GROUP.code` vs `api.VARIABLE_GROUP.code`. Updated all internal usages in `UNIVERSE`, `VARS`, `_build_name`, `_build_request`, `melt`, `define_schema`, `create_resource`. Removed `test_scope_obj_returns_scope_instance`. 54 tests passing.
+
+## 2026-05-11 — Collapse SurveyTable + Vintage into Endpoint class (branch refactor/api-class-integration)
+
+Removed `SurveyTable` and `Vintage` as separate classes. Replaced with a single `Endpoint(survey, year)` class that validates the survey name against `IMPLEMENTED_ENDPOINTS` and the year against the Census API's available vintages in one constructor. `Endpoint.survey` is now a plain string (no intermediate wrapper object). All properties formerly on `Vintage` (`url`, `groups`, `vintages`) and all validation formerly in `SurveyTable` now live directly on `Endpoint`.
+
+Updated throughout: `Group.endpoint` (was `.vintage`), `CensusAPI.__init__` takes `endpoint: Endpoint`, `censusapi_name` takes `endpoint: Endpoint`, `__init__.py` exports. `TestSurveyTable` and `TestVintage` merged into `TestEndpoint` (11 tests). 55 tests passing.
+
+## 2026-05-11 — Switch CensusAPI and censusapi_name to Vintage + Group classes (branch refactor/api-class-integration)
+
+`CensusAPI.__init__` signature changed from `(survey_table: str | SurveyTable, year: int, group, ...)` to `(vintage: Vintage, group: str | Group, ...)`. When `group` is a string it is normalized to `Group(vintage, group.upper())`; when it's already a `Group` instance, it's used directly and the `vintage` arg is ignored (the group carries its own vintage). This completes the push to have callers work with class instances rather than loose strings and ints.
+
+`censusapi_name` signature likewise changed from `(survey_table: str, year: int, scope, group: str, ...)` to `(vintage: Vintage, scope, group: str | Group, ...)`. Accepts a `Group` instance for `group` (uses `.code`). `CensusAPI._build_name` now delegates directly to `censusapi_name` rather than duplicating the string-building logic.
+
+`TestCensusapiName`: added `mock_endpoints` autouse fixture (patches `get_all_avail_endpoints`); all 12 test calls updated to pass `Vintage(...)` as first arg. `TestCensusAPIClassNormalization._make`: `Vintage('acs/acs5', 2023)` constructed inside the mock context and passed to `CensusAPI`. 63 tests passing.
+
+## 2026-05-11 — Add Census API key support via python-dotenv (branch refactor/api-class-integration)
+
+Added `_get_api_key()` function that loads `CENSUS_API_KEY` following dotenv convention: `load_dotenv(..., override=False)` so environment variables already set in the shell take precedence over `.env` file values. Uses `find_dotenv(usecwd=True)` to search upward from the current working directory for a `.env` file.
+
+The key is injected into every Census API network call: `get_all_avail_endpoints`, `Vintage.groups`, `Group.universe`, `Group.variables`, and `fetch` (injected once at the top of `fetch` so both the group-query and variable-list code paths pick it up). When no key is found, calls proceed without the parameter (Census API still works, subject to unauthenticated rate limits).
+
+`python-dotenv` added to `pyproject.toml` dependencies. 4 new tests in `TestGetApiKey` covering: key from env var, None when not set, `override=False` enforcement, and `usecwd=True` on `find_dotenv`. 81 tests passing.
+
+## 2026-05-11 — Replace CensusAPI plain-string attributes with class hierarchy properties (branch refactor/api-class-integration)
+
+`CensusAPI.SURVEY`, `YEAR`, `GROUP`, `CONCEPT` are now `@property` accessors that read directly from `self.VARIABLE_GROUP.vintage.survey.name`, `.vintage.year`, `.code`, and `.description` respectively. `UNIVERSE`, `VARS`, and `NAME` are `@cached_property` — computed once on first access, not eagerly in `__init__`.
+
+Removed `_fetch_metadata()` entirely (its logic is now spread across the three cached_properties). Removed `validate()` no-op. Removed unused `OrderedDict` import. Moved `_build_name()` ahead of `_build_request()` in the class body. `CensusAPI.__init__` no longer sets `self.SURVEY`, `self.YEAR`, `self.GROUP`, `self.CONCEPT`, `self.UNIVERSE`, `self.VARS`, or calls `censusapi_name()` — all of those come from the class hierarchy lazily.
+
+The `UNIVERSE` fallback (use 2023 vintage when year < 2023) now passes the already-normalized `SurveyTable` instance (`self.VARIABLE_GROUP.vintage.survey`) to the fallback `Vintage`, avoiding a redundant string re-validation.
+
+Test: removed `api.CONCEPT = 'Sex by Age'` (was masking the property; property already returns the right value from mock data). 77 tests passing.
+
+## 2026-05-07 — Move network helpers into class methods (branch refactor/api-class-integration)
+
+Removed `get_table_groups`, `get_group_variables`, `get_group_universe` as standalone module functions. Logic now lives directly in the class that uses it: `Vintage.groups`, `Group.variables`, and `Group.universe` each do their own `get_json_safely` call. All three removed from `__init__.py` exports — callers access the data through class instances instead.
+
+Tests updated: mock target changes from `morpc_census.api.get_table_groups` etc. to `morpc.req.get_json_safely`, with URL-dispatching side effects. `test_groups_delegates_to_get_table_groups` → `test_groups_fetches_from_api`; similarly for variables and universe.
+
+## 2026-05-07 — Remove standalone validation/utility functions from api.py (branch refactor/api-class-integration)
+
+Removed 7 standalone functions that were made redundant by the class hierarchy:
+- `valid_survey_table`, `valid_vintage`, `valid_group`, `valid_variables` → validation now happens in `SurveyTable.__init__`, `Vintage.__init__`, `Group.__init__`, and `CensusAPI.__init__` respectively
+- `get_query_url` → superseded by `Vintage.url`
+- `get_params`, `get_api_request` → absorbed into `CensusAPI._build_request()`
+
+The module now has a clear two-layer structure: (1) network primitives (`get_all_avail_endpoints`, `get_table_groups`, `get_group_variables`, `get_group_universe`, `fetch`) used by class cached_properties; (2) classes (`SurveyTable` → `Vintage` → `Group` → `CensusAPI`) that expose the hierarchy cleanly.
+
+`CensusAPI._build_request()` builds `{url, params}` directly from `self.VARIABLE_GROUP.vintage.url` and `geoinfo_from_scope_sumlevel(self.SCOPE, self.SUMLEVEL)`.
+
+Tests: removed `TestValidSurveyTable`, `TestValidVintage`, `TestGetParams` (all covered by `TestSurveyTable`/`TestVintage`/`TestGroup`); added 3 edge-case tests to `TestSurveyTable`; updated `_make` to patch `morpc_census.geos.geoinfo_from_scope_sumlevel` instead of the removed `get_api_request`. 77 tests passing.
+
+## 2026-05-07 — Add SurveyTable, Vintage, Group classes to api.py (branch refactor/api-class-integration, issue #54)
+
+Added three classes representing the Census API endpoint hierarchy:
+
+- `SurveyTable(name)` — validates against `IMPLEMENTED_ENDPOINTS`; `vintages` cached_property calls `get_all_avail_endpoints()` once.
+- `Vintage(survey, year)` — accepts str or SurveyTable; validates year against `survey.vintages`; `url` property; `groups` cached_property calls `get_table_groups()` once.
+- `Group(vintage, code)` — requires a Vintage instance; uppercases code; validates against `vintage.groups`; `description` reads from already-cached groups dict; `variables` cached_property; `universe` property.
+
+`CensusAPI.__init__` updated: constructs `Group(Vintage(survey_table, year), group)` instead of calling `valid_survey_table`/`valid_vintage`/`valid_group` separately. All three validation steps happen inside the class constructors. `self.VARIABLE_GROUP` holds the Group instance; `self.SURVEY`/`self.YEAR`/`self.GROUP` remain as plain strings for backwards compat. `_fetch_metadata` delegates to `self.VARIABLE_GROUP.description`/`.universe`/`.variables`. `validate()` is now a no-op.
+
+All three classes exported from `morpc_census/__init__.py`. `tests/test_api.py` updated: `TestCensusAPIClassNormalization._make` now mocks `get_all_avail_endpoints`/`get_table_groups` instead of the removed `valid_survey_table`/`valid_vintage`/`valid_group` calls. Three new test classes added: `TestSurveyTable` (7 tests), `TestVintage` (9 tests), `TestGroup` (10 tests). Total: 89 tests passing.
+
+## 2026-05-07 — Extract domain lookup tables to constants.py (branch refactor/api-class-integration, issue #53)
+
+Created `morpc_census/constants.py` containing the 10 domain lookup tables that were defined at the top of `api.py` but not used within it: `HIGHLEVEL_GROUP_DESC`, `HIGHLEVEL_DESC_FROM_ID`, `AGEGROUP_MAP`, `AGEGROUP_SORT_ORDER`, `RACE_TABLE_MAP`, `EDUCATION_ATTAIN_MAP`, `EDUCATION_ATTAIN_SORT_ORDER`, `INCOME_TO_POVERTY_MAP`, `INCOME_TO_POVERTY_SORT_ORDER`, `NTD_AGEMAP`, `NTD_AGEMAP_ORDER`.
+
+`api.py` re-exports them via `from morpc_census.constants import ...` so the public API is unchanged. `__init__.py` now imports them from `constants` directly. API-machinery constants (`MISSING_VALUES`, `VARIABLE_TYPES`, `CENSUS_DATA_BASE_URL`, `IMPLEMENTED_ENDPOINTS`) stay in `api.py`.
+
+Note: test suite revealed a pre-existing inconsistency — `NTD_AGEMAP` maps to `'19 to 64 years'` but `NTD_AGEMAP_ORDER` has `'20 to 64 years'`. Not fixed here; tracked for a future cleanup.
+
+## 2026-05-07 — Integrate Scope/SumLevel classes into api.py (branch refactor/api-class-integration, issue #52)
+
+`censusapi_name` now accepts `str | Scope` for scope and `str | SumLevel | None` for sumlevel. Replaced `from morpc import HIERARCHY_STRING_FROM_CENSUSNAME` lookup with `SumLevel.hierarchy_string` property. Falls back to `sl.name` when `hierarchy_string` is None (partially-constructed SumLevel edge case).
+
+`get_api_request` type hints updated to `str | Scope` / `str | SumLevel | None`.
+
+`CensusAPI.__init__` now normalizes both parameters on entry:
+- `self.SCOPE` is always a `Scope` instance (was a lowercase string)
+- `self.SUMLEVEL` is always a `SumLevel` or `None` (was a lowercase string or None)
+- `censusapi_name` called with already-normalized objects so name is consistent
+
+`CensusAPI.scope_obj` simplified — returns `self.SCOPE` directly (was `SCOPES[self.SCOPE]`).
+
+`CensusAPI.create_resource` updated: `self.SUMLEVEL.plural` replaces manual `f'{sumlevel}s'` string; `self.SCOPE.name` replaces raw `self.SCOPE` in title/description.
+
+`from __future__ import annotations` and `TYPE_CHECKING` guard added for geos imports.
+
+9 new tests in `TestCensusAPIClassNormalization`; 4 new cases added to `TestCensusapiName`. All 46 api tests pass.
+
 ## 2026-05-07 — Fix resource_from_geometry_sumlevel; fix notebook frictionless.Resource access (branch refactor/tigerweb-class-integration)
 
 `resource_from_geometry_sumlevel` was broken: it passed spatial params (`geometry`, `geometryType`, `inSR`, `spatialRel`) as kwargs to `morpc.rest_api.resource()`, which only accepts `(name, url, where, outfields, max_record_count)`. Fixed by building `frictionless.Resource` directly, using `totalRecordCount(url, where='1=1')` for total_records and `maxRecordCount` for the service page size.
@@ -359,4 +521,97 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
 - `DimensionTable`: fixed `!= None` → `is not None`; removed `wrapping_func` (text
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
+
+## 2026-05-12 — Reduce Census API requests from 4 to 2 per CensusAPI call (branch refactor/api-class-integration)
+
+`CensusAPI(ep, scope, group=group, sumlevel='tract')` was making 4 network calls:
+1. `geoinfo_from_scope_sumlevel` → `geoids_from_scope` (geoinfo API)
+2. `pseudos_from_scope_sumlevel` → `geoids_from_scope` again (duplicate)
+3. `_fetch_group` (Census data API)
+4. `melt` → `Group.universe` → separate `/groups` API call
+
+Two fixes, reducing to 2 calls (1 geoinfo + 1 data):
+
+- `pseudos_from_scope_sumlevel` now accepts an optional `scope_geoids` parameter; `geoinfo_from_scope_sumlevel` passes its already-fetched list instead of re-fetching
+- `Endpoint.groups` now stores the `universe` field (stripping the trailing space present in the Census API response); `Group.universe` is demoted from `@cached_property` to `@property` and reads from the cached `endpoint.groups` dict — no separate API call needed
+
+Test updates: `test_universe_fetches_from_api` → `test_universe_from_groups_cache` (one `get_json_safely` call instead of two); `test_groups_fetches_from_api` fixture and assertion updated to include `universe`.
+
+## 2026-05-12 — Lowercase column names in long output; cached Group.universe (branch refactor/api-class-integration)
+
+User changes to `api.py`:
+- `melt()` now renames `GEO_ID` → `geoidfq` and `NAME` → `name` (lowercase) in the long output; all downstream references updated (`sort_values`, `define_schema`, `DimensionTable`, `DimensionTable.wide`)
+- `Group.universe` promoted from `@property` to `@cached_property` to avoid repeated network calls for the same group
+
+Test update: `_make_long()` fixture in `tests/test_api.py` updated to use `'geoidfq'` and `'name'` to match the new output schema.
+
+## 2026-05-12 — Add API key handling to geos.py (branch refactor/api-class-integration)
+
+Three Census API request sites in `geos.py` were passing no API key, causing anonymous requests that are rate-limited. Added `_get_api_key()` (same implementation as in `api.py`, defined locally to avoid a circular import) and wired it in:
+
+- `SumLevel.get_query_req()`: passes `params={'key': k}` when key is set
+- `geoinfo_from_params()`: appends `key` to the existing params dict before the request
+- `geoids_from_scope()`: copies `sc.params` to avoid mutating the Scope object, then appends `key`
+
+## 2026-05-11 — Rewrite census demo notebook (branch refactor/api-class-integration)
+
+`doc/02-morpc-census-demo.ipynb` rewritten from scratch with a user-focused narrative. Old notebook used the pre-refactor API (`CensusAPI('acs/acs5', 2023, 'B01001', scope='region15')` positional form, `.LONG`/`.DATA`/`.FILENAME` uppercase attrs, `GEO_ID` column, `get_table_groups`/`get_group_variables` standalone functions). New notebook:
+
+- Uses `Endpoint` and `Group` objects explicitly so the discovery/validation workflow is visible
+- `CensusAPI(ep, 'region15', group=group)` new keyword-argument signature
+- References `api.long`, `api.data`, `api.filename`, `api.name` (lowercase)
+- Shows `api.geoidfqs` and `GeoIDFQ` field access
+- Demonstrates variables-only mode (`group=None, variables=[...]`)
+- Uses `DimensionTable(api.long)` with `GEOIDFQ` column (not `GEO_ID`)
+- Single "Network required" note at section header instead of inline on every cell
+- 11 sections: Endpoints, Groups, Scopes, Fetching, Long output, GEOIDFQs, Sumlevel, Variables-only, DimensionTable, Time series, Saving
 - Added `_VALUE_FIELD_DEFS` module-level dict for schema field definitions.
+
+## 2026-05-12 — Rework DimensionTable (branch refactor/api-class-integration)
+
+`DimensionTable` redesigned around explicit dimension parsing.
+
+**`_parse_dims(dim_names=None)`** replaces `create_description_table()`:
+- Splits each `variable_label` by `!!` into subtotals (ending with `:`) and leaves (no `:`)
+- Subtotals are left-aligned into the first S columns; leaves into the next L columns (S and L are the max depths across all variables)
+- This keeps the same concept in the same column even when paths have different depths — e.g. B05004 where Sex appears as a leaf at depth 2, 3, or 4 depending on the nativity level
+- Result stored as `self.dims` (DataFrame indexed by `variable`); `:` suffix preserved for drop() logic, stripped for display in `wide()`
+
+**`drop(dim, method='summarize')`** replaces `droplevels` parameter in `wide()`/`percent()`:
+- `method='summarize'`: keep only rows where `dim == ''` (already aggregated over that dimension); returns a new `DimensionTable`
+- `method='aggregate'`: sum leaf rows (dim != '') per group; propagate MOE via `sqrt(sum(moe_i²))`; returns a new `DimensionTable`
+- Aggregate only uses leaf rows (where dropped dim is non-empty) to avoid double-counting pre-computed subtotal rows
+
+**`remap(variable_map)`** (moved from `__init__`):
+- Applies `find_replace_variable_map`, aggregates collapsed rows, fixes MOE via `sqrt(sum(moe²))` (was `.sum()` which is wrong for ACS MOE)
+- Returns `self` for chaining; rebuilds `self.dims` after relabeling
+
+**`wide()`**: simplified — no `droplevels` parameter, no MISSING_VALUES list comprehension (uses `df.replace(dict, np.nan)`)
+
+**`percent(decimals=2)`**: identifies total row explicitly via `all(v == '' for v in vals[1:])` instead of fragile `.T.iloc[:, 0]` position assumption
+
+**Removed**: `create_description_table()`, `variable_map`/`variable_order` constructor parameters
+
+Tests: `TestDimensionTableDescriptionTable` replaced by `TestDimensionTableParseDims`, `TestDimensionTableDrop`, `TestDimensionTableRemap` — 23 new tests, all pass. 197 total passing.
+
+## 2026-05-12 — Fix DimensionTable._parse_dims() — inflated dims on cross-vintage concat (branch refactor/api-class-integration)
+
+**Bug**: `DimensionTable(pd.concat([b01001_2018.long, b01001.long])).wide()` produced a 5-level row MultiIndex instead of 3, with `('', '', 'Total', '', '')` as the grand total row instead of `('Total', '', '')`.
+
+**Root cause**: Two related issues in `_parse_dims`:
+1. `drop_duplicates()` was called on both `variable` and `variable_label`, so the same variable code (e.g. `B01001_001`) appeared twice in `unique` — once with the 2018 label `'Total'` (no colon) and once with the 2023 label `'Total:'` (colon). Both versions entered the alignment calculation.
+2. Older Census API vintages omit the trailing `:` from subtotal segment labels (e.g. `'Total!!Male!!Under 5 years'` instead of `'Total:!!Male:!!Under 5 years'`). With both formats present, S (max subtotal depth) and L (max leaf depth) inflated independently — S=2 from 2023, L=3 from 2018 → n=5.
+
+**Fix**: 
+- `drop_duplicates(subset='variable')` — one label per variable code; the first occurrence wins
+- Label normalization via tree structure: strip all trailing `:` to form a set of clean label paths, then for each segment, add `:` if (a) the original segment already had `:` (Census convention preserved), or (b) the segment's path prefix has children in the clean label set (older vintages fixed by tree structure). Normalization runs before S/L computation, so both vintages produce the same dimensions.
+
+5 new tests in `TestDimensionTableCrossVintage`. 202 total passing.
+
+## 2026-05-12 — Fix DimensionTable.percent() — values appearing in column headers (branch refactor/api-class-integration)
+
+**Bug**: `percent()` returned a table where dimension values (e.g. `('Total', 'Male')`) appeared as column headers instead of row index values.
+
+**Root cause**: The implementation transposed `wide()`, dropped the total column, called `reset_index()`, then tried to identify metadata columns via `non_value_cols = [c for c in pct.columns if c not in self.variable_type]`. After `reset_index()` on a transposed DataFrame, the columns were MultiIndex tuples like `('Total', 'Male')` and `('Total', 'Female')`. These tuples are not in `variable_type` (`['estimate', 'moe']`), so they were included in `non_value_cols` and became index levels. The subsequent `.T` then put them into column headers.
+
+**Fix**: Replaced the transpose-and-reconstruct approach with a direct operation on the `wide()` output — find the total row by integer position, divide each column individually by its total value, drop the total row, and return. Output has the same structure as `wide()` (dimension values as row index, geographies as column MultiIndex) but with percentage values and no total row.

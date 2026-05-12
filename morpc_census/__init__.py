@@ -2,18 +2,20 @@ __version__ = "0.1.0"
 
 # Census API client and data structuring
 from .api import (
+    Endpoint,
+    Group,
     CensusAPI,
     DimensionTable,
     get_all_avail_endpoints,
-    get_table_groups,
-    get_group_variables,
-    get_group_universe,
-    fetch,
     CENSUS_DATA_BASE_URL,
     IMPLEMENTED_ENDPOINTS,
-    HIGHLEVEL_GROUP_DESC,
     MISSING_VALUES,
     VARIABLE_TYPES,
+)
+
+# Domain lookup tables
+from .constants import (
+    HIGHLEVEL_GROUP_DESC,
     AGEGROUP_MAP,
     AGEGROUP_SORT_ORDER,
     RACE_TABLE_MAP,

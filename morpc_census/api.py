@@ -5,58 +5,42 @@ as long-format tables backed by frictionless metadata.
 Census API root: https://api.census.gov/data/
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
 import re
-from collections import OrderedDict
+from functools import cached_property
 from io import StringIO
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
+if TYPE_CHECKING:
+    from morpc_census.geos import Scope, SumLevel
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Census subject-area constants
+# Domain lookup tables (defined in constants.py, re-exported for backwards compat)
 # ---------------------------------------------------------------------------
 
-HIGHLEVEL_GROUP_DESC = {
-    "01": "Sex, Age, and Population",
-    "02": "Race",
-    "03": "Ethnicity",
-    "04": "Ancestry",
-    "05": "Nativity and Citizenship",
-    "06": "Place of Birth",
-    "07": "Geographic Mobility",
-    "08": "Transportation to Work",
-    "09": "Children",
-    "10": "Grandparents and Grandchildren",
-    "11": "Household Type",
-    "12": "Marriage and Marital Status",
-    "13": "Mothers and Births",
-    "14": "School Enrollment",
-    "15": "Educational Attainment",
-    "16": "Language Spoken at Home",
-    "17": "Poverty",
-    "18": "Disability",
-    "19": "Household Income",
-    "20": "Earnings",
-    "21": "Veterans",
-    "22": "Food Stamps/SNAP",
-    "23": "Workers and Employment Status",
-    "24": "Occupation, Industry, Class",
-    "25": "Housing Units, Tenure, Housing Costs",
-    "26": "Group Quarters",
-    "27": "Health Insurance",
-    "28": "Computers and Internet",
-    "29": "Voting-Age",
-    "98": "Coverage Rates and Allocation Rates",
-    "99": "Allocations",
-}
-
-HIGHLEVEL_DESC_FROM_ID = {v: k for k, v in HIGHLEVEL_GROUP_DESC.items()}
+from morpc_census.constants import (  # noqa: E402
+    HIGHLEVEL_GROUP_DESC,
+    HIGHLEVEL_DESC_FROM_ID,
+    AGEGROUP_MAP,
+    AGEGROUP_SORT_ORDER,
+    RACE_TABLE_MAP,
+    EDUCATION_ATTAIN_MAP,
+    EDUCATION_ATTAIN_SORT_ORDER,
+    INCOME_TO_POVERTY_MAP,
+    INCOME_TO_POVERTY_SORT_ORDER,
+    NTD_AGEMAP,
+    NTD_AGEMAP_ORDER,
+)
 
 MISSING_VALUES = [
     "", "-222222222", "-333333333", "-555555555",
@@ -69,160 +53,6 @@ VARIABLE_TYPES = {
     "PE": "percent_estimate",
     "PM": "percent_moe",
     "N": "total",
-}
-
-AGEGROUP_MAP = {
-    'Under 5 years': 'Under 5 years',
-    '5 to 9 years': '5 to 9 years',
-    '10 to 14 years': '10 to 14 years',
-    '15 to 17 years': '15 to 19 years',
-    '18 and 19 years': '15 to 19 years',
-    '20 years': '20 to 24 years',
-    '21 years': '20 to 24 years',
-    '22 to 24 years': '20 to 24 years',
-    '25 to 29 years': '25 to 29 years',
-    '30 to 34 years': '30 to 34 years',
-    '35 to 39 years': '35 to 39 years',
-    '40 to 44 years': '40 to 44 years',
-    '45 to 49 years': '45 to 49 years',
-    '50 to 54 years': '50 to 54 years',
-    '55 to 59 years': '55 to 59 years',
-    '60 and 61 years': '60 to 64 years',
-    '62 to 64 years': '60 to 64 years',
-    '65 and 66 years': '65 to 69 years',
-    '67 to 69 years': '65 to 69 years',
-    '70 to 74 years': '70 to 74 years',
-    '75 to 79 years': '75 to 79 years',
-    '80 to 84 years': '80 to 84 years',
-    '85 years and over': '85 years and over',
-}
-
-AGEGROUP_SORT_ORDER = {
-    'Total': 1,
-    'Under 5 years': 2,
-    '5 to 9 years': 3,
-    '10 to 14 years': 4,
-    '15 to 19 years': 5,
-    '20 to 24 years': 6,
-    '25 to 29 years': 7,
-    '30 to 34 years': 8,
-    '35 to 39 years': 9,
-    '40 to 44 years': 10,
-    '45 to 49 years': 11,
-    '50 to 54 years': 12,
-    '55 to 59 years': 13,
-    '60 to 64 years': 14,
-    '65 to 69 years': 15,
-    '70 to 74 years': 16,
-    '75 to 79 years': 17,
-    '80 to 84 years': 18,
-    '85 years and over': 19,
-}
-
-RACE_TABLE_MAP = {
-    'A': 'White Alone',
-    'B': 'Black or African American Alone',
-    'C': 'American Indian and Alaska Native Alone',
-    'D': 'Asian Alone',
-    'E': 'Native Hawaiian and Other Pacific Islander Alone',
-    'F': 'Some Other Race Alone',
-    'G': 'Two or More Races',
-    'H': 'White Alone, Not Hispanic or Latino',
-    'I': 'Hispanic or Latino',
-}
-
-EDUCATION_ATTAIN_MAP = {
-    'No schooling completed': 'No high school diploma',
-    'Nursery school': 'No high school diploma',
-    'Kindergarten': 'No high school diploma',
-    '1st grade': 'No high school diploma',
-    '2nd grade': 'No high school diploma',
-    '3rd grade': 'No high school diploma',
-    '4th grade': 'No high school diploma',
-    '5th grade': 'No high school diploma',
-    '6th grade': 'No high school diploma',
-    '7th grade': 'No high school diploma',
-    '8th grade': 'No high school diploma',
-    '9th grade': 'No high school diploma',
-    '10th grade': 'No high school diploma',
-    '11th grade': 'No high school diploma',
-    '12th grade, no diploma': 'No high school diploma',
-    'Regular high school diploma': 'High school diploma or equivalent',
-    'GED or alternative credential': 'High school diploma or equivalent',
-    'Some college, less than 1 year': 'High school diploma or equivalent',
-    'Some college, 1 or more years, no degree': 'High school diploma or equivalent',
-    "Associate's degree": "Associate's degree",
-    "Bachelor's degree": "Bachelor's degree",
-    "Master's degree": "More than Bachelor's",
-    'Professional school degree': "More than Bachelor's",
-    'Doctorate degree': "More than Bachelor's",
-}
-
-EDUCATION_ATTAIN_SORT_ORDER = {
-    'Total': 1,
-    'No high school diploma': 2,
-    'High school diploma or equivalent': 3,
-    "Associate's degree": 4,
-    "Bachelor's degree": 5,
-    "More than Bachelor's": 6,
-}
-
-INCOME_TO_POVERTY_MAP = {
-    'Under .50': 'Under .50',
-    '.50 to .74': '.50 to .99',
-    '.75 to .99': '.50 to .99',
-    '1.00 to 1.24': '1.00 to 1.99',
-    '1.25 to 1.49': '1.00 to 1.99',
-    '1.50 to 1.74': '1.00 to 1.99',
-    '1.75 to 1.84': '1.00 to 1.99',
-    '1.85 to 1.99': '1.00 to 1.99',
-    '2.00 to 2.99': '2.00 to 2.99',
-    '3.00 to 3.99': '3.00 to 3.99',
-    '4.00 to 4.99': '4.00 and over',
-    '5.00 and over': '4.00 and over',
-}
-
-INCOME_TO_POVERTY_SORT_ORDER = {
-    'Total': 0,
-    'Under .50': 1,
-    '.50 to .99': 2,
-    '1.00 to 1.99': 3,
-    '2.00 to 2.99': 4,
-    '3.00 to 3.99': 5,
-    '4.00 and over': 6,
-}
-
-NTD_AGEMAP = {
-    'Under 5 years': '18 years and under',
-    '5 to 9 years': '18 years and under',
-    '10 to 14 years': '18 years and under',
-    '15 to 17 years': '18 years and under',
-    '18 and 19 years': '18 years and under',  # apportion half here, half in 19 years
-    '20 years': '19 to 64 years',
-    '21 years': '19 to 64 years',
-    '22 to 24 years': '19 to 64 years',
-    '25 to 29 years': '19 to 64 years',
-    '30 to 34 years': '19 to 64 years',
-    '35 to 39 years': '19 to 64 years',
-    '40 to 44 years': '19 to 64 years',
-    '45 to 49 years': '19 to 64 years',
-    '50 to 54 years': '19 to 64 years',
-    '55 to 59 years': '19 to 64 years',
-    '60 and 61 years': '19 to 64 years',
-    '62 to 64 years': '19 to 64 years',
-    '65 and 66 years': '65 years and over',
-    '67 to 69 years': '65 years and over',
-    '70 to 74 years': '65 years and over',
-    '75 to 79 years': '65 years and over',
-    '80 to 84 years': '65 years and over',
-    '85 years and over': '65 years and over',
-}
-
-NTD_AGEMAP_ORDER = {
-    'Total': 0,
-    '18 years and under': 1,
-    '20 to 64 years': 2,
-    '65 years and over': 3,
 }
 
 # Schema field definitions for each value column type that can appear in LONG
@@ -283,8 +113,9 @@ def get_all_avail_endpoints():
     global _avail_endpoints_cache
     if _avail_endpoints_cache is None:
         from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
         result = {}
-        for dataset in get_json_safely(CENSUS_DATA_BASE_URL)['dataset']:
+        for dataset in get_json_safely(CENSUS_DATA_BASE_URL, **kw)['dataset']:
             if 'c_vintage' in dataset:
                 endpoint = "/".join(dataset['c_dataset'])
                 result.setdefault(endpoint, []).append(dataset['c_vintage'])
@@ -292,231 +123,184 @@ def get_all_avail_endpoints():
     return _avail_endpoints_cache
 
 
-# ---------------------------------------------------------------------------
-# Parameter validation helpers
-# ---------------------------------------------------------------------------
+def _get_api_key() -> str | None:
+    """Return CENSUS_API_KEY from environment, with .env file as fallback.
 
-def valid_survey_table(survey_table: str) -> bool:
-    """Validate survey_table against IMPLEMENTED_ENDPOINTS. Raises ValueError if not recognized."""
-    if survey_table in IMPLEMENTED_ENDPOINTS:
-        logger.info(f"{survey_table} is valid.")
-        return True
-    logger.error(f"{survey_table} not available or not yet implemented.")
-    raise ValueError(f"{survey_table} not available or not yet implemented.")
-
-
-def valid_vintage(survey_table: str, year: int) -> bool:
-    """Validate that *year* is an available vintage for *survey_table*.
-
-    Makes a network call to the Census discovery endpoint on first use
-    (result is cached).
+    dotenv convention (override=False): environment variables already set take
+    precedence over values in the .env file. Searches for .env starting from
+    the current working directory and walking up toward the filesystem root.
     """
-    year = int(year)
-    avail = get_all_avail_endpoints()
-    if year in avail.get(survey_table, []):
-        logger.info(f"{year} is valid for {survey_table}.")
-        return True
-    logger.error(f"{year} is not an available vintage for {survey_table}.")
-    raise ValueError(f"{year} is not an available vintage for {survey_table}.")
-
-
-def get_query_url(survey_table: str, year: int) -> str:
-    """Build the base Census API query URL for a survey and vintage year."""
-    url = f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}?"
-    logger.info(f"Base URL: {url}")
-    return url
-
-
-def get_table_groups(survey_table: str, year: int) -> dict:
-    """Return {group_name: {description, variables}} for all groups in the survey."""
-    from morpc.req import get_json_safely
-    logger.debug(f"Fetching groups for {year} {survey_table}")
-    data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups.json")
-    groups = {
-        g['name']: {'description': g['description'], 'variables': g['variables']}
-        for g in data['groups']
-    }
-    return dict(sorted(groups.items()))
-
-
-def valid_group(group: str, survey_table: str, year: int) -> bool:
-    """Validate that group exists in survey_table for year. Raises ValueError if not found."""
-    groups = get_table_groups(survey_table, year)
-    if group in groups:
-        logger.info(f"{group} is valid for {year} {survey_table}.")
-        return True
-    logger.error(f"{group} is not a valid group in {year} {survey_table}.")
-    raise ValueError(f"{group} is not a valid group in {year} {survey_table}.")
-
-
-def get_group_variables(survey_table: str, year: int, group: str) -> dict:
-    """Return variable metadata dict for *group*, sorted by variable name."""
-    from morpc.req import get_json_safely
-    data = get_json_safely(
-        f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups/{group}.json"
-    )
-    return {
-        k: data['variables'][k]
-        for k in sorted(data['variables'])
-        if k not in ('GEO_ID', 'NAME')
-    }
-
-
-def get_group_universe(survey_table: str, year: int, group: str) -> str:
-    """Return the universe string for a variable group from the Census API."""
-    from morpc.req import get_json_safely
-    data = get_json_safely(f"{CENSUS_DATA_BASE_URL}/{year}/{survey_table}/groups")
-    match = [x for x in data['groups'] if x['name'] == group.upper()]
-    if not match:
-        raise ValueError(f"Group {group} not found in {year} {survey_table}.")
-    return match[0]['universe ']  # trailing space is present in the Census API response
-
-
-def valid_variables(survey_table: str, year: int, group: str, variables: list[str]) -> bool:
-    """Validate that all variables exist in group. Raises ValueError on first missing variable."""
-    avail = get_group_variables(survey_table, year, group)
-    for var in variables:
-        if var not in avail:
-            logger.error(f"{var} is not a valid variable in {group} {survey_table}.")
-            raise ValueError(f"{var} is not a valid variable in {group} {survey_table}.")
-    return True
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv(usecwd=True), override=False)
+    return os.environ.get('CENSUS_API_KEY')
 
 
 # ---------------------------------------------------------------------------
-# Request building
+# Census API endpoint classes
 # ---------------------------------------------------------------------------
 
-def get_params(group: str, variables: list[str] | None = None) -> str:
-    """Build the Census API 'get' parameter string for a group or variable list."""
-    if variables is not None:
-        return ",".join(variables)
-    return f"group({group})"
+class Endpoint:
+    """A Census API survey at a specific vintage year (e.g. ``'acs/acs5'``, 2023).
 
-
-def get_api_request(survey_table: str, year: int, group: str, scope: str, variables: list[str] | None = None, sumlevel: str | None = None) -> dict:
-    """Build the Census API request dict (url + params) for a survey, scope, and optional sumlevel."""
-    from morpc_census.geos import geoinfo_from_scope_sumlevel
-
-    url = get_query_url(survey_table, year)
-    get_param = get_params(group, variables=variables)
-    geo_param = geoinfo_from_scope_sumlevel(scope, sumlevel, output='params')
-
-    params = {'get': get_param}
-    params.update(geo_param)
-
-    logger.info(f"Request — url: {url}  params: {params}")
-    return {'url': url, 'params': params}
-
-
-# ---------------------------------------------------------------------------
-# Low-level fetch
-# ---------------------------------------------------------------------------
-
-def fetch(url: str, params: dict, var_batch_size: int = 20) -> pd.DataFrame:
-    """Fetch from the Census API and return a DataFrame indexed by GEO_ID.
-
-    Automatically batches requests when more than *var_batch_size* variables
-    are requested, to stay within the API's 50-variable limit.
+    Validates the survey name against :data:`IMPLEMENTED_ENDPOINTS` and the year
+    against the Census API's available vintages at construction.
 
     Parameters
     ----------
-    url : str
-        Base Census API endpoint URL, e.g.
-        ``https://api.census.gov/data/2022/acs/acs5?``
-    params : dict
-        Query parameters in ``requests`` format, including ``get``, ``for``,
-        and optionally ``in``.
-    var_batch_size : int
-        Variables per request batch.  Capped at 49 to leave one slot for
-        GEO_ID.  Defaults to 20.
+    survey : str
+        Survey/table name, e.g. ``'acs/acs5'``, ``'dec/pl'``.
+        See :data:`IMPLEMENTED_ENDPOINTS`.
+    year : int
+        Vintage year. Validated against the survey's available years.
     """
-    from morpc.req import get_json_safely, get_text_safely
-    is_group_query = bool(re.findall(r'group\((.+)\)', params['get']))
 
-    if is_group_query:
-        group = re.findall(r'group\((.+)\)', params['get'])[0]
-        logger.info(f"group({group}) query — bypassing variable-limit batching.")
-
-        params_string = "&".join(f"{k}={v}" for k, v in params.items())
-        text = get_text_safely(f"{url}{params_string}")
-
-        try:
-            census_data = pd.read_csv(
-                StringIO(text.replace('[', '').replace(']', '').rstrip(',')),
-                sep=',',
-                quotechar='"',
+    def __init__(self, survey: str, year: int) -> None:
+        if survey not in IMPLEMENTED_ENDPOINTS:
+            raise ValueError(
+                f"{survey!r} is not available or not yet implemented. "
+                f"See IMPLEMENTED_ENDPOINTS."
             )
-            census_data = census_data.drop(
-                columns=[c for c in census_data.columns if c.startswith('Unnamed')]
+        self.survey = survey
+        year = int(year)
+        if year not in self.vintages:
+            raise ValueError(
+                f"{year} is not an available vintage for {self.survey!r}. "
+                f"Available: {self.vintages}"
             )
-        except Exception as e:
-            logger.error(f"Failed to parse group response: {e}")
-            raise RuntimeError("Failed to parse Census API group response.") from e
+        self.year = year
 
-        return census_data
+    def __repr__(self) -> str:
+        return f"Endpoint({self.survey!r}, {self.year})"
 
-    # Variable-list query — may need batching
-    if var_batch_size > 49:
-        logger.warning("var_batch_size exceeds API limit; capping at 49.")
-        var_batch_size = 49
-
-    all_vars = params['get'].split(',')
-    logger.info(f"Total variables requested: {len(all_vars)}")
-
-    remaining = all_vars
-    batch_num = 1
-    census_data = None
-
-    while remaining:
-        logger.info(f"Batch #{batch_num}: {len(remaining)} variables remaining.")
-
-        batch = remaining[:var_batch_size - 2]
-        if 'GEO_ID' not in batch:
-            batch.append('GEO_ID')
-            remaining = remaining[var_batch_size - 2:]
-        else:
-            try:
-                batch.append(remaining[var_batch_size - 2])
-            except IndexError:
-                pass
-            remaining = remaining[var_batch_size - 1:]
-
-        batch_params = json.loads(json.dumps(params))
-        batch_params['get'] = ','.join(batch)
-
-        records = get_json_safely(url, params=batch_params)
-        columns = records.pop(0)
-        df = pd.DataFrame.from_records(records, columns=columns).filter(
-            items=batch, axis='columns'
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Endpoint)
+            and self.survey == other.survey
+            and self.year == other.year
         )
 
-        if census_data is None:
-            census_data = df.set_index('GEO_ID').copy()
-        else:
-            census_data = census_data.join(df.set_index('GEO_ID')).reset_index()
+    def __hash__(self) -> int:
+        return hash((self.survey, self.year))
 
-        batch_num += 1
+    @cached_property
+    def vintages(self) -> list[int]:
+        """Available vintage years for this survey (fetched once, then cached)."""
+        return get_all_avail_endpoints().get(self.survey, [])
 
-    return census_data
+    @property
+    def url(self) -> str:
+        """Base Census API query URL for this endpoint."""
+        return f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey}?"
+
+    @cached_property
+    def groups(self) -> dict:
+        """All variable groups for this endpoint, keyed by group code (fetched once, then cached)."""
+        from morpc.req import get_json_safely
+        logger.debug(f"Fetching groups for {self.year} {self.survey}")
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
+        data = get_json_safely(
+            f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey}/groups.json", **kw
+        )
+        return dict(sorted({
+            g['name']: {
+                'description': g['description'],
+                'variables': g['variables'],
+                'universe': g.get('universe ', '').strip(),  # trailing space in Census API response
+            }
+            for g in data['groups']
+        }.items()))
+
+
+class Group:
+    """A variable group within a Census API endpoint (e.g. ``'B01001'``).
+
+    Parameters
+    ----------
+    endpoint : Endpoint
+        The survey endpoint this group belongs to.
+    code : str
+        Group code (e.g. ``'B01001'``). Case-insensitive; stored upper-cased.
+        Validated against :attr:`Endpoint.groups` at construction.
+    """
+
+    def __init__(self, endpoint: Endpoint, code: str) -> None:
+        if not isinstance(endpoint, Endpoint):
+            raise TypeError(
+                f"endpoint must be an Endpoint instance, got {type(endpoint).__name__!r}."
+            )
+        self.endpoint = endpoint
+        code = code.upper()
+        if code not in self.endpoint.groups:
+            raise ValueError(
+                f"{code!r} is not a valid group in "
+                f"{self.endpoint.survey!r} {self.endpoint.year}."
+            )
+        self.code = code
+
+    def __repr__(self) -> str:
+        return f"Group({self.endpoint.survey!r}, {self.endpoint.year}, {self.code!r})"
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, Group)
+            and self.endpoint == other.endpoint
+            and self.code == other.code
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.endpoint.survey, self.endpoint.year, self.code))
+
+    @property
+    def description(self) -> str:
+        """Group description (read from :attr:`Endpoint.groups` — no extra network call)."""
+        return self.endpoint.groups[self.code]['description']
+
+    @property
+    def universe(self) -> str:
+        """Universe description string (read from :attr:`Endpoint.groups` — no extra network call)."""
+        return self.endpoint.groups[self.code].get('universe', '')
+
+    @cached_property
+    def variables(self) -> dict:
+        """Variable metadata dict for this group (fetched once, then cached)."""
+        from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
+        data = get_json_safely(
+            f"{CENSUS_DATA_BASE_URL}/{self.endpoint.year}/{self.endpoint.survey}"
+            f"/groups/{self.code}.json",
+            **kw,
+        )
+        return {
+            k: data['variables'][k]
+            for k in sorted(data['variables'])
+            if k not in ('GEO_ID', 'NAME')
+        }
+
+
 
 
 # ---------------------------------------------------------------------------
 # Naming helper
 # ---------------------------------------------------------------------------
 
-def censusapi_name(survey_table: str, year: int, scope: str, group: str, sumlevel: str | None = None, variables: list[str] | None = None) -> str:
+def censusapi_name(endpoint: Endpoint, scope: str | Scope, group: str | Group | None = None, sumlevel: str | SumLevel | None = None, variables: list[str] | None = None) -> str:
     """Construct a canonical, machine-readable name for a CensusAPI dataset."""
-    from morpc import HIERARCHY_STRING_FROM_CENSUSNAME
+    from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
 
-    sumlevel_part = (
-        f"{HIERARCHY_STRING_FROM_CENSUSNAME[sumlevel].replace('-', '').lower()}-"
-        if sumlevel is not None
-        else ''
-    )
+    scope_name = scope.name if isinstance(scope, _Scope) else scope
+    group_code = group.code if isinstance(group, Group) else group  # None when no group
+
+    if sumlevel is not None:
+        sl = sumlevel if isinstance(sumlevel, _SumLevel) else _SumLevel(sumlevel)
+        sumlevel_part = f"{(sl.hierarchy_string or sl.name).replace('-', '').lower()}-"
+    else:
+        sumlevel_part = ''
+
+    group_part = f"-{group_code}" if group_code is not None else ''
     var_part = '-select-variables' if variables is not None else ''
     return (
-        f"census-{survey_table.replace('/', '-')}-{year}"
-        f"-{sumlevel_part}{scope}-{group}{var_part}"
+        f"census-{endpoint.survey.replace('/', '-')}-{endpoint.year}"
+        f"-{sumlevel_part}{scope_name}{group_part}{var_part}"
     ).lower()
 
 
@@ -556,134 +340,251 @@ class CensusAPI:
 
     Parameters
     ----------
-    survey_table : str
-        Dataset endpoint, e.g. ``'acs/acs5'``, ``'dec/pl'``.
-        See :data:`IMPLEMENTED_ENDPOINTS`.
-    year : int
-        Vintage year, e.g. ``2023``.
-    group : str
-        Variable group code, e.g. ``'B01001'``.
-    scope : str
-        Geographic scope key, e.g. ``'region15'``, ``'ohio'``.
-        See ``morpc_census.geos.SCOPES``.
-    sumlevel : str, optional
-        Geographic summary level query name, e.g. ``'county'``, ``'tract'``.
-        See ``morpc_census.geos.valid_sumlevel``.
+    endpoint : Endpoint
+        Survey and vintage year, e.g. ``Endpoint('acs/acs5', 2023)``.
+    scope : str or Scope
+        Geographic scope key (e.g. ``'region15'``) or a ``Scope`` instance.
+        See ``morpc_census.geos.SCOPES`` for available keys.
+    group : str, Group, or None
+        Variable group code, e.g. ``'B01001'``. Required if *variables* is
+        not provided. When omitted, *variables* must be given and are fetched
+        directly without group validation.
+    sumlevel : str or SumLevel, optional
+        Geographic summary level query name (e.g. ``'county'``, ``'tract'``)
+        or a ``SumLevel`` instance.  See ``morpc_census.geos.SumLevel``.
     variables : list of str, optional
-        Specific variables to retrieve.  If ``None`` all variables in the
-        group are retrieved.
+        Specific variables to retrieve. Required when *group* is not provided.
+        When both are given, variables must be a subset of the group's variables.
     return_long : bool
-        If ``True`` (default) compute ``self.LONG`` immediately after fetch.
+        If ``True`` (default) compute ``self.long`` immediately after fetch.
     """
 
     def __init__(
         self,
-        survey_table: str,
-        year: int,
-        group: str,
-        scope: str,
-        sumlevel: str | None = None,
+        endpoint: Endpoint,
+        scope: str | Scope,
+        group: str | Group | None = None,
+        sumlevel: str | SumLevel | None = None,
         variables: list[str] | None = None,
         return_long: bool = True,
     ):
-        self.SURVEY = survey_table
-        self.YEAR = year
-        self.GROUP = group.upper()
-        self.SCOPE = scope.lower()
-        self.SUMLEVEL = sumlevel.lower() if sumlevel is not None else None
-        self.VARIABLES = (
+        if group is None and variables is None:
+            raise ValueError("At least one of 'group' or 'variables' must be provided.")
+
+        from morpc_census.geos import Scope as _Scope, SumLevel as _SumLevel
+
+        self.scope = scope if isinstance(scope, _Scope) else _Scope(scope.lower())
+        self.sumlevel = (
+            None if sumlevel is None
+            else sumlevel if isinstance(sumlevel, _SumLevel)
+            else _SumLevel(sumlevel.lower())
+        )
+        self.variables = (
             [v.upper() for v in variables] if variables is not None else None
         )
 
-        self.NAME = censusapi_name(survey_table, year, scope, group, sumlevel, variables)
+        if group is not None:
+            self.group = group if isinstance(group, Group) else Group(endpoint, group.upper())
+        else:
+            self.group = None
+        self.endpoint = self.group.endpoint if self.group is not None else endpoint
+
+        if self.variables is not None and self.group is not None:
+            invalid = [v for v in self.variables if v not in self.group.variables]
+            if invalid:
+                raise ValueError(f"Variables not found in {self.group.code}: {invalid}")
+
         self.logger = (
             logging.getLogger(__name__)
             .getChild(self.__class__.__name__)
-            .getChild(self.NAME)
+            .getChild(self.name)
         )
-        self.logger.info(f"Initializing CensusAPI for {self.NAME}.")
-
-        self.validate()
-        self._fetch_metadata()
+        self.logger.info(f"Initializing CensusAPI for {self.name}.")
 
         self.logger.info("Building request URL and parameters.")
-        self.REQUEST = get_api_request(
-            survey_table=self.SURVEY,
-            year=self.YEAR,
-            group=self.GROUP,
-            scope=self.SCOPE,
-            variables=self.VARIABLES,
-            sumlevel=self.SUMLEVEL,
-        )
+        self.request = self._build_request()
 
         self.logger.info(
-            f"Fetching data from {self.REQUEST['url']} "
-            f"with params {self.REQUEST['params']}."
+            f"Fetching data from {self.request['url']} "
+            f"with params {self.request['params']}."
         )
         try:
-            self.DATA = fetch(self.REQUEST['url'], self.REQUEST['params']).reset_index()
+            self.data = self._fetch()
+        except RuntimeError:
+            raise
         except Exception as e:
             self.logger.error(f"Failed to retrieve data: {e}")
             raise RuntimeError("Failed to retrieve data from Census API.") from e
 
-        n_dupes = self.DATA.duplicated().sum()
+        n_dupes = self.data.duplicated().sum()
         if n_dupes:
             self.logger.warning(
                 f"Removing {n_dupes} duplicate rows "
                 "(can occur when ucgid=pseudo() is used for geographies)."
             )
-            self.DATA = self.DATA.loc[~self.DATA.duplicated()].reset_index(drop=True)
+            self.data = self.data.loc[~self.data.duplicated()].reset_index(drop=True)
 
         if return_long:
-            self.LONG = self.melt()
+            self.long = self.melt()
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Derived properties
     # ------------------------------------------------------------------
 
-    def _fetch_metadata(self):
-        """Populate CONCEPT, UNIVERSE, and VARS from the Census API."""
-        self.CONCEPT = get_table_groups(self.SURVEY, self.YEAR)[self.GROUP]['description']
-
+    @cached_property
+    def universe(self) -> str:
+        """Universe description string. Falls back to 2023 vintage when year < 2023."""
+        if self.group is None:
+            return 'Not defined — no group specified'
         try:
-            universe_year = self.YEAR if int(self.YEAR) >= 2023 else 2023
-            self.UNIVERSE = get_group_universe(self.SURVEY, universe_year, self.GROUP)
+            source = (
+                self.group if self.endpoint.year >= 2023
+                else Group(Endpoint(self.endpoint.survey, 2023), self.group.code)
+            )
+            return source.universe
         except Exception as e:
-            self.UNIVERSE = (
-                'Not defined in API — see CensusAPI.REQUEST for endpoint details'
-            )
             self.logger.warning(
-                f"Universe not defined for {self.SURVEY}/{self.GROUP}: {e}"
+                f"Universe not defined for {self.endpoint.survey}/{self.group.code}: {e}"
             )
+            return 'Not defined in API — see CensusAPI.request for endpoint details'
 
-        self.VARS = get_group_variables(self.SURVEY, self.YEAR, self.GROUP)
-        if self.VARIABLES is not None:
-            self.VARS = {k: v for k, v in self.VARS.items() if k in self.VARIABLES}
+    @cached_property
+    def vars(self) -> dict:
+        """Variable metadata dict including label. When group is set, fetches via the group
+        endpoint and respects the variables filter. Without a group, infers the group code
+        from each variable name (e.g. B01001_001E → B01001) and fetches the group metadata
+        to obtain human-readable labels."""
+        if self.group is not None:
+            all_vars = dict(self.group.variables)
+            if self.variables is not None:
+                return {k: v for k, v in all_vars.items() if k in self.variables}
+            return all_vars
 
-    def validate(self) -> None:
-        """Validate all parameters, raising ValueError on the first failure."""
-        self.logger.info("Validating parameters.")
-        valid_survey_table(self.SURVEY)
-        valid_vintage(self.SURVEY, self.YEAR)
-        valid_group(self.GROUP, self.SURVEY, self.YEAR)
-        if self.VARIABLES is not None:
-            valid_variables(self.SURVEY, self.YEAR, self.GROUP, self.VARIABLES)
+        from morpc.req import get_json_safely
+        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
 
-    # ------------------------------------------------------------------
-    # Convenience properties
-    # ------------------------------------------------------------------
+        # Group variable codes by their table prefix (B01001_001E → B01001)
+        group_map: dict[str, list[str]] = {}
+        for v in self.variables:
+            m = re.match(r'^([A-Z][A-Z0-9]+)_\d+', v)
+            if m:
+                group_map.setdefault(m.group(1), []).append(v)
 
-    @property
-    def scope_obj(self):
-        """Return the Scope object for this dataset's geographic scope."""
-        from morpc_census.geos import SCOPES, Scope
-        return SCOPES[self.SCOPE]
+        result: dict[str, dict] = {}
+        for gc, gc_vars in group_map.items():
+            try:
+                data = get_json_safely(
+                    f"{CENSUS_DATA_BASE_URL}/{self.endpoint.year}"
+                    f"/{self.endpoint.survey}/groups/{gc}.json",
+                    **kw,
+                )
+                gvars = data.get('variables', {})
+                for v in gc_vars:
+                    result[v] = gvars.get(v, {})
+            except Exception:
+                for v in gc_vars:
+                    result[v] = {}
+
+        for v in self.variables:
+            result.setdefault(v, {})
+        return result
+
+    @cached_property
+    def name(self) -> str:
+        """Canonical, machine-readable dataset name."""
+        return self._build_name()
 
     @property
     def geoidfqs(self):
         """Return the GEO_ID column parsed as a list of GeoIDFQ objects."""
         from morpc_census.geos import GeoIDFQ
-        return [GeoIDFQ.parse(g) for g in self.DATA['GEO_ID']]
+        return [GeoIDFQ.parse(g) for g in self.data['GEO_ID']]
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _build_name(self) -> str:
+        return censusapi_name(
+            self.endpoint,
+            self.scope,
+            self.group,
+            sumlevel=self.sumlevel,
+            variables=self.variables,
+        )
+
+    def _build_request(self) -> dict:
+        """Build the Census API request dict from already-normalized instance attributes."""
+        from morpc_census.geos import geoinfo_from_scope_sumlevel
+        get_param = (
+            ','.join(self.variables) if self.variables is not None
+            else f"group({self.group.code})"
+        )
+        geo_param = geoinfo_from_scope_sumlevel(self.scope, self.sumlevel, output='params')
+        params = {'get': get_param}
+        params.update(geo_param)
+        return {'url': self.endpoint.url, 'params': params}
+
+    def _fetch(self) -> pd.DataFrame:
+        """Dispatch to the group or variable-list fetch path and return raw data."""
+        key = _get_api_key()
+        params = dict(self.request['params'])
+        if key:
+            params['key'] = key
+        url = self.request['url']
+        if self.group is not None:
+            return self._fetch_group(url, params)
+        return self._fetch_variables(url, params)
+
+    def _fetch_group(self, url: str, params: dict) -> pd.DataFrame:
+        """Fetch all variables in a group using the Census API's group() query form.
+
+        The group() form returns all variables at once without a variable-count limit,
+        but the response is a flat text stream rather than JSON.
+        """
+        from morpc.req import get_text_safely
+
+        self.logger.info(f"Fetching group({self.group.code}) — all variables, no limit.")
+        params_string = "&".join(f"{k}={v}" for k, v in params.items())
+        text = get_text_safely(f"{url}{params_string}")
+        try:
+            df = pd.read_csv(
+                StringIO(text.replace('[', '').replace(']', '').rstrip(',')),
+                sep=',', quotechar='"',
+            )
+            return df.drop(columns=[c for c in df.columns if c.startswith('Unnamed')])
+        except Exception as e:
+            self.logger.error(f"Failed to parse group response: {e}")
+            raise RuntimeError("Failed to parse Census API group response.") from e
+
+    def _fetch_variables(self, url: str, params: dict) -> pd.DataFrame:
+        """Fetch a specific variable list, batching into chunks of 49.
+
+        The Census API allows at most 50 fields per request; GEO_ID occupies one slot,
+        leaving 49 for data variables. Each batch includes GEO_ID for row alignment,
+        and all batch results are joined on GEO_ID into a single DataFrame.
+        """
+        from morpc.req import get_json_safely
+
+        BATCH_SIZE = 49
+        variables = self.variables
+        batches = [variables[i:i + BATCH_SIZE] for i in range(0, len(variables), BATCH_SIZE)]
+        self.logger.info(
+            f"Fetching {len(variables)} variable(s) in {len(batches)} batch(es)."
+        )
+
+        frames = []
+        for i, batch in enumerate(batches, 1):
+            self.logger.info(f"Batch {i}/{len(batches)}: {len(batch)} variable(s).")
+            batch_params = {**params, 'get': ','.join(['GEO_ID'] + batch)}
+            records = get_json_safely(url, params=batch_params)
+            columns = records.pop(0)
+            frames.append(
+                pd.DataFrame.from_records(records, columns=columns).set_index('GEO_ID')
+            )
+
+        result = frames[0] if len(frames) == 1 else frames[0].join(frames[1:])
+        return result.reset_index()
 
     # ------------------------------------------------------------------
     # Data transformation
@@ -695,55 +596,44 @@ class CensusAPI:
         Returns
         -------
         pandas.DataFrame
-            Columns: GEO_ID, [NAME,] reference_period, survey, concept,
+            Columns: geoidfq, [name,] reference_period, survey, concept,
             universe, variable_label, variable, and one or more of
             estimate / moe / percent_estimate / percent_moe / total.
         """
         self.logger.info("Melting data to long format.")
 
-        id_vars = ['GEO_ID', 'NAME'] if 'NAME' in self.DATA.columns else ['GEO_ID']
-        long = self.DATA.melt(id_vars=id_vars, var_name='variable', value_name='value')
-
-        # Keep only the requested variables
-        long = long.loc[long['variable'].isin(self.VARS)]
-
-        # Determine the type suffix (E, M, PE, PM, N)
-        def _type_code(var):
-            match = re.findall(r'_[0-9]+([A-Z]{1,2})$', var)
-            if match:
-                return match[0]
-            # Fall back to the first label segment for non-standard codes
-            return self.VARS[var]['label'].split('!!')[0].lower()
-
-        long['variable_type'] = long['variable'].map(
-            lambda v: VARIABLE_TYPES.get(_type_code(v), _type_code(v))
-        )
-        long = long.loc[long['variable_type'].isin(VARIABLE_TYPES.values())]
-
-        # Human-readable label (everything after the first '!!')
-        long['variable_label'] = long['variable'].map(
-            lambda v: (
-                re.split('!!', self.VARS[v]['label'], maxsplit=1)[1]
-                if '!!' in self.VARS[v]['label']
-                else self.VARS[v]['label']
-            )
+        # Step 1 — melt to one row per (geography, variable)
+        has_name = 'NAME' in self.data.columns
+        geo_cols = ['GEO_ID', 'NAME'] if has_name else ['GEO_ID']
+        id_cols  = ['geoidfq', 'name'] if has_name else ['geoidfq']
+        long = (
+            self.data
+            .melt(id_vars=geo_cols, var_name='variable', value_name='value')
+            .rename(columns={'GEO_ID': 'geoidfq', 'NAME': 'name'})
         )
 
-        # Strip the type suffix to get the base variable code (B01001_001E → B01001_001)
-        long['variable'] = long['variable'].map(
-            lambda v: (
-                re.findall(r'([A-Z0-9_]+[0-9]+)[A-Z]+$', v)[0]
-                if v[-1].isalpha() and re.findall(r'([A-Z0-9_]+[0-9]+)[A-Z]+$', v)
-                else v
-            )
-        )
+        # Step 2 — drop non-data columns (state/county/NAME/annotation codes)
+        long = long.loc[long['variable'].isin(self.vars)]
 
-        long['reference_period'] = self.YEAR
-        long['universe'] = self.UNIVERSE
-        long['survey'] = self.SURVEY
-        long['concept'] = self.CONCEPT.capitalize()
+        # Step 3 — human-readable label (strip leading "Estimate!!" prefix)
+        labels = long['variable'].map(lambda v: self.vars.get(v, {}).get('label', v))
+        long['variable_label'] = labels.str.split('!!', n=1).str[-1]
 
-        pivot_index = id_vars + [
+        # Step 4 — parse base code and value type from variable code
+        #   B01001_001E  →  base='B01001_001', type_code='E' → 'estimate'
+        parsed = long['variable'].str.extract(r'^([A-Z0-9_]+[0-9]+)([A-Z]{1,2})$')
+        long['variable'] = parsed[0].fillna(long['variable'])
+        long['variable_type'] = parsed[1].map(VARIABLE_TYPES)
+        long = long.loc[long['variable_type'].notna()]
+
+        # Step 5 — attach dataset metadata
+        long['reference_period'] = self.endpoint.year
+        long['survey'] = self.endpoint.survey
+        long['universe'] = self.universe
+        long['concept'] = self.group.description.capitalize() if self.group is not None else ''
+
+        # Step 6 — pivot value types into separate columns
+        pivot_index = id_cols + [
             'reference_period', 'survey', 'concept', 'universe',
             'variable_label', 'variable',
         ]
@@ -757,14 +647,14 @@ class CensusAPI:
             self.logger.error(f"Pivot failed: {e}")
             raise
 
-        long = long.sort_values(by=['GEO_ID', 'variable', 'reference_period'])
+        long = long.sort_values(by=['geoidfq', 'variable', 'reference_period'])
 
-        for col in long.columns:
-            if col in VARIABLE_TYPES.values():
-                long[col] = pd.to_numeric(
-                    long[col].where(~long[col].isin(MISSING_VALUES), other=np.nan),
-                    errors='coerce',
-                )
+        # Step 7 — coerce value columns to numeric; Census missing codes → NaN
+        for col in [c for c in long.columns if c in VARIABLE_TYPES.values()]:
+            long[col] = pd.to_numeric(
+                long[col].where(~long[col].isin(MISSING_VALUES), other=np.nan),
+                errors='coerce',
+            )
 
         return long
 
@@ -780,50 +670,47 @@ class CensusAPI:
         frictionless.Schema
         """
         import frictionless
-        from frictionless import errors
 
-        if not hasattr(self, 'LONG'):
+        if not hasattr(self, 'long'):
             raise RuntimeError(
-                "define_schema() requires LONG data. "
-                "Either call melt() first or construct with return_long=True."
+                "define_schema() requires long data. "
+                "Construct with return_long=True or call melt() first."
             )
 
-        self.logger.info(f"Defining schema for {self.GROUP} / {self.SURVEY} / {self.YEAR}.")
-
-        id_vars = ['GEO_ID', 'NAME'] if 'NAME' in self.DATA.columns else ['GEO_ID']
+        self.logger.info(
+            f"Defining schema for {self.endpoint.survey} / {self.endpoint.year}"
+            + (f" / {self.group.code}" if self.group is not None else '') + "."
+        )
 
         fixed_fields = [
-            {'name': 'GEO_ID', 'type': 'string', 'description': 'Census geography identifier'},
+            {'name': 'geoidfq',          'type': 'string',  'description': 'Census geography fully-qualified identifier'},
             {'name': 'reference_period', 'type': 'integer', 'description': 'Reference year'},
-            {'name': 'survey', 'type': 'string', 'description': 'Census survey endpoint'},
-            {'name': 'concept', 'type': 'string', 'description': 'Table concept description'},
-            {'name': 'universe', 'type': 'string', 'description': 'Universe for the table'},
-            {'name': 'variable_label', 'type': 'string', 'description': 'Human-readable variable label'},
-            {'name': 'variable', 'type': 'string', 'description': 'Base variable code'},
+            {'name': 'survey',           'type': 'string',  'description': 'Census survey endpoint'},
+            {'name': 'concept',          'type': 'string',  'description': 'Table concept description'},
+            {'name': 'universe',         'type': 'string',  'description': 'Universe for the table'},
+            {'name': 'variable_label',   'type': 'string',  'description': 'Human-readable variable label'},
+            {'name': 'variable',         'type': 'string',  'description': 'Base variable code'},
         ]
-        if 'NAME' in id_vars:
-            fixed_fields.insert(1, {'name': 'NAME', 'type': 'string', 'description': 'Geography name'})
+        if 'name' in self.long.columns:
+            fixed_fields.insert(1, {'name': 'name', 'type': 'string', 'description': 'Geography name'})
 
         fixed_names = {f['name'] for f in fixed_fields}
         value_fields = []
-        for col in self.LONG.columns:
+        for col in self.long.columns:
             if col in fixed_names:
                 continue
             if col not in _VALUE_FIELD_DEFS:
-                self.logger.error(f"Unexpected column '{col}' in LONG data.")
-                raise errors.SchemaError(note=f"Unknown column: {col}")
+                raise ValueError(f"Unexpected column {col!r} in long data.")
             value_fields.append(_VALUE_FIELD_DEFS[col])
 
         descriptor = {
             'fields': fixed_fields + value_fields,
             'missingValues': MISSING_VALUES,
-            'primaryKey': ['GEO_ID', 'reference_period', 'variable'],
+            'primaryKey': ['geoidfq', 'reference_period', 'variable'],
         }
-
         result = frictionless.Schema.validate_descriptor(descriptor)
         if not result.valid:
-            self.logger.error(f"Schema invalid: {result}")
-            raise errors.SchemaError(note=str(result))
+            raise ValueError(f"Schema descriptor invalid: {result}")
 
         return frictionless.Schema.from_descriptor(descriptor)
 
@@ -831,7 +718,7 @@ class CensusAPI:
         """Build a frictionless Resource for this dataset.
 
         Requires :meth:`save` to have been called first (or for
-        ``self.SCHEMA_FILENAME`` and ``self.FILENAME`` to be set).
+        ``self.schema_filename`` and ``self.filename`` to be set).
 
         Returns
         -------
@@ -839,28 +726,30 @@ class CensusAPI:
         """
         import frictionless
 
-        sumlevel_str = f'{self.SUMLEVEL}s in ' if self.SUMLEVEL else ''
-        title = f"{self.YEAR} {self.CONCEPT} for {sumlevel_str}{self.SCOPE}"
-        description = (
-            f"Census API data for {self.GROUP}: {self.CONCEPT} "
-            f"from {self.SURVEY} in {self.YEAR} for {sumlevel_str}{self.SCOPE}."
-        )
+        year, survey, scope = self.endpoint.year, self.endpoint.survey, self.scope.name
+        sumlevel_prefix = f'{self.sumlevel.plural} in ' if self.sumlevel is not None else ''
 
-        descriptor = {
-            'name': self.NAME,
+        if self.group is not None:
+            subject = f"{self.group.code}: {self.group.description}"
+            title = f"{year} {self.group.description} for {sumlevel_prefix}{scope}"
+        else:
+            vars_summary = ', '.join(self.variables[:3])
+            if len(self.variables) > 3:
+                vars_summary += f', ... ({len(self.variables)} total)'
+            subject = vars_summary
+            title = f"{year} selected variables for {sumlevel_prefix}{scope}"
+
+        return frictionless.Resource.from_descriptor({
+            'name': self.name,
             'title': title,
-            'description': description,
-            'path': self.FILENAME,
-            'schema': self.SCHEMA_FILENAME,
-            'sources': [
-                {
-                    'title': 'US Census Bureau API',
-                    'path': self.REQUEST['url'],
-                    '_params': self.REQUEST['params'],
-                }
-            ],
-        }
-        return frictionless.Resource.from_descriptor(descriptor)
+            'description': (
+                f"Census API data for {subject} from {survey} {year} "
+                f"for {sumlevel_prefix}{scope}."
+            ),
+            'path': self.filename,
+            'schema': self.schema_filename,
+            'sources': [{'title': 'US Census Bureau API', 'path': self.request['url'], '_params': self.request['params']}],
+        })
 
     def save(self, output_path):
         """Write data, schema, and resource files to *output_path*.
@@ -874,42 +763,36 @@ class CensusAPI:
         ----------
         output_path : str or path-like
         """
+        import contextlib
         import frictionless
 
-        if not hasattr(self, 'LONG'):
+        if not hasattr(self, 'long'):
             raise RuntimeError(
-                "save() requires LONG data. "
+                "save() requires long data. "
                 "Construct with return_long=True or call melt() first."
             )
 
         output = Path(output_path)
         output.mkdir(parents=True, exist_ok=True)
 
-        self.DATAPATH = output
-        self.FILENAME = f"{self.NAME}.long.csv"
-        self.SCHEMA_FILENAME = f"{self.NAME}.schema.yaml"
+        self.datapath        = output
+        self.filename        = f"{self.name}.long.csv"
+        self.schema_filename = f"{self.name}.schema.yaml"
+        resource_filename    = f"{self.name}.resource.yaml"
 
-        # Data
-        self.logger.info(f"Writing data to {output / self.FILENAME}.")
-        self.LONG.to_csv(output / self.FILENAME, index=False)
+        self.logger.info(f"Writing data to {output / self.filename}.")
+        self.long.to_csv(output / self.filename, index=False)
 
-        # Schema
-        self.logger.info(f"Writing schema to {output / self.SCHEMA_FILENAME}.")
-        self.SCHEMA = self.define_schema()
-        self.SCHEMA.to_yaml(str(output / self.SCHEMA_FILENAME))
+        self.logger.info(f"Writing schema to {output / self.schema_filename}.")
+        self.schema = self.define_schema()
+        self.schema.to_yaml(str(output / self.schema_filename))
 
-        # Resource — frictionless resolves relative paths from CWD
-        resource = self.create_resource()
-        resource_filename = f"{self.NAME}.resource.yaml"
+        # frictionless resolves resource paths relative to CWD
         self.logger.info(f"Writing resource to {output / resource_filename}.")
-
-        cwd = os.getcwd()
-        try:
-            os.chdir(output)
+        resource = self.create_resource()
+        with contextlib.chdir(output):
             resource.to_yaml(resource_filename)
             result = frictionless.Resource(resource_filename).validate()
-        finally:
-            os.chdir(cwd)
 
         if not result.valid:
             self.logger.error(f"Resource validation failed: {result.stats}")
@@ -928,191 +811,303 @@ class DimensionTable:
     Parameters
     ----------
     long_data : pandas.DataFrame
-        The ``LONG`` DataFrame produced by :class:`CensusAPI`.
-    variable_map : dict, optional
-        Mapping of existing variable labels to new collapsed labels.
-        Must be accompanied by *variable_order*.
-    variable_order : dict, optional
-        Sort-order mapping for the collapsed labels.
+        The ``long`` DataFrame produced by :class:`CensusAPI`.
+    dim_names : list of str, optional
+        Names for the dimension columns parsed from ``variable_label``.
+        Auto-named ``dim_0``, ``dim_1``, … when omitted.
     """
 
-    def __init__(self, long_data, variable_map=None, variable_order=None):
+    def __init__(self, long_data, dim_names=None):
         self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
-        self.LONG = long_data.copy()
+        self.long = long_data.copy()
 
         self.variable_type = [
-            c for c in self.LONG.columns
+            c for c in self.long.columns
             if c not in (
-                'concept', 'universe', 'survey', 'GEO_ID', 'NAME',
+                'concept', 'universe', 'survey', 'geoidfq', 'name',
                 'reference_period', 'variable_label', 'variable',
             )
         ]
 
-        if variable_map is not None:
-            if variable_order is None:
-                raise ValueError("variable_order is required when variable_map is provided.")
-            self.logger.info(
-                f"Applying variable map: {list(variable_map)} → {list(variable_order)}."
-            )
-            self.LONG['variable_label'], self.LONG['variable'] = find_replace_variable_map(
-                self.LONG['variable_label'], self.LONG['variable'], map=variable_map
-            )
-            # TODO: propagate MOE correctly through aggregation
-            # https://github.com/morpc/morpc-py/issues/113
-            self.LONG = (
-                self.LONG
-                .groupby([
-                    'concept', 'universe', 'GEO_ID', 'NAME',
-                    'reference_period', 'variable_label', 'variable',
-                ])
-                .sum()
-                .reset_index()
+        self.dims = self._parse_dims(dim_names)
+
+    def _parse_dims(self, dim_names=None):
+        """Parse ``variable_label`` into a structured dimension DataFrame.
+
+        Each ``!!``-delimited label is split into subtotal segments (ending
+        with ``:``) and leaf segments (no trailing ``:``).  Subtotals are
+        left-aligned into the first *S* columns; leaves are left-aligned into
+        the next *L* columns, where *S* and *L* are the maximum depths across
+        all variables.  This keeps the same concept in the same column even
+        when paths have different depths (e.g. B05004 Sex by Nativity).
+
+        The ``':'`` suffix is preserved in the stored values so ``drop()`` can
+        distinguish aggregate rows from leaf rows.  It is stripped for display
+        in ``wide()``.
+
+        Returns
+        -------
+        pandas.DataFrame
+            Index = ``variable``, columns = dimension names.
+        """
+        # One label per variable code — different vintages may use the same code
+        # with slightly different label text (e.g. trailing ':' present or absent).
+        unique = (self.long[['variable', 'variable_label']]
+                  .drop_duplicates(subset='variable')
+                  .set_index('variable')
+                  .copy())
+
+        # Normalize: older Census vintages omit the trailing ':' from subtotal
+        # segments.  Rebuild each label so that any segment which is a strict
+        # prefix of another label (i.e. has children in the label tree) gets a
+        # ':' suffix.  Existing ':' suffixes are also preserved, so labels that
+        # are already in the standard convention pass through unchanged.
+        clean_labels = set(
+            '!!'.join(p.rstrip(':') for p in lbl.split('!!'))
+            for lbl in unique['variable_label']
+        )
+
+        def normalize_label(label):
+            parts = label.split('!!')
+            stripped = [p.rstrip(':') for p in parts]
+            result = []
+            for i, (orig, part) in enumerate(zip(parts, stripped)):
+                prefix = '!!'.join(stripped[:i + 1])
+                has_children = any(
+                    other.startswith(prefix + '!!') for other in clean_labels
+                )
+                result.append(part + ':' if (orig.endswith(':') or has_children) else part)
+            return '!!'.join(result)
+
+        unique['variable_label'] = unique['variable_label'].map(normalize_label)
+
+        def split_path(label):
+            parts = label.split('!!')
+            return (
+                [p for p in parts if p.endswith(':')],
+                [p for p in parts if not p.endswith(':')],
             )
 
-    def wide(self, droplevels=None):
-        """Pivot LONG data to wide format.
+        paths = unique['variable_label'].map(split_path)
+        S = paths.map(lambda x: len(x[0])).max()
+        L = paths.map(lambda x: len(x[1])).max()
+
+        def align(subtotals, leaves):
+            return (subtotals + [''] * (S - len(subtotals)) +
+                    leaves    + [''] * (L - len(leaves)))
+
+        rows = paths.map(lambda x: align(*x))
+        n = S + L
+        dims = pd.DataFrame(rows.tolist(), index=unique.index)
+        named = list(dim_names or [])
+        dims.columns = named[:n] + [f'dim_{i}' for i in range(len(named), n)]
+        return dims
+
+    def remap(self, variable_map):
+        """Apply variable label substitutions and aggregate collapsed rows.
 
         Parameters
         ----------
-        droplevels : int or list of int, optional
-            Index levels to collapse (see below).
+        variable_map : dict
+            Label substrings to replace; see :func:`find_replace_variable_map`.
+
+        Returns
+        -------
+        self
+        """
+        self.logger.info(f"Remapping variables: {list(variable_map)}.")
+        self.long['variable_label'], self.long['variable'] = find_replace_variable_map(
+            self.long['variable_label'], self.long['variable'], map=variable_map
+        )
+
+        group_cols = [c for c in self.long.columns if c not in self.variable_type]
+        long_work = self.long.copy()
+        agg_dict = {}
+
+        if 'moe' in self.variable_type:
+            long_work['_moe_sq'] = pd.to_numeric(long_work['moe'], errors='coerce') ** 2
+            agg_dict['_moe_sq'] = 'sum'
+
+        for col in self.variable_type:
+            if col != 'moe':
+                long_work[col] = pd.to_numeric(long_work[col], errors='coerce')
+                agg_dict[col] = 'sum'
+
+        self.long = long_work.groupby(group_cols).agg(agg_dict).reset_index()
+
+        if 'moe' in self.variable_type:
+            self.long['moe'] = np.sqrt(self.long['_moe_sq'])
+            self.long = self.long.drop(columns=['_moe_sq'])
+
+        self.dims = self._parse_dims(dim_names=list(self.dims.columns))
+        return self
+
+    def drop(self, dim, method='summarize'):
+        """Drop a dimension level, returning a new DimensionTable.
+
+        Parameters
+        ----------
+        dim : str
+            Name of the dimension column (from ``self.dims``) to drop.
+        method : {'summarize', 'aggregate'}
+            ``'summarize'``: keep only rows where *dim* is absent (``''``),
+            i.e. rows that are already aggregated across this dimension.
+            Rows that carry a specific value for *dim* are discarded.
+
+            ``'aggregate'``: group all remaining rows by the other dimensions
+            and geography, sum estimates, and propagate MOE via
+            ``sqrt(sum(moe_i²))``.
+
+        Returns
+        -------
+        DimensionTable
+        """
+        if dim not in self.dims.columns:
+            raise ValueError(f"Dimension '{dim}' not in {list(self.dims.columns)}.")
+
+        other_dims = [d for d in self.dims.columns if d != dim]
+
+        if method == 'summarize':
+            # Keep only rows where this dimension is absent — i.e. already aggregated
+            # across it.  Rows where dim is 'Male:', 'Spanish:', etc. represent a
+            # specific value of that dimension and are discarded.
+            mask = self.dims[dim] == ''
+            keep_vars = set(self.dims.index[mask])
+            new_long = self.long.loc[self.long['variable'].isin(keep_vars)].copy()
+            new_dims = (self.dims.loc[self.dims.index.isin(keep_vars)]
+                        .drop(columns=[dim]))
+
+        elif method == 'aggregate':
+            new_long, new_dims = self._aggregate_dim(dim, other_dims)
+
+        else:
+            raise ValueError(f"method must be 'summarize' or 'aggregate', got '{method}'.")
+
+        result = DimensionTable.__new__(DimensionTable)
+        result.logger = self.logger
+        result.long = new_long.reset_index(drop=True)
+        result.dims = new_dims
+        result.variable_type = self.variable_type
+        return result
+
+    def _aggregate_dim(self, drop_dim, other_dims):
+        """Sum over drop_dim; propagate MOE as sqrt(sum(moe_i²)).
+
+        Only leaf rows (where drop_dim is non-empty) are summed.  Subtotal
+        rows (drop_dim == '') are pre-computed totals and would double-count
+        if included in the aggregation.
+        """
+        geo_meta = [c for c in self.long.columns
+                    if c not in ('variable', 'variable_label') + tuple(self.variable_type)]
+
+        long_d = self.long.copy()
+        for d in self.dims.columns:
+            long_d[d] = long_d['variable'].map(self.dims[d])
+
+        # Exclude subtotal rows for this dimension — they are pre-computed totals
+        long_d = long_d.loc[long_d[drop_dim] != ''].copy()
+
+        for col in self.variable_type:
+            long_d[col] = pd.to_numeric(long_d[col], errors='coerce')
+
+        agg_dict = {col: 'sum' for col in self.variable_type if col != 'moe'}
+        if 'moe' in self.variable_type:
+            long_d['_moe_sq'] = long_d['moe'] ** 2
+            agg_dict['_moe_sq'] = 'sum'
+
+        group_cols = geo_meta + other_dims
+        grouped = long_d.groupby(group_cols).agg(agg_dict).reset_index()
+
+        if 'moe' in self.variable_type:
+            grouped['moe'] = np.sqrt(grouped['_moe_sq'])
+            grouped = grouped.drop(columns=['_moe_sq'])
+
+        prefix = self.long['variable'].iloc[0].split('_')[0]
+        unique_dim_combos = (grouped[other_dims].drop_duplicates()
+                             .reset_index(drop=True))
+        unique_dim_combos['variable'] = [
+            f"{prefix}_A{i:03d}" for i in range(len(unique_dim_combos))
+        ]
+        unique_dim_combos['variable_label'] = unique_dim_combos[other_dims].apply(
+            lambda row: '!!'.join(v for v in row if v), axis=1
+        )
+
+        grouped = grouped.merge(
+            unique_dim_combos[['variable', 'variable_label'] + other_dims],
+            on=other_dims,
+        ).drop(columns=other_dims)
+
+        new_long = grouped[list(self.long.columns)]
+        new_dims = unique_dim_combos.set_index('variable')[other_dims]
+        return new_long, new_dims
+
+    def wide(self):
+        """Pivot long data to wide format.
 
         Returns
         -------
         pandas.DataFrame
-            Wide-format DataFrame with a MultiIndex on columns (GEO_ID × value type).
+            Rows indexed by dimension labels; columns are a MultiIndex of
+            ``(value_type, geoidfq, …)``.
         """
-        self.DESC_TABLE = self.create_description_table()
+        long = self.long.replace(dict.fromkeys(MISSING_VALUES, np.nan))
 
-        long = self.LONG.copy()
-        for col in long.columns:
-            long[col] = [np.nan if v in MISSING_VALUES else v for v in long[col]]
+        col_dims = [c for c in long.columns
+                    if c not in ('variable', 'variable_label') + tuple(self.variable_type)]
 
-        non_value_cols = [
-            c for c in long.columns
-            if c not in ('variable', 'estimate', 'total', 'variable_label', 'moe')
-        ]
         wide = long.pivot(
             index='variable',
-            columns=non_value_cols,
+            columns=col_dims,
             values=self.variable_type,
         )
 
+        # Strip ':' from dim values for display
+        display_dims = self.dims.apply(lambda col: col.str.rstrip(':').str.strip())
+
         col_level_names = wide.columns.names
         wide.columns = wide.columns.to_list()
-        wide = wide.join(self.DESC_TABLE)
-        wide = wide.set_index(list(self.DESC_TABLE.columns))
+        wide = wide.join(display_dims)
+        wide = wide.set_index(list(display_dims.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
-        wide = wide.sort_index(level='GEO_ID', axis=1).drop_duplicates()
 
-        if droplevels is None:
-            return wide
+        return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
-        index_names = list(wide.index.names)
-        wide = wide.reset_index()
+    def percent(self, decimals=2):
+        """Compute column percentages relative to the grand total row.
 
-        if len(index_names) == 1:
-            self.logger.error("Cannot drop the only remaining index level.")
-            raise RuntimeError("Cannot drop the only remaining index level.")
+        The grand total is the row where all dimension columns after the first
+        are ``''`` (empty).  Returns the same structure as :meth:`wide` with
+        the total row removed and values expressed as percentages.
 
-        if not isinstance(droplevels, list):
-            droplevels = [droplevels]
+        Returns
+        -------
+        pandas.DataFrame
+        """
+        wide = self.wide()
 
-        for level in droplevels:
-            if level not in index_names:
-                raise ValueError(f"Level {level} not in index {index_names}.")
+        idx = wide.index
+        if isinstance(idx, pd.MultiIndex):
+            total_mask = [all(v == '' for v in vals[1:]) for vals in idx]
+        else:
+            total_mask = [v == '' for v in idx]
 
-            if level == index_names[-1]:
-                wide = wide.loc[wide[level] == ''].drop(columns=[level])
+        if not any(total_mask):
+            raise ValueError(
+                "No grand total row found. Expected a row where all "
+                "dimension columns after the first are ''."
+            )
 
-            elif level == 0:
-                self.logger.warning(
-                    "Dropping the Total level may cause issues with percentage calculations."
-                )
-                wide = wide.loc[wide[index_names[1]] != ''].drop(columns=[level])
+        total_pos = total_mask.index(True)
+        total_row = wide.iloc[[total_pos]]
+        non_total = wide.drop(wide.index[total_pos])
 
+        pct = non_total.astype(float)
+        for col in pct.columns:
+            total_val = float(total_row[col].iloc[0])
+            if pd.notna(total_val) and total_val != 0:
+                pct[col] = (pct[col] / total_val * 100).round(decimals)
             else:
-                wide = pd.concat([
-                    wide.loc[wide[level] == ''],
-                    wide.loc[wide[index_names[index_names.index(level) + 1]] != ''],
-                ])
-                wide = (
-                    wide.groupby([c for c in index_names if c != level])
-                    .sum()
-                    .reset_index()
-                    .drop(columns=[level])
-                )
+                pct[col] = pd.NA
 
-            index_names.remove(level)
-
-        return wide.set_index([c for c in index_names if c not in droplevels])
-
-    def percent(self, droplevels=None, decimals=2):
-        """Compute column percentages relative to the Total row.
-
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        self.WIDE = self.wide(droplevels=droplevels)
-
-        total = self.WIDE.T.iloc[:, 0].copy()
-        pct = self.WIDE.T.iloc[:, 1:].copy()
-        for col in pct:
-            pct[col] = (pct[col].astype(float) / total.astype(float) * 100).round(decimals)
-
-        pct.columns = pct.columns.droplevel(0)
-        pct = pct.reset_index()
-        pct['universe'] = [f'% of {u.lower()}' for u in pct['universe']]
-
-        non_value_cols = [
-            c for c in self.WIDE.T.reset_index().columns
-            if c not in self.variable_type
-        ]
-        return pct.set_index(non_value_cols).T
-
-    def create_description_table(self):
-        """Build a structured label table from variable_label strings.
-
-        Splits ``!!``-delimited labels into columns and assigns each
-        label fragment to the column where it appears most frequently,
-        producing a tidy dimension table for use as a wide-format index.
-
-        Returns
-        -------
-        pandas.DataFrame
-        """
-        var_df = (
-            self.LONG[['variable', 'variable_label']]
-            .drop_duplicates()
-            .set_index('variable')
-        )
-        var_df = var_df.join(
-            var_df['variable_label'].str.split('!!', expand=True)
-        ).drop(columns='variable_label')
-
-        # Collect every unique fragment and the columns it appears in
-        all_values = [
-            v for col in var_df.columns
-            for v in var_df[col].dropna().unique()
-        ]
-
-        col_freq = {}
-        for val in set(all_values):
-            col_freq[val] = {
-                col: var_df[col].value_counts().get(val, 0)
-                for col in var_df.columns
-            }
-
-        # Map each fragment to the column where it appears most often
-        dominant_col = {val: max(freq, key=freq.get) for val, freq in col_freq.items()}
-
-        # Rebuild var_df placing each fragment in its dominant column
-        var_df_out = pd.DataFrame('', index=var_df.index, columns=var_df.columns)
-        for idx, row in var_df.iterrows():
-            for fragment in row.dropna():
-                if fragment in dominant_col:
-                    var_df_out.loc[idx, dominant_col[fragment]] = fragment
-
-        return var_df_out
+        return pct
