@@ -494,12 +494,12 @@ class TestEndpoint:
 
     # Network
     def test_groups_fetches_from_api(self):
-        raw = {'groups': [{'name': 'B01001', 'description': 'Sex by Age', 'variables': ''}]}
+        raw = {'groups': [{'name': 'B01001', 'description': 'Sex by Age', 'variables': '', 'universe ': 'All people'}]}
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
              patch('morpc.req.get_json_safely', return_value=raw):
             ep = Endpoint('acs/acs5', 2023)
             groups = ep.groups
-        assert groups == {'B01001': {'description': 'Sex by Age', 'variables': ''}}
+        assert groups == {'B01001': {'description': 'Sex by Age', 'variables': '', 'universe': 'All people'}}
 
 
 # ---------------------------------------------------------------------------
@@ -560,9 +560,9 @@ class TestGroup:
         assert 'GEO_ID' not in variables
         assert 'NAME' not in variables
 
-    def test_universe_fetches_from_api(self):
+    def test_universe_from_groups_cache(self):
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
-             patch('morpc.req.get_json_safely', side_effect=[self._groups_json, self._groups_json]):
+             patch('morpc.req.get_json_safely', return_value=self._groups_json):
             ep = Endpoint('acs/acs5', 2023)
             g = Group(ep, 'B01001')
             universe = g.universe

@@ -202,7 +202,11 @@ class Endpoint:
             f"{CENSUS_DATA_BASE_URL}/{self.year}/{self.survey}/groups.json", **kw
         )
         return dict(sorted({
-            g['name']: {'description': g['description'], 'variables': g['variables']}
+            g['name']: {
+                'description': g['description'],
+                'variables': g['variables'],
+                'universe': g.get('universe ', '').strip(),  # trailing space in Census API response
+            }
             for g in data['groups']
         }.items()))
 
@@ -251,22 +255,10 @@ class Group:
         """Group description (read from :attr:`Endpoint.groups` — no extra network call)."""
         return self.endpoint.groups[self.code]['description']
 
-    @cached_property
+    @property
     def universe(self) -> str:
-        """Universe description string."""
-        from morpc.req import get_json_safely
-        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
-        data = get_json_safely(
-            f"{CENSUS_DATA_BASE_URL}/{self.endpoint.year}/{self.endpoint.survey}/groups",
-            **kw,
-        )
-        match = [x for x in data['groups'] if x['name'] == self.code]
-        if not match:
-            raise ValueError(
-                f"Group {self.code!r} not found in "
-                f"{self.endpoint.year} {self.endpoint.survey}."
-            )
-        return match[0]['universe ']  # trailing space is present in the Census API response
+        """Universe description string (read from :attr:`Endpoint.groups` — no extra network call)."""
+        return self.endpoint.groups[self.code].get('universe', '')
 
     @cached_property
     def variables(self) -> dict:

@@ -463,13 +463,17 @@ def get_query_req(sumlevel: str, year: str = '2023') -> dict:
     return SumLevel(sumlevel).get_query_req(year)
 
 
-def pseudos_from_scope_sumlevel(sumlevel: str | SumLevel, scope: str | Scope) -> list[str]:
+def pseudos_from_scope_sumlevel(
+    sumlevel: str | SumLevel,
+    scope: str | Scope,
+    scope_geoids: "list[GeoIDFQ] | None" = None,
+) -> list[str]:
     """Build ucgid pseudo predicates for each parent GEOID in scope at the given child sumlevel."""
     sl = sumlevel if isinstance(sumlevel, SumLevel) else SumLevel(sumlevel)
     sc = scope if isinstance(scope, Scope) else SCOPES[scope]
 
     logger.debug(f"Getting pseudo combinations for parents in {sc.name!r} at sumlevel {sl.name!r}")
-    parents = geoids_from_scope(sc)  # list[GeoIDFQ]
+    parents = scope_geoids if scope_geoids is not None else geoids_from_scope(sc)
 
     parent_sumlevel = parents[0].sumlevel.sumlevel
     child = f"{sl.sumlevel}0000"
@@ -576,7 +580,7 @@ def geoinfo_from_scope_sumlevel(
 
         else:
             try:
-                pseudos = pseudos_from_scope_sumlevel(sl, sc)
+                pseudos = pseudos_from_scope_sumlevel(sl, sc, scope_geoids=scope_geoids)
                 params['ucgid'] = f"pseudo({','.join(pseudos)})"
                 if output == 'params':
                     return params

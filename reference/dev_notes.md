@@ -516,6 +516,21 @@ Rewrote `morpc_census/api.py` to fix correctness issues and clean up structure.
   wrapping belongs in a presentation layer, not a data class);
   `create_description_table()` rewritten to avoid integer-index fragility.
 
+## 2026-05-12 — Reduce Census API requests from 4 to 2 per CensusAPI call (branch refactor/api-class-integration)
+
+`CensusAPI(ep, scope, group=group, sumlevel='tract')` was making 4 network calls:
+1. `geoinfo_from_scope_sumlevel` → `geoids_from_scope` (geoinfo API)
+2. `pseudos_from_scope_sumlevel` → `geoids_from_scope` again (duplicate)
+3. `_fetch_group` (Census data API)
+4. `melt` → `Group.universe` → separate `/groups` API call
+
+Two fixes, reducing to 2 calls (1 geoinfo + 1 data):
+
+- `pseudos_from_scope_sumlevel` now accepts an optional `scope_geoids` parameter; `geoinfo_from_scope_sumlevel` passes its already-fetched list instead of re-fetching
+- `Endpoint.groups` now stores the `universe` field (stripping the trailing space present in the Census API response); `Group.universe` is demoted from `@cached_property` to `@property` and reads from the cached `endpoint.groups` dict — no separate API call needed
+
+Test updates: `test_universe_fetches_from_api` → `test_universe_from_groups_cache` (one `get_json_safely` call instead of two); `test_groups_fetches_from_api` fixture and assertion updated to include `universe`.
+
 ## 2026-05-12 — Lowercase column names in long output; cached Group.universe (branch refactor/api-class-integration)
 
 User changes to `api.py`:
