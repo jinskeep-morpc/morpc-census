@@ -1146,6 +1146,16 @@ class DimensionTable:
         are ``''`` (empty).  Returns the same structure as :meth:`wide` with
         the total row removed and values expressed as percentages.
 
+        Estimate columns use simple proportion (``x / T * 100``).  MOE columns
+        use the Census Bureau derived proportion formula::
+
+            MOE(p) = (1/T) * sqrt(MOE_x² − p² * MOE_T²)
+
+        where ``p = x/T``.  When the radicand is negative (possible due to
+        sampling variability), the alternative addition form is used instead::
+
+            MOE(p) = (1/T) * sqrt(MOE_x² + p² * MOE_T²)
+
         Returns
         -------
         pandas.DataFrame
@@ -1165,16 +1175,49 @@ class DimensionTable:
             )
 
         total_pos = total_mask.index(True)
-        total_row = wide.iloc[[total_pos]]
-        non_total = wide.drop(wide.index[total_pos])
+        total_row = wide.iloc[[total_pos]].astype(float)
+        non_total = wide.drop(wide.index[total_pos]).astype(float)
 
-        pct = non_total.astype(float)
-        for col in pct.columns:
-            total_val = float(total_row[col].iloc[0])
-            if pd.notna(total_val) and total_val != 0:
-                pct[col] = (pct[col] / total_val * 100).round(decimals)
-            else:
+        # The variable_type level is the last level (name=None) after wide()'s reorder_levels
+        val_type_level = wide.columns.names.index(None)
+        cols = wide.columns.tolist()
+        moe_cols = {c for c in cols if c[val_type_level] == 'moe'}
+
+        pct = non_total.copy()
+        for col in cols:
+            val_type = col[val_type_level]
+            T_est_col = tuple(
+                'estimate' if i == val_type_level else v
+                for i, v in enumerate(col)
+            )
+            T = float(total_row[T_est_col].iloc[0])
+
+            if pd.isna(T) or T == 0:
                 pct[col] = pd.NA
+                continue
+
+            if val_type == 'estimate':
+                pct[col] = (non_total[col] / T * 100).round(decimals)
+
+            elif val_type == 'moe':
+                # Census Bureau derived proportion formula:
+                # MOE(p) = (1/T) * sqrt(MOE_x² ± p² * MOE_T²), * 100
+                moe_T = float(total_row[col].iloc[0]) if not pd.isna(float(total_row[col].iloc[0])) else 0.0
+                p = non_total[T_est_col] / T
+                m_x = non_total[col]
+                radicand = m_x**2 - p**2 * moe_T**2
+                pos_root = np.sqrt(radicand.clip(lower=0))
+                neg_root = np.sqrt(m_x**2 + p**2 * moe_T**2)
+                moe_pct = pd.Series(
+                    np.where(radicand >= 0, pos_root, neg_root),
+                    index=non_total.index,
+                ) / T * 100
+                moe_pct[m_x.isna() | p.isna()] = np.nan
+                pct[col] = moe_pct.round(decimals)
+
+            else:
+                # percent_estimate, percent_moe, total, etc.: simple division
+                pct[col] = (non_total[col] / T * 100).round(decimals)
 
         return pct
 

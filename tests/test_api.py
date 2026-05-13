@@ -587,11 +587,61 @@ class TestRaceDimensionTable:
 
     def test_percent_within_each_race(self):
         pct = RaceDimensionTable(_make_long_racial()).percent()
-        # Fixture: below-poverty (50) / total (200) = 25% for each race
-        est_cols = [c for c in pct.columns if c[0] == 'estimate']
+        # Fixture: below-poverty (50) / total (200) = 25% for each race.
+        # variable_type is the last level of the column MultiIndex.
+        est_cols = [c for c in pct.columns if c[-1] == 'estimate']
+        assert len(est_cols) > 0, "No estimate columns found — check column MultiIndex structure"
         for col in est_cols:
             below_row = pct[col][pct[col].notna()].iloc[0]
             assert below_row == 25.0
+
+    def test_percent_moe_uses_derived_proportion_formula(self):
+        import numpy as np
+        # Simple 3-row table: total (est=100, moe=5), subgroup (est=60, moe=4)
+        long = pd.DataFrame({
+            'variable':        ['B01_001', 'B01_002'],
+            'variable_label':  ['Total:', 'Total:!!Male:'],
+            'geoidfq':         ['0500000US39049'] * 2,
+            'name':            ['Franklin County'] * 2,
+            'concept':         ['Test'] * 2,
+            'universe':        ['Pop'] * 2,
+            'survey':          ['acs/acs5'] * 2,
+            'reference_period': [2023] * 2,
+            'estimate':        [100, 60],
+            'moe':             [5, 4],
+        })
+        dt = DimensionTable(long)
+        pct = dt.percent()
+        moe_cols = [c for c in pct.columns if c[-1] == 'moe']
+        assert len(moe_cols) > 0
+        male_moe_pct = float(pct[moe_cols[0]].iloc[0])
+        # p = 60/100 = 0.6; radicand = 4²  − 0.6² * 5² = 16 − 9 = 7
+        expected = round(np.sqrt(7) / 100 * 100, 2)  # = sqrt(7) ≈ 2.65
+        assert abs(male_moe_pct - expected) < 0.01
+
+    def test_percent_moe_uses_addition_form_when_radicand_negative(self):
+        import numpy as np
+        # Choose values where MOE_x² < p² * MOE_T²:
+        # est=10, moe_x=1, total_est=100, moe_T=20 → radicand = 1 − (0.1)²*400 = 1−4 = −3
+        long = pd.DataFrame({
+            'variable':        ['B01_001', 'B01_002'],
+            'variable_label':  ['Total:', 'Total:!!Sub:'],
+            'geoidfq':         ['0500000US39049'] * 2,
+            'name':            ['Franklin County'] * 2,
+            'concept':         ['Test'] * 2,
+            'universe':        ['Pop'] * 2,
+            'survey':          ['acs/acs5'] * 2,
+            'reference_period': [2023] * 2,
+            'estimate':        [100, 10],
+            'moe':             [20, 1],
+        })
+        dt = DimensionTable(long)
+        pct = dt.percent()
+        moe_cols = [c for c in pct.columns if c[-1] == 'moe']
+        sub_moe_pct = float(pct[moe_cols[0]].iloc[0])
+        # p = 0.1; radicand = 1 − 0.01*400 = −3 → use addition form
+        expected = round(np.sqrt(1 + 0.01 * 400) / 100 * 100, 2)  # sqrt(5)/100*100
+        assert abs(sub_moe_pct - expected) < 0.01
 
     def test_unknown_race_code_dropped(self):
         long = _make_long_racial()

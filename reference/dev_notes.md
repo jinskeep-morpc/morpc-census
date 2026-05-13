@@ -1,5 +1,20 @@
 # morpc-census dev notes
 
+## 2026-05-13 — Fix DimensionTable.percent() MOE calculation (branch fix/highlevel-rename-fetch-name)
+
+`percent()` was dividing MOE by the total MOE, which is wrong. MOEs for proportions must use the Census Bureau derived proportion formula:
+
+- `MOE(p) = (1/T) * sqrt(MOE_x² − p² * MOE_T²) * 100` when radicand ≥ 0
+- `MOE(p) = (1/T) * sqrt(MOE_x² + p² * MOE_T²) * 100` when radicand < 0 (sampling variability)
+
+Where `p = x/T` (the estimated proportion), `T` = total estimate, `MOE_x` = subgroup MOE, `MOE_T` = total MOE.
+
+Implementation: identify estimate vs MOE columns by the last level of the column MultiIndex (name `None`, set by `wide()`'s `reorder_levels`). For each MOE column, find the corresponding estimate column by swapping the last level to `'estimate'`, then apply the vectorized formula using `clip(lower=0)` / `np.where`.
+
+Also fixed an existing vacuous test `test_percent_within_each_race` that used `c[0] == 'estimate'` to select columns — the first level is race, not value type; fixed to `c[-1] == 'estimate'`. Added two new tests: one checking the standard formula against a hand-computed expected value (`sqrt(7)/100 * 100 ≈ 2.65%`), and one checking the addition fallback form when the radicand is negative.
+
+119 tests passing.
+
 ## 2026-05-13 — DimensionTable.drop(): accept int index and list of str/int (branch fix/highlevel-rename-fetch-name)
 
 `drop(dim)` now resolves integers as 0-based (or negative) column positions in `self.dims.columns`, and accepts a list of strings/integers to drop multiple dimensions in one call. When a list is passed, all items are resolved to column names relative to `self` upfront so that integer indices always refer to original positions rather than the shrinking set after each prior drop.
