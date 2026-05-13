@@ -1,5 +1,21 @@
 # morpc-census dev notes
 
+## 2026-05-13 — RaceDimensionTable race column level is ordered categorical in race_map order (branch fix/highlevel-rename-fetch-name)
+
+`RaceDimensionTable.__init__` now converts `self.long['race']` to `pd.Categorical` with the values of `effective_map` (insertion order) as the ordered categories. `DimensionTable.wide()` re-applies this categorical metadata to the column MultiIndex after `from_tuples()` strips it, using `set_levels` with the **current** level values (preserving code→label mapping) and the desired order only in the `categories=` argument.
+
+A data-integrity bug was introduced and fixed in the same session: the first `set_levels` attempt passed the desired-order list as both VALUES and categories. `set_levels` changes level values without touching integer codes, so swapping the value order caused codes to point to the wrong labels (White Alone column held Black data). Fixed by passing `current_vals` (existing order) as values and `present_cats` (desired order) only as `categories`.
+
+4 new tests: ordered dtype, column order matches `RACE_TABLE_MAP`, custom map order respected, and a regression guard that verifies data values match their column labels with distinct estimates per race. 123 tests passing.
+
+## 2026-05-13 — DimensionTable.wide() column MultiIndex: canonical level order and 'value_type' level name (branch fix/highlevel-rename-fetch-name)
+
+Two related changes to the `wide()` output column MultiIndex:
+
+**Canonical level order** — Previously `wide()` reversed all levels (`reorder_levels(names[::-1])`), producing an arbitrary order that varied with the `col_dims` list. Now applies `_WIDE_COL_LEVEL_ORDER = ['concept', 'universe', 'survey', 'geoidfq', 'name', 'race', 'reference_period']` as a canonical ordering, with the value-type level always last. For `RaceDimensionTable`, `race` is inserted between `name` and `reference_period`. Unrecognized levels fall after `reference_period` and before `value_type`.
+
+**`value_type` level name** — The pivot `values=list` call left the estimate/moe level unnamed (`None`). Renamed to `'value_type'` in `col_level_names` and updated `percent()`'s level lookup accordingly. Also reverted an unintended linter change (`values='type'` → `values='value'`) in `melt()`'s pivot that broke four tests.
+
 ## 2026-05-13 — Fix DimensionTable.percent() MOE calculation (branch fix/highlevel-rename-fetch-name)
 
 `percent()` was dividing MOE by the total MOE, which is wrong. MOEs for proportions must use the Census Bureau derived proportion formula:
