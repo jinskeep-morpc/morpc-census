@@ -975,12 +975,15 @@ class DimensionTable:
         return self
 
     def drop(self, dim, method='summarize'):
-        """Drop a dimension level, returning a new DimensionTable.
+        """Drop one or more dimension levels, returning a new DimensionTable.
 
         Parameters
         ----------
-        dim : str
-            Name of the dimension column (from ``self.dims``) to drop.
+        dim : str, int, or list of str/int
+            Dimension(s) to drop. A string names a dimension column from
+            ``self.dims``; an integer selects by 0-based position. A list
+            drops each element in order, with each drop applied to the result
+            of the previous one.
         method : {'summarize', 'aggregate'}
             ``'summarize'``: keep only rows where *dim* is absent (``''``),
             i.e. rows that are already aggregated across this dimension.
@@ -994,6 +997,36 @@ class DimensionTable:
         -------
         DimensionTable
         """
+        if isinstance(dim, list):
+            # Resolve all items to column names relative to self before dropping so
+            # that integer indices refer to the original column positions, not the
+            # shrinking positions after each successive drop.
+            cols = list(self.dims.columns)
+            resolved = []
+            for d in dim:
+                if isinstance(d, int):
+                    if not (-len(cols) <= d < len(cols)):
+                        raise IndexError(
+                            f"Dimension index {d} out of range for {len(cols)} dimension(s)."
+                        )
+                    resolved.append(cols[d])
+                else:
+                    if d not in self.dims.columns:
+                        raise ValueError(f"Dimension '{d}' not in {cols}.")
+                    resolved.append(d)
+            result = self
+            for d in resolved:
+                result = result.drop(d, method=method)
+            return result
+
+        if isinstance(dim, int):
+            cols = list(self.dims.columns)
+            if not (-len(cols) <= dim < len(cols)):
+                raise IndexError(
+                    f"Dimension index {dim} out of range for {len(cols)} dimension(s)."
+                )
+            dim = cols[dim]
+
         if dim not in self.dims.columns:
             raise ValueError(f"Dimension '{dim}' not in {list(self.dims.columns)}.")
 
@@ -1102,6 +1135,7 @@ class DimensionTable:
         wide = wide.set_index(list(display_dims.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
+        wide.columns = wide.columns.reorder_levels(wide.columns.names[::-1])
 
         return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
@@ -1211,7 +1245,7 @@ class RaceDimensionTable(DimensionTable):
 
         if 'universe' in long.columns:
             long['universe'] = long['universe'].str.replace(
-                r'^.+?\s+alone\s+', 'Population ', regex=True,
+                r'^.+?\s+population\s+', 'Population of race ', regex=True,
                 flags=re.IGNORECASE,
             )
 

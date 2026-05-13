@@ -435,6 +435,52 @@ class TestDimensionTableDrop:
         expected_moe = np.sqrt(5**2 + 5**2)
         assert abs(native_moe - expected_moe) < 1e-9
 
+    def test_drop_by_integer_index(self):
+        dt = DimensionTable(_make_long())
+        first_col = dt.dims.columns[0]
+        result_by_name = dt.drop(first_col)
+        result_by_int = dt.drop(0)
+        assert list(result_by_int.dims.columns) == list(result_by_name.dims.columns)
+        assert set(result_by_int.long['variable']) == set(result_by_name.long['variable'])
+
+    def test_drop_by_negative_integer_index(self):
+        dt = DimensionTable(_make_long())
+        last_col = dt.dims.columns[-1]
+        result_by_name = dt.drop(last_col)
+        result_by_int = dt.drop(-1)
+        assert list(result_by_int.dims.columns) == list(result_by_name.dims.columns)
+
+    def test_drop_integer_out_of_range_raises(self):
+        dt = DimensionTable(_make_long())
+        with pytest.raises(IndexError, match="out of range"):
+            dt.drop(99)
+
+    def test_drop_list_of_strings(self):
+        dt = DimensionTable(_make_long_cross())
+        cols = list(dt.dims.columns)
+        result = dt.drop(cols)
+        assert len(result.dims.columns) == 0
+
+    def test_drop_list_of_integers(self):
+        dt = DimensionTable(_make_long_cross())
+        n = len(dt.dims.columns)
+        result = dt.drop(list(range(n)))
+        assert len(result.dims.columns) == 0
+
+    def test_drop_list_mixed_string_and_int(self):
+        dt = DimensionTable(_make_long_cross())
+        cols = list(dt.dims.columns)
+        result = dt.drop([cols[0], -1])
+        assert len(result.dims.columns) == len(cols) - 2
+
+    def test_drop_list_reduces_dims_sequentially(self):
+        dt = DimensionTable(_make_long_cross())
+        first_col = dt.dims.columns[0]
+        last_col = dt.dims.columns[-1]
+        result = dt.drop([first_col, last_col])
+        assert first_col not in result.dims.columns
+        assert last_col not in result.dims.columns
+
 
 # ---------------------------------------------------------------------------
 # TestDimensionTableRemap
@@ -487,9 +533,9 @@ def _make_long_racial():
     """
     groups = [
         ('A', 'POVERTY STATUS BY AGE (WHITE ALONE)',
-         'White alone for whom poverty status is determined'),
+         'White alone population for whom poverty status is determined'),
         ('B', 'POVERTY STATUS BY AGE (BLACK OR AFRICAN AMERICAN ALONE)',
-         'Black or African American alone for whom poverty status is determined'),
+         'Black or African American alone population for whom poverty status is determined'),
     ]
     rows = []
     for code, concept, universe in groups:
