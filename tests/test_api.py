@@ -798,6 +798,56 @@ class TestCensusAPIGroupOptional:
         api = self._make_no_group(['B01001_001E', 'B01001_002E'])
         assert api.request['params']['get'] == 'B01001_001E,B01001_002E'
 
+    # ------------------------------------------------------------------
+    # melt() concept and universe in variables-only mode
+    # ------------------------------------------------------------------
+
+    _fake_raw = pd.DataFrame({
+        'GEO_ID':       ['0500000US39049'],
+        'NAME':         ['Franklin County'],
+        'B01001_001E':  ['1000'],
+        'B01001_001M':  ['50'],
+    })
+    _fake_vars = {
+        'B01001_001E': {'label': 'Estimate!!Total:', 'concept': 'SEX BY AGE'},
+        'B01001_001M': {'label': 'Margin of Error!!Total:', 'concept': 'SEX BY AGE'},
+    }
+    _fake_groups = {
+        'B01001': {'description': 'Sex by Age', 'variables': '', 'universe': 'Total population'},
+    }
+
+    def _make_no_group_for_melt(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+             patch.object(CensusAPI, '_fetch', return_value=self._fake_raw):
+            ep = Endpoint('acs/acs5', 2023)
+            api = CensusAPI(ep, 'franklin', variables=['B01001_001E', 'B01001_001M'], return_long=False)
+        api.__dict__['vars'] = self._fake_vars
+        api.endpoint.__dict__['groups'] = self._fake_groups
+        return api
+
+    def test_melt_concept_populated_from_vars_in_variables_only_mode(self):
+        api = self._make_no_group_for_melt()
+        long = api.melt()
+        assert (long['concept'] == 'Sex by age').all()
+
+    def test_melt_universe_populated_from_endpoint_groups_in_variables_only_mode(self):
+        api = self._make_no_group_for_melt()
+        long = api.melt()
+        assert (long['universe'] == 'Total population').all()
+
+    def test_melt_concept_empty_string_when_var_has_no_concept(self):
+        api = self._make_no_group_for_melt()
+        api.__dict__['vars'] = {'B01001_001E': {}, 'B01001_001M': {}}
+        long = api.melt()
+        assert (long['concept'] == '').all()
+
+    def test_melt_universe_empty_string_when_group_not_in_endpoint_groups(self):
+        api = self._make_no_group_for_melt()
+        api.endpoint.__dict__['groups'] = {}
+        long = api.melt()
+        assert (long['universe'] == '').all()
+
 
 # ---------------------------------------------------------------------------
 # TestGetApiKey

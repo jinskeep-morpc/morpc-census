@@ -1,5 +1,20 @@
 # morpc-census dev notes
 
+## 2026-05-13 — Populate concept and universe per-row in variables-only mode (branch fix/highlevel-rename-fetch-name)
+
+`CensusAPI.melt()` Step 5 previously set `concept=''` and `universe='Not defined — no group specified'` when `self.group is None`. Now, in variables-only mode:
+
+- **concept** — built from `self.vars` metadata. `self.vars` keys carry the type suffix (`B01001_001E`); after Step 4 strips the suffix, we pre-build a `{base_code: concept}` dict and map it onto `long['variable']`. Result is `.capitalize()`'d.
+- **universe** — group-level attribute not stored per-variable. We extract the group code from each base variable code via regex (`B01001_001` → `B01001`) and look up `self.endpoint.groups[gc]['universe']`. `endpoint.groups` is a `cached_property`, so the fetch happens at most once per session.
+
+Four new tests in `TestCensusAPIGroupOptional`:
+- `test_melt_concept_populated_from_vars_in_variables_only_mode`
+- `test_melt_universe_populated_from_endpoint_groups_in_variables_only_mode`
+- `test_melt_concept_empty_string_when_var_has_no_concept`
+- `test_melt_universe_empty_string_when_group_not_in_endpoint_groups`
+
+110 tests passing.
+
 ## 2026-05-13 — Rename HIGHLEVEL_DESC_FROM_ID → HIGHLEVEL_DESC_TO_ID; fix NAME missing from variable-batch fetch (branch fix/highlevel-rename-fetch-name, closes #64)
 
 **Constant rename:** `HIGHLEVEL_DESC_FROM_ID` → `HIGHLEVEL_DESC_TO_ID` in `constants.py`. The old name implied the dict maps *from* an ID, but it maps *to* an ID (`{description: code}`). Updated re-export in `api.py` and public export in `__init__.py`.

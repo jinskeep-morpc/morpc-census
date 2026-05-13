@@ -209,6 +209,10 @@ class Endpoint:
             }
             for g in data['groups']
         }.items()))
+    
+    def search_groups(self, search) -> dict:
+        """Search groups for term or string"""
+        return {k: v['description'] for k, v in self.groups.items() if search in v['description'].lower()}
 
 
 class Group:
@@ -629,8 +633,29 @@ class CensusAPI:
         # Step 5 — attach dataset metadata
         long['reference_period'] = self.endpoint.year
         long['survey'] = self.endpoint.survey
-        long['universe'] = self.universe
-        long['concept'] = self.group.description.capitalize() if self.group is not None else ''
+        if self.group is not None:
+            long['universe'] = self.universe
+            long['concept'] = self.group.description.capitalize()
+        else:
+            # In variables-only mode, look up concept per variable from self.vars.
+            # self.vars keys still carry the type suffix (e.g. B17024_001E); after
+            # Step 4 long['variable'] is the base code (e.g. B17024_001), so we
+            # build a base_code → concept mapping first.
+            _concept_map: dict[str, str] = {}
+            for k, meta in self.vars.items():
+                m = re.match(r'^([A-Z0-9_]+[0-9]+)[A-Z]{1,2}$', k)
+                if m:
+                    _concept_map.setdefault(m.group(1), meta.get('concept', ''))
+            long['concept'] = long['variable'].map(
+                lambda v: _concept_map.get(v, '').capitalize()
+            )
+            # Universe is group-level; extract group code then map via endpoint.groups.
+            long['_gc'] = long['variable'].str.extract(r'^([A-Z][A-Z0-9]+)_')[0]
+            gc_universe = {
+                gc: self.endpoint.groups.get(gc, {}).get('universe', '')
+                for gc in long['_gc'].dropna().unique()
+            }
+            long['universe'] = long.pop('_gc').map(gc_universe).fillna('')
 
         # Step 6 — pivot value types into separate columns
         pivot_index = id_cols + [
