@@ -79,6 +79,11 @@ _VALUE_FIELD_DEFS = {
     },
 }
 
+# Canonical order of column-MultiIndex levels in DimensionTable.wide().
+# 'race' is only present in RaceDimensionTable; levels not in this list go last.
+# The value-type level (None name, e.g. 'estimate'/'moe') is always appended last.
+_WIDE_COL_LEVEL_ORDER = ['concept', 'universe', 'survey', 'geoidfq', 'name', 'race', 'reference_period']
+
 # ---------------------------------------------------------------------------
 # API discovery — fetched lazily so import does not make network calls
 # ---------------------------------------------------------------------------
@@ -1135,7 +1140,11 @@ class DimensionTable:
         wide = wide.set_index(list(display_dims.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
-        wide.columns = wide.columns.reorder_levels(wide.columns.names[::-1])
+        # Apply canonical level order; value-type level (name=None) goes last.
+        current = list(wide.columns.names)
+        ordered = [n for n in _WIDE_COL_LEVEL_ORDER if n in current]
+        remainder = [n for n in current if n not in _WIDE_COL_LEVEL_ORDER and n is not None]
+        wide.columns = wide.columns.reorder_levels(ordered + remainder + [None])
 
         return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
