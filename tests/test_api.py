@@ -585,6 +585,28 @@ class TestRaceDimensionTable:
         races = set(wide.columns.get_level_values('race').unique())
         assert races == {'White Alone', 'Black or African American Alone'}
 
+    def test_wide_race_level_is_ordered_categorical(self):
+        wide = RaceDimensionTable(_make_long_racial()).wide()
+        level = wide.columns.get_level_values('race')
+        assert hasattr(level, 'dtype') and str(level.dtype) == 'category'
+        assert level.dtype.ordered
+
+    def test_wide_race_level_order_matches_race_map(self):
+        from morpc_census.api import RACE_TABLE_MAP
+        wide = RaceDimensionTable(_make_long_racial()).wide()
+        level = wide.columns.get_level_values('race')
+        # Unique values in column order should follow RACE_TABLE_MAP insertion order
+        present_in_order = list(dict.fromkeys(level))
+        map_order = [v for v in RACE_TABLE_MAP.values() if v in set(present_in_order)]
+        assert present_in_order == map_order
+
+    def test_wide_race_level_order_respects_custom_race_map(self):
+        custom_map = {'B': 'Black', 'A': 'White'}  # B before A intentionally
+        rdt = RaceDimensionTable(_make_long_racial(), race_map=custom_map)
+        wide = rdt.wide()
+        present_in_order = list(dict.fromkeys(wide.columns.get_level_values('race')))
+        assert present_in_order == ['Black', 'White']
+
     def test_percent_within_each_race(self):
         pct = RaceDimensionTable(_make_long_racial()).percent()
         # Fixture: below-poverty (50) / total (200) = 25% for each race.

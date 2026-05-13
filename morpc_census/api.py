@@ -1146,6 +1146,20 @@ class DimensionTable:
         remainder = [n for n in current if n not in _WIDE_COL_LEVEL_ORDER and n != 'value_type']
         wide.columns = wide.columns.reorder_levels(ordered + remainder + ['value_type'])
 
+        # Restore categorical ordering for any level whose source column in self.long
+        # is categorical (covers both dim columns from _parse_dims and race).
+        # from_tuples() above strips categorical dtype, so we re-apply it here.
+        for i, name in enumerate(wide.columns.names):
+            if name == 'value_type':
+                continue
+            if name in self.long.columns and hasattr(self.long[name], 'cat'):
+                cats = list(self.long[name].cat.categories)
+                present = [c for c in cats if c in set(wide.columns.get_level_values(i))]
+                wide.columns = wide.columns.set_levels(
+                    pd.CategoricalIndex(present, categories=present, ordered=True),
+                    level=i,
+                )
+
         return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
     def percent(self, decimals=2):
@@ -1276,6 +1290,12 @@ class RaceDimensionTable(DimensionTable):
         processed = self._preprocess(long_data.copy(), effective_map)
         super().__init__(processed, dim_names)
         self.variable_type = [c for c in self.variable_type if c != 'race']
+        # Make race an ordered categorical in race_map insertion order so
+        # wide() produces race columns in that order.
+        race_categories = list(dict.fromkeys(effective_map.values()))
+        self.long['race'] = pd.Categorical(
+            self.long['race'], categories=race_categories, ordered=True
+        )
 
     def _preprocess(self, long, race_map):
         parsed = long['variable'].str.extract(r'^([A-Z]\d+)([A-Z])_(\d+)')
