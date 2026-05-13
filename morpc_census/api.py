@@ -1134,17 +1134,17 @@ class DimensionTable:
         # Strip ':' from dim values for display
         display_dims = self.dims.apply(lambda col: col.str.rstrip(':').str.strip())
 
-        col_level_names = wide.columns.names
+        col_level_names = [n if n is not None else 'value' for n in wide.columns.names]
         wide.columns = wide.columns.to_list()
         wide = wide.join(display_dims)
         wide = wide.set_index(list(display_dims.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
-        # Apply canonical level order; value-type level (name=None) goes last.
+        # Apply canonical level order; value-type level ('value') goes last.
         current = list(wide.columns.names)
         ordered = [n for n in _WIDE_COL_LEVEL_ORDER if n in current]
-        remainder = [n for n in current if n not in _WIDE_COL_LEVEL_ORDER and n is not None]
-        wide.columns = wide.columns.reorder_levels(ordered + remainder + [None])
+        remainder = [n for n in current if n not in _WIDE_COL_LEVEL_ORDER and n != 'value']
+        wide.columns = wide.columns.reorder_levels(ordered + remainder + ['value'])
 
         return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
@@ -1188,7 +1188,7 @@ class DimensionTable:
         non_total = wide.drop(wide.index[total_pos]).astype(float)
 
         # The variable_type level is the last level (name=None) after wide()'s reorder_levels
-        val_type_level = wide.columns.names.index(None)
+        val_type_level = wide.columns.names.index('value')
         cols = wide.columns.tolist()
         moe_cols = {c for c in cols if c[val_type_level] == 'moe'}
 
