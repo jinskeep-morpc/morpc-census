@@ -79,6 +79,11 @@ _VALUE_FIELD_DEFS = {
     },
 }
 
+# Canonical order of column-MultiIndex levels in DimensionTable.wide().
+# 'race' is only present in RaceDimensionTable; levels not in this list go last.
+# The value-type level (None name, e.g. 'estimate'/'moe') is always appended last.
+_WIDE_COL_LEVEL_ORDER = ['concept', 'universe', 'survey', 'geoidfq', 'name', 'race', 'reference_period']
+
 # ---------------------------------------------------------------------------
 # API discovery — fetched lazily so import does not make network calls
 # ---------------------------------------------------------------------------
@@ -209,6 +214,10 @@ class Endpoint:
             }
             for g in data['groups']
         }.items()))
+    
+    def search_groups(self, search) -> dict:
+        """Search groups for term or string"""
+        return {k: v['description'] for k, v in self.groups.items() if search in v['description'].lower()}
 
 
 class Group:
@@ -629,8 +638,29 @@ class CensusAPI:
         # Step 5 — attach dataset metadata
         long['reference_period'] = self.endpoint.year
         long['survey'] = self.endpoint.survey
-        long['universe'] = self.universe
-        long['concept'] = self.group.description.capitalize() if self.group is not None else ''
+        if self.group is not None:
+            long['universe'] = self.universe
+            long['concept'] = self.group.description.capitalize()
+        else:
+            # In variables-only mode, look up concept per variable from self.vars.
+            # self.vars keys still carry the type suffix (e.g. B17024_001E); after
+            # Step 4 long['variable'] is the base code (e.g. B17024_001), so we
+            # build a base_code → concept mapping first.
+            _concept_map: dict[str, str] = {}
+            for k, meta in self.vars.items():
+                m = re.match(r'^([A-Z0-9_]+[0-9]+)[A-Z]{1,2}$', k)
+                if m:
+                    _concept_map.setdefault(m.group(1), meta.get('concept', ''))
+            long['concept'] = long['variable'].map(
+                lambda v: _concept_map.get(v, '').capitalize()
+            )
+            # Universe is group-level; extract group code then map via endpoint.groups.
+            long['_gc'] = long['variable'].str.extract(r'^([A-Z][A-Z0-9]+)_')[0]
+            gc_universe = {
+                gc: self.endpoint.groups.get(gc, {}).get('universe', '')
+                for gc in long['_gc'].dropna().unique()
+            }
+            long['universe'] = long.pop('_gc').map(gc_universe).fillna('')
 
         # Step 6 — pivot value types into separate columns
         pivot_index = id_cols + [
@@ -950,12 +980,15 @@ class DimensionTable:
         return self
 
     def drop(self, dim, method='summarize'):
-        """Drop a dimension level, returning a new DimensionTable.
+        """Drop one or more dimension levels, returning a new DimensionTable.
 
         Parameters
         ----------
-        dim : str
-            Name of the dimension column (from ``self.dims``) to drop.
+        dim : str, int, or list of str/int
+            Dimension(s) to drop. A string names a dimension column from
+            ``self.dims``; an integer selects by 0-based position. A list
+            drops each element in order, with each drop applied to the result
+            of the previous one.
         method : {'summarize', 'aggregate'}
             ``'summarize'``: keep only rows where *dim* is absent (``''``),
             i.e. rows that are already aggregated across this dimension.
@@ -969,6 +1002,36 @@ class DimensionTable:
         -------
         DimensionTable
         """
+        if isinstance(dim, list):
+            # Resolve all items to column names relative to self before dropping so
+            # that integer indices refer to the original column positions, not the
+            # shrinking positions after each successive drop.
+            cols = list(self.dims.columns)
+            resolved = []
+            for d in dim:
+                if isinstance(d, int):
+                    if not (-len(cols) <= d < len(cols)):
+                        raise IndexError(
+                            f"Dimension index {d} out of range for {len(cols)} dimension(s)."
+                        )
+                    resolved.append(cols[d])
+                else:
+                    if d not in self.dims.columns:
+                        raise ValueError(f"Dimension '{d}' not in {cols}.")
+                    resolved.append(d)
+            result = self
+            for d in resolved:
+                result = result.drop(d, method=method)
+            return result
+
+        if isinstance(dim, int):
+            cols = list(self.dims.columns)
+            if not (-len(cols) <= dim < len(cols)):
+                raise IndexError(
+                    f"Dimension index {dim} out of range for {len(cols)} dimension(s)."
+                )
+            dim = cols[dim]
+
         if dim not in self.dims.columns:
             raise ValueError(f"Dimension '{dim}' not in {list(self.dims.columns)}.")
 
@@ -1071,12 +1134,37 @@ class DimensionTable:
         # Strip ':' from dim values for display
         display_dims = self.dims.apply(lambda col: col.str.rstrip(':').str.strip())
 
-        col_level_names = wide.columns.names
+        col_level_names = [n if n is not None else 'value_type' for n in wide.columns.names]
         wide.columns = wide.columns.to_list()
         wide = wide.join(display_dims)
         wide = wide.set_index(list(display_dims.columns))
         wide.columns = pd.MultiIndex.from_tuples(wide.columns)
         wide.columns.names = col_level_names
+        # Apply canonical level order; value-type level ('value_type') goes last.
+        current = list(wide.columns.names)
+        ordered = [n for n in _WIDE_COL_LEVEL_ORDER if n in current]
+        remainder = [n for n in current if n not in _WIDE_COL_LEVEL_ORDER and n != 'value_type']
+        wide.columns = wide.columns.reorder_levels(ordered + remainder + ['value_type'])
+
+        # Restore categorical ordering for any level whose source column in self.long
+        # is categorical (covers both dim columns from _parse_dims and race).
+        # from_tuples() above strips categorical dtype, so we re-apply it here.
+        #
+        # set_levels() replaces level VALUES without touching the integer codes, so we
+        # must pass the CURRENT level values (preserving code→value mapping) and only
+        # use the desired category order as the CategoricalIndex's *categories* argument.
+        # Passing the desired order as values would corrupt the code→value mapping.
+        for i, name in enumerate(wide.columns.names):
+            if name == 'value_type':
+                continue
+            if name in self.long.columns and hasattr(self.long[name], 'cat'):
+                cats = list(self.long[name].cat.categories)
+                current_vals = list(wide.columns.levels[i])
+                present_cats = [c for c in cats if c in set(current_vals)]
+                wide.columns = wide.columns.set_levels(
+                    pd.CategoricalIndex(current_vals, categories=present_cats, ordered=True),
+                    level=i,
+                )
 
         return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
@@ -1086,6 +1174,16 @@ class DimensionTable:
         The grand total is the row where all dimension columns after the first
         are ``''`` (empty).  Returns the same structure as :meth:`wide` with
         the total row removed and values expressed as percentages.
+
+        Estimate columns use simple proportion (``x / T * 100``).  MOE columns
+        use the Census Bureau derived proportion formula::
+
+            MOE(p) = (1/T) * sqrt(MOE_x² − p² * MOE_T²)
+
+        where ``p = x/T``.  When the radicand is negative (possible due to
+        sampling variability), the alternative addition form is used instead::
+
+            MOE(p) = (1/T) * sqrt(MOE_x² + p² * MOE_T²)
 
         Returns
         -------
@@ -1106,16 +1204,49 @@ class DimensionTable:
             )
 
         total_pos = total_mask.index(True)
-        total_row = wide.iloc[[total_pos]]
-        non_total = wide.drop(wide.index[total_pos])
+        total_row = wide.iloc[[total_pos]].astype(float)
+        non_total = wide.drop(wide.index[total_pos]).astype(float)
 
-        pct = non_total.astype(float)
-        for col in pct.columns:
-            total_val = float(total_row[col].iloc[0])
-            if pd.notna(total_val) and total_val != 0:
-                pct[col] = (pct[col] / total_val * 100).round(decimals)
-            else:
+        # The variable_type level is the last level (name=None) after wide()'s reorder_levels
+        val_type_level = wide.columns.names.index('value_type')
+        cols = wide.columns.tolist()
+        moe_cols = {c for c in cols if c[val_type_level] == 'moe'}
+
+        pct = non_total.copy()
+        for col in cols:
+            val_type = col[val_type_level]
+            T_est_col = tuple(
+                'estimate' if i == val_type_level else v
+                for i, v in enumerate(col)
+            )
+            T = float(total_row[T_est_col].iloc[0])
+
+            if pd.isna(T) or T == 0:
                 pct[col] = pd.NA
+                continue
+
+            if val_type == 'estimate':
+                pct[col] = (non_total[col] / T * 100).round(decimals)
+
+            elif val_type == 'moe':
+                # Census Bureau derived proportion formula:
+                # MOE(p) = (1/T) * sqrt(MOE_x² ± p² * MOE_T²), * 100
+                moe_T = float(total_row[col].iloc[0]) if not pd.isna(float(total_row[col].iloc[0])) else 0.0
+                p = non_total[T_est_col] / T
+                m_x = non_total[col]
+                radicand = m_x**2 - p**2 * moe_T**2
+                pos_root = np.sqrt(radicand.clip(lower=0))
+                neg_root = np.sqrt(m_x**2 + p**2 * moe_T**2)
+                moe_pct = pd.Series(
+                    np.where(radicand >= 0, pos_root, neg_root),
+                    index=non_total.index,
+                ) / T * 100
+                moe_pct[m_x.isna() | p.isna()] = np.nan
+                pct[col] = moe_pct.round(decimals)
+
+            else:
+                # percent_estimate, percent_moe, total, etc.: simple division
+                pct[col] = (non_total[col] / T * 100).round(decimals)
 
         return pct
 
@@ -1165,6 +1296,12 @@ class RaceDimensionTable(DimensionTable):
         processed = self._preprocess(long_data.copy(), effective_map)
         super().__init__(processed, dim_names)
         self.variable_type = [c for c in self.variable_type if c != 'race']
+        # Make race an ordered categorical in race_map insertion order so
+        # wide() produces race columns in that order.
+        race_categories = list(dict.fromkeys(effective_map.values()))
+        self.long['race'] = pd.Categorical(
+            self.long['race'], categories=race_categories, ordered=True
+        )
 
     def _preprocess(self, long, race_map):
         parsed = long['variable'].str.extract(r'^([A-Z]\d+)([A-Z])_(\d+)')
@@ -1186,7 +1323,7 @@ class RaceDimensionTable(DimensionTable):
 
         if 'universe' in long.columns:
             long['universe'] = long['universe'].str.replace(
-                r'^.+?\s+alone\s+', 'Population ', regex=True,
+                r'^.+?\s+population\s+', 'Population of race ', regex=True,
                 flags=re.IGNORECASE,
             )
 

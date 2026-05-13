@@ -435,6 +435,52 @@ class TestDimensionTableDrop:
         expected_moe = np.sqrt(5**2 + 5**2)
         assert abs(native_moe - expected_moe) < 1e-9
 
+    def test_drop_by_integer_index(self):
+        dt = DimensionTable(_make_long())
+        first_col = dt.dims.columns[0]
+        result_by_name = dt.drop(first_col)
+        result_by_int = dt.drop(0)
+        assert list(result_by_int.dims.columns) == list(result_by_name.dims.columns)
+        assert set(result_by_int.long['variable']) == set(result_by_name.long['variable'])
+
+    def test_drop_by_negative_integer_index(self):
+        dt = DimensionTable(_make_long())
+        last_col = dt.dims.columns[-1]
+        result_by_name = dt.drop(last_col)
+        result_by_int = dt.drop(-1)
+        assert list(result_by_int.dims.columns) == list(result_by_name.dims.columns)
+
+    def test_drop_integer_out_of_range_raises(self):
+        dt = DimensionTable(_make_long())
+        with pytest.raises(IndexError, match="out of range"):
+            dt.drop(99)
+
+    def test_drop_list_of_strings(self):
+        dt = DimensionTable(_make_long_cross())
+        cols = list(dt.dims.columns)
+        result = dt.drop(cols)
+        assert len(result.dims.columns) == 0
+
+    def test_drop_list_of_integers(self):
+        dt = DimensionTable(_make_long_cross())
+        n = len(dt.dims.columns)
+        result = dt.drop(list(range(n)))
+        assert len(result.dims.columns) == 0
+
+    def test_drop_list_mixed_string_and_int(self):
+        dt = DimensionTable(_make_long_cross())
+        cols = list(dt.dims.columns)
+        result = dt.drop([cols[0], -1])
+        assert len(result.dims.columns) == len(cols) - 2
+
+    def test_drop_list_reduces_dims_sequentially(self):
+        dt = DimensionTable(_make_long_cross())
+        first_col = dt.dims.columns[0]
+        last_col = dt.dims.columns[-1]
+        result = dt.drop([first_col, last_col])
+        assert first_col not in result.dims.columns
+        assert last_col not in result.dims.columns
+
 
 # ---------------------------------------------------------------------------
 # TestDimensionTableRemap
@@ -487,9 +533,9 @@ def _make_long_racial():
     """
     groups = [
         ('A', 'POVERTY STATUS BY AGE (WHITE ALONE)',
-         'White alone for whom poverty status is determined'),
+         'White alone population for whom poverty status is determined'),
         ('B', 'POVERTY STATUS BY AGE (BLACK OR AFRICAN AMERICAN ALONE)',
-         'Black or African American alone for whom poverty status is determined'),
+         'Black or African American alone population for whom poverty status is determined'),
     ]
     rows = []
     for code, concept, universe in groups:
@@ -539,13 +585,108 @@ class TestRaceDimensionTable:
         races = set(wide.columns.get_level_values('race').unique())
         assert races == {'White Alone', 'Black or African American Alone'}
 
+    def test_wide_race_level_is_ordered_categorical(self):
+        wide = RaceDimensionTable(_make_long_racial()).wide()
+        level = wide.columns.get_level_values('race')
+        assert hasattr(level, 'dtype') and str(level.dtype) == 'category'
+        assert level.dtype.ordered
+
+    def test_wide_race_level_order_matches_race_map(self):
+        from morpc_census.api import RACE_TABLE_MAP
+        wide = RaceDimensionTable(_make_long_racial()).wide()
+        level = wide.columns.get_level_values('race')
+        # Unique values in column order should follow RACE_TABLE_MAP insertion order
+        present_in_order = list(dict.fromkeys(level))
+        map_order = [v for v in RACE_TABLE_MAP.values() if v in set(present_in_order)]
+        assert present_in_order == map_order
+
+    def test_wide_race_level_order_respects_custom_race_map(self):
+        custom_map = {'B': 'Black', 'A': 'White'}  # B before A intentionally
+        rdt = RaceDimensionTable(_make_long_racial(), race_map=custom_map)
+        wide = rdt.wide()
+        present_in_order = list(dict.fromkeys(wide.columns.get_level_values('race')))
+        assert present_in_order == ['Black', 'White']
+
+    def test_wide_race_column_data_matches_label(self):
+        # Regression: set_levels was relabeling columns without moving data,
+        # causing 'White Alone' to contain Black data and vice versa.
+        long = pd.DataFrame([
+            {'variable': 'B17020A_001', 'variable_label': 'Total:', 'geoidfq': '0500000US39049',
+             'name': 'Franklin', 'concept': 'X', 'universe': 'Y', 'survey': 'acs/acs5',
+             'reference_period': 2023, 'estimate': 100, 'moe': 5},
+            {'variable': 'B17020B_001', 'variable_label': 'Total:', 'geoidfq': '0500000US39049',
+             'name': 'Franklin', 'concept': 'X', 'universe': 'Y', 'survey': 'acs/acs5',
+             'reference_period': 2023, 'estimate': 999, 'moe': 5},
+        ])
+        rdt = RaceDimensionTable(long, race_map={'A': 'White Alone', 'B': 'Black Alone'})
+        w = rdt.wide()
+        race_idx = w.columns.names.index('race')
+        for col in w.columns:
+            if col[-1] == 'estimate':
+                race = col[race_idx]
+                val = float(w[col].iloc[0])
+                if race == 'White Alone':
+                    assert val == 100.0, f"White Alone column contains {val}, expected 100"
+                elif race == 'Black Alone':
+                    assert val == 999.0, f"Black Alone column contains {val}, expected 999"
+
     def test_percent_within_each_race(self):
         pct = RaceDimensionTable(_make_long_racial()).percent()
-        # Fixture: below-poverty (50) / total (200) = 25% for each race
-        est_cols = [c for c in pct.columns if c[0] == 'estimate']
+        # Fixture: below-poverty (50) / total (200) = 25% for each race.
+        # variable_type is the last level of the column MultiIndex.
+        est_cols = [c for c in pct.columns if c[-1] == 'estimate']
+        assert len(est_cols) > 0, "No estimate columns found — check column MultiIndex structure"
         for col in est_cols:
             below_row = pct[col][pct[col].notna()].iloc[0]
             assert below_row == 25.0
+
+    def test_percent_moe_uses_derived_proportion_formula(self):
+        import numpy as np
+        # Simple 3-row table: total (est=100, moe=5), subgroup (est=60, moe=4)
+        long = pd.DataFrame({
+            'variable':        ['B01_001', 'B01_002'],
+            'variable_label':  ['Total:', 'Total:!!Male:'],
+            'geoidfq':         ['0500000US39049'] * 2,
+            'name':            ['Franklin County'] * 2,
+            'concept':         ['Test'] * 2,
+            'universe':        ['Pop'] * 2,
+            'survey':          ['acs/acs5'] * 2,
+            'reference_period': [2023] * 2,
+            'estimate':        [100, 60],
+            'moe':             [5, 4],
+        })
+        dt = DimensionTable(long)
+        pct = dt.percent()
+        moe_cols = [c for c in pct.columns if c[-1] == 'moe']
+        assert len(moe_cols) > 0
+        male_moe_pct = float(pct[moe_cols[0]].iloc[0])
+        # p = 60/100 = 0.6; radicand = 4²  − 0.6² * 5² = 16 − 9 = 7
+        expected = round(np.sqrt(7) / 100 * 100, 2)  # = sqrt(7) ≈ 2.65
+        assert abs(male_moe_pct - expected) < 0.01
+
+    def test_percent_moe_uses_addition_form_when_radicand_negative(self):
+        import numpy as np
+        # Choose values where MOE_x² < p² * MOE_T²:
+        # est=10, moe_x=1, total_est=100, moe_T=20 → radicand = 1 − (0.1)²*400 = 1−4 = −3
+        long = pd.DataFrame({
+            'variable':        ['B01_001', 'B01_002'],
+            'variable_label':  ['Total:', 'Total:!!Sub:'],
+            'geoidfq':         ['0500000US39049'] * 2,
+            'name':            ['Franklin County'] * 2,
+            'concept':         ['Test'] * 2,
+            'universe':        ['Pop'] * 2,
+            'survey':          ['acs/acs5'] * 2,
+            'reference_period': [2023] * 2,
+            'estimate':        [100, 10],
+            'moe':             [20, 1],
+        })
+        dt = DimensionTable(long)
+        pct = dt.percent()
+        moe_cols = [c for c in pct.columns if c[-1] == 'moe']
+        sub_moe_pct = float(pct[moe_cols[0]].iloc[0])
+        # p = 0.1; radicand = 1 − 0.01*400 = −3 → use addition form
+        expected = round(np.sqrt(1 + 0.01 * 400) / 100 * 100, 2)  # sqrt(5)/100*100
+        assert abs(sub_moe_pct - expected) < 0.01
 
     def test_unknown_race_code_dropped(self):
         long = _make_long_racial()
@@ -797,6 +938,56 @@ class TestCensusAPIGroupOptional:
     def test_build_request_uses_variable_list_when_no_group(self):
         api = self._make_no_group(['B01001_001E', 'B01001_002E'])
         assert api.request['params']['get'] == 'B01001_001E,B01001_002E'
+
+    # ------------------------------------------------------------------
+    # melt() concept and universe in variables-only mode
+    # ------------------------------------------------------------------
+
+    _fake_raw = pd.DataFrame({
+        'GEO_ID':       ['0500000US39049'],
+        'NAME':         ['Franklin County'],
+        'B01001_001E':  ['1000'],
+        'B01001_001M':  ['50'],
+    })
+    _fake_vars = {
+        'B01001_001E': {'label': 'Estimate!!Total:', 'concept': 'SEX BY AGE'},
+        'B01001_001M': {'label': 'Margin of Error!!Total:', 'concept': 'SEX BY AGE'},
+    }
+    _fake_groups = {
+        'B01001': {'description': 'Sex by Age', 'variables': '', 'universe': 'Total population'},
+    }
+
+    def _make_no_group_for_melt(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
+             patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+             patch.object(CensusAPI, '_fetch', return_value=self._fake_raw):
+            ep = Endpoint('acs/acs5', 2023)
+            api = CensusAPI(ep, 'franklin', variables=['B01001_001E', 'B01001_001M'], return_long=False)
+        api.__dict__['vars'] = self._fake_vars
+        api.endpoint.__dict__['groups'] = self._fake_groups
+        return api
+
+    def test_melt_concept_populated_from_vars_in_variables_only_mode(self):
+        api = self._make_no_group_for_melt()
+        long = api.melt()
+        assert (long['concept'] == 'Sex by age').all()
+
+    def test_melt_universe_populated_from_endpoint_groups_in_variables_only_mode(self):
+        api = self._make_no_group_for_melt()
+        long = api.melt()
+        assert (long['universe'] == 'Total population').all()
+
+    def test_melt_concept_empty_string_when_var_has_no_concept(self):
+        api = self._make_no_group_for_melt()
+        api.__dict__['vars'] = {'B01001_001E': {}, 'B01001_001M': {}}
+        long = api.melt()
+        assert (long['concept'] == '').all()
+
+    def test_melt_universe_empty_string_when_group_not_in_endpoint_groups(self):
+        api = self._make_no_group_for_melt()
+        api.endpoint.__dict__['groups'] = {}
+        long = api.melt()
+        assert (long['universe'] == '').all()
 
 
 # ---------------------------------------------------------------------------

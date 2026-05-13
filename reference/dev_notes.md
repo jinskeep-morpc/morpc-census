@@ -1,5 +1,61 @@
 # morpc-census dev notes
 
+## 2026-05-13 — RaceDimensionTable race column level is ordered categorical in race_map order (branch fix/highlevel-rename-fetch-name)
+
+`RaceDimensionTable.__init__` now converts `self.long['race']` to `pd.Categorical` with the values of `effective_map` (insertion order) as the ordered categories. `DimensionTable.wide()` re-applies this categorical metadata to the column MultiIndex after `from_tuples()` strips it, using `set_levels` with the **current** level values (preserving code→label mapping) and the desired order only in the `categories=` argument.
+
+A data-integrity bug was introduced and fixed in the same session: the first `set_levels` attempt passed the desired-order list as both VALUES and categories. `set_levels` changes level values without touching integer codes, so swapping the value order caused codes to point to the wrong labels (White Alone column held Black data). Fixed by passing `current_vals` (existing order) as values and `present_cats` (desired order) only as `categories`.
+
+4 new tests: ordered dtype, column order matches `RACE_TABLE_MAP`, custom map order respected, and a regression guard that verifies data values match their column labels with distinct estimates per race. 123 tests passing.
+
+## 2026-05-13 — DimensionTable.wide() column MultiIndex: canonical level order and 'value_type' level name (branch fix/highlevel-rename-fetch-name)
+
+Two related changes to the `wide()` output column MultiIndex:
+
+**Canonical level order** — Previously `wide()` reversed all levels (`reorder_levels(names[::-1])`), producing an arbitrary order that varied with the `col_dims` list. Now applies `_WIDE_COL_LEVEL_ORDER = ['concept', 'universe', 'survey', 'geoidfq', 'name', 'race', 'reference_period']` as a canonical ordering, with the value-type level always last. For `RaceDimensionTable`, `race` is inserted between `name` and `reference_period`. Unrecognized levels fall after `reference_period` and before `value_type`.
+
+**`value_type` level name** — The pivot `values=list` call left the estimate/moe level unnamed (`None`). Renamed to `'value_type'` in `col_level_names` and updated `percent()`'s level lookup accordingly. Also reverted an unintended linter change (`values='type'` → `values='value'`) in `melt()`'s pivot that broke four tests.
+
+## 2026-05-13 — Fix DimensionTable.percent() MOE calculation (branch fix/highlevel-rename-fetch-name)
+
+`percent()` was dividing MOE by the total MOE, which is wrong. MOEs for proportions must use the Census Bureau derived proportion formula:
+
+- `MOE(p) = (1/T) * sqrt(MOE_x² − p² * MOE_T²) * 100` when radicand ≥ 0
+- `MOE(p) = (1/T) * sqrt(MOE_x² + p² * MOE_T²) * 100` when radicand < 0 (sampling variability)
+
+Where `p = x/T` (the estimated proportion), `T` = total estimate, `MOE_x` = subgroup MOE, `MOE_T` = total MOE.
+
+Implementation: identify estimate vs MOE columns by the last level of the column MultiIndex (name `None`, set by `wide()`'s `reorder_levels`). For each MOE column, find the corresponding estimate column by swapping the last level to `'estimate'`, then apply the vectorized formula using `clip(lower=0)` / `np.where`.
+
+Also fixed an existing vacuous test `test_percent_within_each_race` that used `c[0] == 'estimate'` to select columns — the first level is race, not value type; fixed to `c[-1] == 'estimate'`. Added two new tests: one checking the standard formula against a hand-computed expected value (`sqrt(7)/100 * 100 ≈ 2.65%`), and one checking the addition fallback form when the radicand is negative.
+
+119 tests passing.
+
+## 2026-05-13 — DimensionTable.drop(): accept int index and list of str/int (branch fix/highlevel-rename-fetch-name)
+
+`drop(dim)` now resolves integers as 0-based (or negative) column positions in `self.dims.columns`, and accepts a list of strings/integers to drop multiple dimensions in one call. When a list is passed, all items are resolved to column names relative to `self` upfront so that integer indices always refer to original positions rather than the shrinking set after each prior drop.
+
+7 new tests: integer index, negative integer, out-of-range error, list of strings, list of integers, mixed list, and sequential list reduction.
+
+Also fixed `TestRaceDimensionTable` fixture universe strings ("...alone for whom..." → "...alone population for whom...") to match the revised `_preprocess` regex `r'^.+?\s+population\s+'`.
+
+117 tests passing.
+
+## 2026-05-13 — Populate concept and universe per-row in variables-only mode (branch fix/highlevel-rename-fetch-name)
+
+`CensusAPI.melt()` Step 5 previously set `concept=''` and `universe='Not defined — no group specified'` when `self.group is None`. Now, in variables-only mode:
+
+- **concept** — built from `self.vars` metadata. `self.vars` keys carry the type suffix (`B01001_001E`); after Step 4 strips the suffix, we pre-build a `{base_code: concept}` dict and map it onto `long['variable']`. Result is `.capitalize()`'d.
+- **universe** — group-level attribute not stored per-variable. We extract the group code from each base variable code via regex (`B01001_001` → `B01001`) and look up `self.endpoint.groups[gc]['universe']`. `endpoint.groups` is a `cached_property`, so the fetch happens at most once per session.
+
+Four new tests in `TestCensusAPIGroupOptional`:
+- `test_melt_concept_populated_from_vars_in_variables_only_mode`
+- `test_melt_universe_populated_from_endpoint_groups_in_variables_only_mode`
+- `test_melt_concept_empty_string_when_var_has_no_concept`
+- `test_melt_universe_empty_string_when_group_not_in_endpoint_groups`
+
+110 tests passing.
+
 ## 2026-05-13 — Rename HIGHLEVEL_DESC_FROM_ID → HIGHLEVEL_DESC_TO_ID; fix NAME missing from variable-batch fetch (branch fix/highlevel-rename-fetch-name, closes #64)
 
 **Constant rename:** `HIGHLEVEL_DESC_FROM_ID` → `HIGHLEVEL_DESC_TO_ID` in `constants.py`. The old name implied the dict maps *from* an ID, but it maps *to* an ID (`{description: code}`). Updated re-export in `api.py` and public export in `__init__.py`.
