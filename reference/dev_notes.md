@@ -1,5 +1,15 @@
 # morpc-census dev notes
 
+## 2026-05-13 — DimensionTable.drop(): accept int index and list of str/int (branch fix/highlevel-rename-fetch-name)
+
+`drop(dim)` now resolves integers as 0-based (or negative) column positions in `self.dims.columns`, and accepts a list of strings/integers to drop multiple dimensions in one call. When a list is passed, all items are resolved to column names relative to `self` upfront so that integer indices always refer to original positions rather than the shrinking set after each prior drop.
+
+7 new tests: integer index, negative integer, out-of-range error, list of strings, list of integers, mixed list, and sequential list reduction.
+
+Also fixed `TestRaceDimensionTable` fixture universe strings ("...alone for whom..." → "...alone population for whom...") to match the revised `_preprocess` regex `r'^.+?\s+population\s+'`.
+
+117 tests passing.
+
 ## 2026-05-13 — Populate concept and universe per-row in variables-only mode (branch fix/highlevel-rename-fetch-name)
 
 `CensusAPI.melt()` Step 5 previously set `concept=''` and `universe='Not defined — no group specified'` when `self.group is None`. Now, in variables-only mode:
