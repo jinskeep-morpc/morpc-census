@@ -607,6 +607,29 @@ class TestRaceDimensionTable:
         present_in_order = list(dict.fromkeys(wide.columns.get_level_values('race')))
         assert present_in_order == ['Black', 'White']
 
+    def test_wide_race_column_data_matches_label(self):
+        # Regression: set_levels was relabeling columns without moving data,
+        # causing 'White Alone' to contain Black data and vice versa.
+        long = pd.DataFrame([
+            {'variable': 'B17020A_001', 'variable_label': 'Total:', 'geoidfq': '0500000US39049',
+             'name': 'Franklin', 'concept': 'X', 'universe': 'Y', 'survey': 'acs/acs5',
+             'reference_period': 2023, 'estimate': 100, 'moe': 5},
+            {'variable': 'B17020B_001', 'variable_label': 'Total:', 'geoidfq': '0500000US39049',
+             'name': 'Franklin', 'concept': 'X', 'universe': 'Y', 'survey': 'acs/acs5',
+             'reference_period': 2023, 'estimate': 999, 'moe': 5},
+        ])
+        rdt = RaceDimensionTable(long, race_map={'A': 'White Alone', 'B': 'Black Alone'})
+        w = rdt.wide()
+        race_idx = w.columns.names.index('race')
+        for col in w.columns:
+            if col[-1] == 'estimate':
+                race = col[race_idx]
+                val = float(w[col].iloc[0])
+                if race == 'White Alone':
+                    assert val == 100.0, f"White Alone column contains {val}, expected 100"
+                elif race == 'Black Alone':
+                    assert val == 999.0, f"Black Alone column contains {val}, expected 999"
+
     def test_percent_within_each_race(self):
         pct = RaceDimensionTable(_make_long_racial()).percent()
         # Fixture: below-poverty (50) / total (200) = 25% for each race.

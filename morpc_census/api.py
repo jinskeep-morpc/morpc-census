@@ -1149,14 +1149,20 @@ class DimensionTable:
         # Restore categorical ordering for any level whose source column in self.long
         # is categorical (covers both dim columns from _parse_dims and race).
         # from_tuples() above strips categorical dtype, so we re-apply it here.
+        #
+        # set_levels() replaces level VALUES without touching the integer codes, so we
+        # must pass the CURRENT level values (preserving code→value mapping) and only
+        # use the desired category order as the CategoricalIndex's *categories* argument.
+        # Passing the desired order as values would corrupt the code→value mapping.
         for i, name in enumerate(wide.columns.names):
             if name == 'value_type':
                 continue
             if name in self.long.columns and hasattr(self.long[name], 'cat'):
                 cats = list(self.long[name].cat.categories)
-                present = [c for c in cats if c in set(wide.columns.get_level_values(i))]
+                current_vals = list(wide.columns.levels[i])
+                present_cats = [c for c in cats if c in set(current_vals)]
                 wide.columns = wide.columns.set_levels(
-                    pd.CategoricalIndex(present, categories=present, ordered=True),
+                    pd.CategoricalIndex(current_vals, categories=present_cats, ordered=True),
                     level=i,
                 )
 
