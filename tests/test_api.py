@@ -661,11 +661,12 @@ class TestFetchVariablesBatching:
 
     _fake_endpoints = {'acs/acs5': [2023]}
     _geo = '0500000US39049'
+    _name = 'Franklin County'
 
     def _make_api(self, n_variables):
         """Build a CensusAPI with _fetch stubbed so we can call _fetch_variables directly."""
         variables = [f'B01001_{i:03d}E' for i in range(1, n_variables + 1)]
-        stub = pd.DataFrame({'GEO_ID': [self._geo]})
+        stub = pd.DataFrame({'GEO_ID': [self._geo], 'NAME': [self._name]})
         with patch('morpc_census.api.get_all_avail_endpoints', return_value=self._fake_endpoints), \
              patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
              patch.object(CensusAPI, '_fetch', return_value=stub):
@@ -673,59 +674,65 @@ class TestFetchVariablesBatching:
             return CensusAPI(ep, 'franklin', variables=variables, return_long=False)
 
     def _response(self, variables):
-        """Simulate a Census API JSON list-of-lists response for the given variables."""
-        return [['GEO_ID'] + list(variables), [self._geo] + ['1'] * len(variables)]
+        """Simulate a Census API JSON list-of-lists response including GEO_ID and NAME."""
+        return [
+            ['GEO_ID', 'NAME'] + list(variables),
+            [self._geo, self._name] + ['1'] * len(variables),
+        ]
 
-    def test_single_request_when_49_variables(self):
-        api = self._make_api(49)
+    def test_single_request_when_48_variables(self):
+        api = self._make_api(48)
         with patch('morpc.req.get_json_safely', return_value=self._response(api.variables)) as mock:
             result = api._fetch_variables(api.request['url'], {})
         mock.assert_called_once()
         assert 'GEO_ID' in result.columns
         assert set(api.variables).issubset(set(result.columns))
 
-    def test_two_requests_when_50_variables(self):
-        api = self._make_api(50)
-        responses = [self._response(api.variables[:49]), self._response(api.variables[49:])]
+    def test_two_requests_when_49_variables(self):
+        api = self._make_api(49)
+        responses = [self._response(api.variables[:48]), self._response(api.variables[48:])]
         with patch('morpc.req.get_json_safely', side_effect=responses) as mock:
             result = api._fetch_variables(api.request['url'], {})
         assert mock.call_count == 2
         assert set(api.variables).issubset(set(result.columns))
 
-    def test_three_requests_when_98_variables(self):
-        api = self._make_api(98)
+    def test_three_requests_when_97_variables(self):
+        api = self._make_api(97)
         responses = [
-            self._response(api.variables[:49]),
-            self._response(api.variables[49:]),
+            self._response(api.variables[:48]),
+            self._response(api.variables[48:96]),
+            self._response(api.variables[96:]),
         ]
         with patch('morpc.req.get_json_safely', side_effect=responses) as mock:
             result = api._fetch_variables(api.request['url'], {})
-        assert mock.call_count == 2  # ceil(98/49) == 2
+        assert mock.call_count == 3  # ceil(97/48) == 3
         assert set(api.variables).issubset(set(result.columns))
 
     def test_batched_results_joined_on_geoid(self):
-        api = self._make_api(50)
-        batch1 = [['GEO_ID'] + api.variables[:49], [self._geo] + ['A'] * 49]
-        batch2 = [['GEO_ID'] + api.variables[49:], [self._geo] + ['B']]
+        api = self._make_api(49)
+        batch1 = [['GEO_ID', 'NAME'] + api.variables[:48],
+                  [self._geo, self._name] + ['A'] * 48]
+        batch2 = [['GEO_ID', 'NAME'] + api.variables[48:],
+                  [self._geo, self._name] + ['B']]
         with patch('morpc.req.get_json_safely', side_effect=[batch1, batch2]):
             result = api._fetch_variables(api.request['url'], {})
         row = result.loc[0]
         assert row['GEO_ID'] == self._geo
         assert row[api.variables[0]] == 'A'
-        assert row[api.variables[49]] == 'B'
+        assert row[api.variables[48]] == 'B'
 
-    def test_geoid_included_in_every_batch_request(self):
-        api = self._make_api(50)
-        responses = [self._response(api.variables[:49]), self._response(api.variables[49:])]
+    def test_geoid_and_name_included_in_every_batch_request(self):
+        api = self._make_api(49)
+        responses = [self._response(api.variables[:48]), self._response(api.variables[48:])]
         with patch('morpc.req.get_json_safely', side_effect=responses) as mock:
             api._fetch_variables(api.request['url'], {})
         for call in mock.call_args_list:
             get_param = call.kwargs['params']['get']
-            assert get_param.startswith('GEO_ID,')
+            assert get_param.startswith('GEO_ID,NAME,')
 
     def test_single_row_result(self):
-        api = self._make_api(50)
-        responses = [self._response(api.variables[:49]), self._response(api.variables[49:])]
+        api = self._make_api(49)
+        responses = [self._response(api.variables[:48]), self._response(api.variables[48:])]
         with patch('morpc.req.get_json_safely', side_effect=responses):
             result = api._fetch_variables(api.request['url'], {})
         assert len(result) == 1

@@ -1,5 +1,13 @@
 # morpc-census dev notes
 
+## 2026-05-13 — Rename HIGHLEVEL_DESC_FROM_ID → HIGHLEVEL_DESC_TO_ID; fix NAME missing from variable-batch fetch (branch fix/highlevel-rename-fetch-name, closes #64)
+
+**Constant rename:** `HIGHLEVEL_DESC_FROM_ID` → `HIGHLEVEL_DESC_TO_ID` in `constants.py`. The old name implied the dict maps *from* an ID, but it maps *to* an ID (`{description: code}`). Updated re-export in `api.py` and public export in `__init__.py`.
+
+**Batch fetch bug fix:** `CensusAPI._fetch_variables` was building batch requests as `GEO_ID + variables`, omitting `NAME`. This caused the `name` column to be absent from results in variables-only mode. Fix: include `NAME` in every batch request and index each result frame on `['GEO_ID', 'NAME']` (matching the group-fetch path). `BATCH_SIZE` adjusted 49 → 48 to keep total fields within the Census API's 50-field limit (GEO_ID + NAME + 48 variables = 50).
+
+`TestFetchVariablesBatching` updated: `_response` fixture now includes NAME; batch-count tests updated to reflect BATCH_SIZE=48; `test_geoid_included_in_every_batch_request` → `test_geoid_and_name_included_in_every_batch_request`. 106 tests passing.
+
 ## 2026-05-12 — DimensionTable: dimension columns as ordered categoricals (branch fix/dimension-table-categoricals, closes #58)
 
 `DimensionTable._parse_dims()` now converts each column of the returned `dims` DataFrame to `pandas.CategoricalDtype(ordered=True)` after building it. Categories are set in first-appearance order across the Census variable list, which is the hierarchical order the Census API uses (e.g., income-to-poverty thresholds low-to-high, age bands youngest-to-oldest). This lets callers sort and group dimensions without supplying an explicit sort key.

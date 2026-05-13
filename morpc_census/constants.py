@@ -39,7 +39,7 @@ HIGHLEVEL_GROUP_DESC = {
     "99": "Allocations",
 }
 
-HIGHLEVEL_DESC_FROM_ID = {v: k for k, v in HIGHLEVEL_GROUP_DESC.items()}
+HIGHLEVEL_DESC_TO_ID = {v: k for k, v in HIGHLEVEL_GROUP_DESC.items()}
 
 AGEGROUP_MAP = {
     'Under 5 years': 'Under 5 years',

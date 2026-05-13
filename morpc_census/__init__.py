@@ -6,7 +6,6 @@ from .api import (
     Group,
     CensusAPI,
     DimensionTable,
-    RaceDimensionTable,
     get_all_avail_endpoints,
     CENSUS_DATA_BASE_URL,
     IMPLEMENTED_ENDPOINTS,
@@ -17,6 +16,7 @@ from .api import (
 # Domain lookup tables
 from .constants import (
     HIGHLEVEL_GROUP_DESC,
+    HIGHLEVEL_DESC_TO_ID,
     AGEGROUP_MAP,
     AGEGROUP_SORT_ORDER,
     RACE_TABLE_MAP,
