@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 from morpc_census.constants import (  # noqa: E402
     HIGHLEVEL_GROUP_DESC,
-    HIGHLEVEL_DESC_FROM_ID,
+    HIGHLEVEL_DESC_TO_ID,
     AGEGROUP_MAP,
     AGEGROUP_SORT_ORDER,
     RACE_TABLE_MAP,
@@ -566,7 +566,7 @@ class CensusAPI:
         """
         from morpc.req import get_json_safely
 
-        BATCH_SIZE = 49
+        BATCH_SIZE = 48
         variables = self.variables
         batches = [variables[i:i + BATCH_SIZE] for i in range(0, len(variables), BATCH_SIZE)]
         self.logger.info(
@@ -576,11 +576,11 @@ class CensusAPI:
         frames = []
         for i, batch in enumerate(batches, 1):
             self.logger.info(f"Batch {i}/{len(batches)}: {len(batch)} variable(s).")
-            batch_params = {**params, 'get': ','.join(['GEO_ID'] + batch)}
+            batch_params = {**params, 'get': ','.join(['GEO_ID', 'NAME'] + batch)}
             records = get_json_safely(url, params=batch_params)
             columns = records.pop(0)
             frames.append(
-                pd.DataFrame.from_records(records, columns=columns).set_index('GEO_ID')
+                pd.DataFrame.from_records(records, columns=columns).set_index(['GEO_ID', 'NAME'])
             )
 
         result = frames[0] if len(frames) == 1 else frames[0].join(frames[1:])
