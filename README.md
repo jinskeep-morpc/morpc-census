@@ -66,49 +66,27 @@ See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and doc
 
 The items below are targeted simplifications and correctness fixes to make the package cleaner before a stable release. They are ordered roughly by priority.
 
-### 1. Fix Python 3.10/3.11 syntax bug in `geos.py`
+- [x] **1. Fix Python 3.10/3.11 syntax bug in `geos.py`** — `Scope.sql` used same-quote nested f-strings which only parse on Python 3.12+. Replaced with a local variable before the outer f-string.
 
-`Scope.sql` uses same-quote nested f-strings (`f"...{",".join(...)}..."`) which only parses on Python 3.12+. The package declares `requires-python = ">=3.10"`, so this silently breaks on 3.10 and 3.11. Replace with a local variable for the join result before embedding it in the outer f-string.
+- [x] **2. Cache `_get_api_key()`** — Decorated with `@functools.cache` so the `.env` filesystem walk happens at most once per process.
 
-### 2. Cache `_get_api_key()`
+- [x] **3. Replace the global `_avail_endpoints_cache` with `@functools.cache`** — Removed the mutable global; `@functools.cache` on `get_all_avail_endpoints()` makes the caching intent explicit.
 
-`_get_api_key()` is called before every API request. Each call invokes `find_dotenv()`, which walks the filesystem looking for a `.env` file. Decorate with `@functools.lru_cache(maxsize=None)` (or `@functools.cache`) so the filesystem walk happens at most once per process.
+- [x] **4. Avoid double-computing `wide()` inside `percent()`** — `percent()` now accepts an optional `_wide` parameter; pass a pre-computed `wide()` result to skip the second pivot.
 
-### 3. Replace the global `_avail_endpoints_cache` with `@functools.cache`
+- [x] **5. Rename `DimensionTable.variable_type` → `value_cols`** — `variable_type` was a list of column names, not a type string. `value_cols` is unambiguous.
 
-`get_all_avail_endpoints()` stores its result in a module-level mutable global. Replacing it with `@functools.cache` on the function eliminates the global and makes the caching intent explicit.
+- [x] **6. Rename `map` parameter in `find_replace_variable_map` → `label_map`** — Stops shadowing the Python builtin.
 
-### 4. Avoid double-computing `wide()` inside `percent()`
+- [x] **7. Split `CensusAPI.melt()` into focused private helpers** — Extracted `_melt_wide_to_long`, `_attach_dataset_metadata`, and `_pivot_and_coerce`; `melt()` is now a short orchestrator.
 
-`DimensionTable.percent()` calls `self.wide()` internally. If a caller wants both, the full pivot runs twice. Accept an optional `_wide` parameter in `percent()`, or cache `wide()` with `@functools.cache` on the result.
+- [x] **8. Pin `numpy` as an explicit dependency** — Added `numpy>=1.24` to `pyproject.toml`; it was an implicit transitive dependency.
 
-### 5. Rename `DimensionTable.variable_type` → `value_cols`
+- [x] **9. Add minimum version pins to all dependencies** — All entries in `pyproject.toml` now have floor versions.
 
-`variable_type` is a list of column names (e.g. `['estimate', 'moe']`), not a single type string. The name is misleading. Renaming to `value_cols` (or `value_columns`) makes the intent clear.
+- [x] **10. Add module docstrings to `geos.py` and `tigerweb.py`** — Matches `api.py` style.
 
-### 6. Rename `map` parameter in `find_replace_variable_map` → `label_map`
-
-The parameter named `map` shadows the Python builtin. Rename to `label_map`.
-
-### 7. Split `CensusAPI.melt()` into focused private helpers
-
-At ~90 lines and 7 sequential steps, `melt()` is the most complex method in the package. Splitting it into helpers like `_drop_non_data_cols`, `_parse_variable_codes`, `_attach_metadata`, and `_pivot_value_types` would make each step independently testable and easier to read.
-
-### 8. Pin `numpy` as an explicit dependency
-
-`api.py` imports `numpy` directly but `numpy` is not listed in `pyproject.toml`. It arrives transitively through `pandas`/`geopandas`, but best practice is to declare direct dependencies explicitly with a minimum version.
-
-### 9. Add minimum version pins to all dependencies
-
-`pyproject.toml` lists dependencies without version constraints. Add minimum versions (e.g. `pandas>=2.0`, `geopandas>=0.14`, `frictionless>=5.0`) so that broken environments fail fast with a clear error instead of silently misbehaving.
-
-### 10. Add module docstrings to `geos.py` and `tigerweb.py`
-
-`api.py` has a module-level docstring explaining its purpose and the base URL it targets. `geos.py` and `tigerweb.py` have none. Adding short docstrings improves discoverability and consistency.
-
-### 11. Validate or auto-fetch `tigerweb.py` `current_endpoints`
-
-The `current_endpoints` dict in `tigerweb.py` is hand-maintained. TIGERweb layer IDs can change when new vintages are released. Either add a test that fetches the live map and compares it to the hardcoded values, or replace the hardcoded dict with a cached fetch from the `current` MapServer endpoint.
+- [ ] **11. Validate or auto-fetch `tigerweb.py` `current_endpoints`** — The dict is hand-maintained and TIGERweb layer IDs can drift. Add a network-marked test that compares the hardcoded values against a live fetch, or replace with a cached fetch.
 
 ---
 
@@ -118,9 +96,9 @@ Steps to go from the current development state to a stable, installable PyPI pac
 
 ### Phase 1 — Pre-release cleanup
 
-- [ ] Apply all code improvement items above.
+- [x] Apply all code improvement items above. *(items 1–10 complete; item 11 remaining)*
 - [ ] Update `pyproject.toml` classifier from `Development Status :: 1 - Planning` to `4 - Beta` (or `5 - Production/Stable` when ready).
-- [ ] Fix the README usage example (currently uses old parameter names `survey_table=`, `scale=`, `data.LONG`). *(Addressed in this README.)*
+- [x] Fix the README usage example (previously used old parameter names `survey_table=`, `scale=`, `data.LONG`).
 - [ ] Add a `CHANGELOG.md` file. Start with a `0.1.0` entry summarizing the current feature set.
 - [ ] Add a `py.typed` marker file to `morpc_census/` so downstream type checkers know the package ships type information.
 - [ ] Expand test coverage for offline paths: `DimensionTable.wide()`, `percent()`, `remap()`, `drop()`, and `melt()` can all run without network access using fixture DataFrames.
