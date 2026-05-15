@@ -1,13 +1,21 @@
+"""Geography query construction, GEOID parsing, and geometry fetching for Census data.
 
+Provides:
+- Scope / SumLevel / GeoIDFQ dataclasses for building Census API queries
+- SCOPES registry (lazy-loaded) of named geographic extents
+- Functions for fetching GEOID lists and geometries from Census and TIGERweb APIs
+- MORPC-specific GEOID translation utilities
+"""
+import functools
 import logging
 import os
-logger  = logging.getLogger(__name__)
-
 import re
 from dataclasses import dataclass
 from geopandas import GeoDataFrame
 from pandas import DataFrame, Series
 from typing import Literal
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -49,7 +57,8 @@ class Scope:
             wheres = []
             for param in scope_params:
                 geo, ids = scope_params[param].split(':')
-                wheres.append(f"{geo.upper()} in ({",".join([f"'{str(x)}'" for x in ids.split(',')])})")
+                ids_str = ", ".join(f"'{x}'" for x in ids.split(','))
+                wheres.append(f"{geo.upper()} in ({ids_str})")
             where = " and ".join(wheres)
         return where
 
@@ -400,6 +409,7 @@ PSEUDOS = {'010': [
  }
 
 
+@functools.cache
 def _get_api_key() -> str | None:
     from dotenv import load_dotenv, find_dotenv
     load_dotenv(find_dotenv(usecwd=True), override=False)

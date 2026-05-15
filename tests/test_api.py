@@ -574,7 +574,7 @@ class TestRaceDimensionTable:
         assert rdt.long['variable'].str.match(r'^B17020_\d+$').all()
 
     def test_variable_type_excludes_race(self):
-        assert 'race' not in RaceDimensionTable(_make_long_racial()).variable_type
+        assert 'race' not in RaceDimensionTable(_make_long_racial()).value_cols
 
     def test_race_in_wide_column_index(self):
         wide = RaceDimensionTable(_make_long_racial()).wide()
@@ -995,6 +995,9 @@ class TestCensusAPIGroupOptional:
 # ---------------------------------------------------------------------------
 
 class TestGetApiKey:
+    def setup_method(self):
+        _get_api_key.cache_clear()
+
     def test_returns_key_from_environment(self):
         with patch.dict('os.environ', {'CENSUS_API_KEY': 'testkey123'}), \
              patch('dotenv.load_dotenv'), patch('dotenv.find_dotenv', return_value=''):

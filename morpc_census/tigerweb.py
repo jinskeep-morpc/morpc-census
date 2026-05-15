@@ -1,8 +1,16 @@
+"""Tools for fetching geographic boundary data from the Census TIGERweb REST API.
+
+TIGERweb base URL: https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/
+"""
 from __future__ import annotations
 
 import logging
+import re
 from os import PathLike
 from typing import TYPE_CHECKING, Literal
+
+import pandas as pd
+import requests
 
 if TYPE_CHECKING:
     from morpc_census.geos import Scope, SumLevel
@@ -76,15 +84,11 @@ def get_tigerweb_layers_map(
     >>> layers['tracts']
     8
     """
-    import pandas as pd
-    import requests
-    import re
-
     if survey not in ['ACS', 'DEC']:
         raise ValueError(f"Invalid survey type {survey!r}. Must be 'ACS' or 'DEC'.")
     if survey == 'DEC' and year not in [2010, 2020]:
         raise ValueError(f"Invalid year {year} for Decennial Census. Must be 2010 or 2020.")
-    if survey == 'ACS' and pd.to_numeric(year) < 2012:
+    if survey == 'ACS' and year < 2012:
         raise ValueError(f"Invalid year {year} for ACS. Must be 2012 or later.")
 
     survey_slug = 'Census' if survey == 'DEC' else survey
@@ -107,12 +111,13 @@ def get_tigerweb_layers_map(
     layers = layers.loc[~layers['name'].str.contains('Labels')]
     layer_map: dict[str, int] = layers.set_index('name')['id'].to_dict()
 
-    layer_map = {k.lower(): v for k, v in layer_map.items()}
-    layer_map = {k.replace('census ', ''): v for k, v in layer_map.items()}
-    layer_map = {re.sub(r'^(19|20)\d{2} ', '', k): v for k, v in layer_map.items()}
-    layer_map = {re.sub(r'^\d{3}(st|nd|rd|th) ', '', k): v for k, v in layer_map.items()}
+    def _normalize(name: str) -> str:
+        name = name.lower().replace('census ', '')
+        name = re.sub(r'^(19|20)\d{2} ', '', name)
+        name = re.sub(r'^\d{3}(st|nd|rd|th) ', '', name)
+        return name
 
-    return layer_map
+    return {_normalize(k): v for k, v in layer_map.items()}
 
 
 def get_layer_url(
@@ -142,7 +147,6 @@ def get_layer_url(
     >>> get_layer_url('tracts', year=2024, survey='ACS')
     'https://tigerweb.geo.census.gov/.../MapServer/8'
     """
-    import pandas as pd
     from morpc_census.geos import SumLevel
 
     if isinstance(layer_name, SumLevel):
@@ -152,7 +156,7 @@ def get_layer_url(
         raise ValueError(f"Invalid survey type {survey!r}. Must be 'current', 'ACS', or 'DEC'.")
     if survey == 'DEC' and year not in [2010, 2020]:
         raise ValueError(f"Invalid year {year} for Decennial Census. Must be 2010 or 2020.")
-    if survey == 'ACS' and pd.to_numeric(year) < 2012:
+    if survey == 'ACS' and year is not None and year < 2012:
         raise ValueError(f"Invalid year {year} for ACS. Must be 2012 or later.")
 
     layer_name = layer_name.lower()

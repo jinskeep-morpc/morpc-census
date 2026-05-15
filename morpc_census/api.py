@@ -7,7 +7,7 @@ Census API root: https://api.census.gov/data/
 
 from __future__ import annotations
 
-import json
+import functools
 import logging
 import os
 import re
@@ -107,33 +107,28 @@ IMPLEMENTED_ENDPOINTS = [
     'geoinfo',
 ]
 
-_avail_endpoints_cache = None
-
-
+@functools.cache
 def get_all_avail_endpoints():
     """Return {endpoint: [vintage, ...]} for every dataset the Census API exposes.
 
     Result is cached after the first call so subsequent calls are free.
     """
-    global _avail_endpoints_cache
-    if _avail_endpoints_cache is None:
-        from morpc.req import get_json_safely
-        kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
-        result = {}
-        for dataset in get_json_safely(CENSUS_DATA_BASE_URL, **kw)['dataset']:
-            if 'c_vintage' in dataset:
-                endpoint = "/".join(dataset['c_dataset'])
-                result.setdefault(endpoint, []).append(dataset['c_vintage'])
-        _avail_endpoints_cache = dict(sorted(result.items()))
-    return _avail_endpoints_cache
+    from morpc.req import get_json_safely
+    kw = {'params': {'key': k}} if (k := _get_api_key()) else {}
+    result = {}
+    for dataset in get_json_safely(CENSUS_DATA_BASE_URL, **kw)['dataset']:
+        if 'c_vintage' in dataset:
+            endpoint = "/".join(dataset['c_dataset'])
+            result.setdefault(endpoint, []).append(dataset['c_vintage'])
+    return dict(sorted(result.items()))
 
 
+@functools.cache
 def _get_api_key() -> str | None:
     """Return CENSUS_API_KEY from environment, with .env file as fallback.
 
-    dotenv convention (override=False): environment variables already set take
-    precedence over values in the .env file. Searches for .env starting from
-    the current working directory and walking up toward the filesystem root.
+    Result is cached — the environment is read once per process. Set
+    CENSUS_API_KEY before importing this module (or before the first API call).
     """
     from dotenv import load_dotenv, find_dotenv
     load_dotenv(find_dotenv(usecwd=True), override=False)
@@ -317,14 +312,14 @@ def censusapi_name(endpoint: Endpoint, scope: str | Scope, group: str | Group | 
 # Variable-mapping helper (used by DimensionTable)
 # ---------------------------------------------------------------------------
 
-def find_replace_variable_map(labels: list[str], variables: list[str], map: dict) -> tuple[list[str], list[str]]:
+def find_replace_variable_map(labels: list[str], variables: list[str], label_map: dict) -> tuple[list[str], list[str]]:
     """Apply label substitutions and return updated labels and new sequential variable codes."""
     labels = list(labels)
     variables = list(variables)
 
     new_labels = [
         next(
-            (label.replace(key, val) for key, val in map.items() if key in label),
+            (label.replace(key, val) for key, val in label_map.items() if key in label),
             label,
         )
         for label in labels
@@ -610,42 +605,46 @@ class CensusAPI:
             estimate / moe / percent_estimate / percent_moe / total.
         """
         self.logger.info("Melting data to long format.")
-
-        # Step 1 — melt to one row per (geography, variable)
         has_name = 'NAME' in self.data.columns
+        id_cols = ['geoidfq', 'name'] if has_name else ['geoidfq']
+        long = self._melt_wide_to_long(has_name)
+        long = self._attach_dataset_metadata(long, id_cols)
+        pivot_index = id_cols + [
+            'reference_period', 'survey', 'concept', 'universe',
+            'variable_label', 'variable',
+        ]
+        return self._pivot_and_coerce(long, pivot_index)
+
+    def _melt_wide_to_long(self, has_name: bool) -> pd.DataFrame:
+        """Steps 1-4: melt wide data, filter, label, and parse variable codes."""
         geo_cols = ['GEO_ID', 'NAME'] if has_name else ['GEO_ID']
-        id_cols  = ['geoidfq', 'name'] if has_name else ['geoidfq']
         long = (
             self.data
             .melt(id_vars=geo_cols, var_name='variable', value_name='value')
             .rename(columns={'GEO_ID': 'geoidfq', 'NAME': 'name'})
         )
-
-        # Step 2 — drop non-data columns (state/county/NAME/annotation codes)
+        # Drop non-data columns (state/county/annotation codes)
         long = long.loc[long['variable'].isin(self.vars)]
-
-        # Step 3 — human-readable label (strip leading "Estimate!!" prefix)
+        # Human-readable label — strip leading "Estimate!!" prefix
         labels = long['variable'].map(lambda v: self.vars.get(v, {}).get('label', v))
         long['variable_label'] = labels.str.split('!!', n=1).str[-1]
-
-        # Step 4 — parse base code and value type from variable code
-        #   B01001_001E  →  base='B01001_001', type_code='E' → 'estimate'
+        # Parse base code and value type: B01001_001E → base='B01001_001', type='E'
         parsed = long['variable'].str.extract(r'^([A-Z0-9_]+[0-9]+)([A-Z]{1,2})$')
         long['variable'] = parsed[0].fillna(long['variable'])
         long['variable_type'] = parsed[1].map(VARIABLE_TYPES)
-        long = long.loc[long['variable_type'].notna()]
+        return long.loc[long['variable_type'].notna()]
 
-        # Step 5 — attach dataset metadata
+    def _attach_dataset_metadata(self, long: pd.DataFrame, id_cols: list[str]) -> pd.DataFrame:
+        """Step 5: attach reference_period, survey, universe, and concept columns."""
         long['reference_period'] = self.endpoint.year
         long['survey'] = self.endpoint.survey
         if self.group is not None:
             long['universe'] = self.universe
             long['concept'] = self.group.description.capitalize()
         else:
-            # In variables-only mode, look up concept per variable from self.vars.
-            # self.vars keys still carry the type suffix (e.g. B17024_001E); after
-            # Step 4 long['variable'] is the base code (e.g. B17024_001), so we
-            # build a base_code → concept mapping first.
+            # Variables-only mode: derive concept and universe per variable from self.vars.
+            # self.vars keys carry the type suffix (e.g. B17024_001E); long['variable']
+            # is already the base code (e.g. B17024_001) after _melt_wide_to_long.
             _concept_map: dict[str, str] = {}
             for k, meta in self.vars.items():
                 m = re.match(r'^([A-Z0-9_]+[0-9]+)[A-Z]{1,2}$', k)
@@ -654,19 +653,16 @@ class CensusAPI:
             long['concept'] = long['variable'].map(
                 lambda v: _concept_map.get(v, '').capitalize()
             )
-            # Universe is group-level; extract group code then map via endpoint.groups.
             long['_gc'] = long['variable'].str.extract(r'^([A-Z][A-Z0-9]+)_')[0]
             gc_universe = {
                 gc: self.endpoint.groups.get(gc, {}).get('universe', '')
                 for gc in long['_gc'].dropna().unique()
             }
             long['universe'] = long.pop('_gc').map(gc_universe).fillna('')
+        return long
 
-        # Step 6 — pivot value types into separate columns
-        pivot_index = id_cols + [
-            'reference_period', 'survey', 'concept', 'universe',
-            'variable_label', 'variable',
-        ]
+    def _pivot_and_coerce(self, long: pd.DataFrame, pivot_index: list[str]) -> pd.DataFrame:
+        """Steps 6-7: pivot variable_type into columns and coerce values to numeric."""
         try:
             long = (
                 long.pivot(index=pivot_index, columns='variable_type', values='value')
@@ -676,16 +672,12 @@ class CensusAPI:
         except ValueError as e:
             self.logger.error(f"Pivot failed: {e}")
             raise
-
         long = long.sort_values(by=['geoidfq', 'variable', 'reference_period'])
-
-        # Step 7 — coerce value columns to numeric; Census missing codes → NaN
         for col in [c for c in long.columns if c in VARIABLE_TYPES.values()]:
             long[col] = pd.to_numeric(
                 long[col].where(~long[col].isin(MISSING_VALUES), other=np.nan),
                 errors='coerce',
             )
-
         return long
 
     # ------------------------------------------------------------------
@@ -851,7 +843,7 @@ class DimensionTable:
         self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.long = long_data.copy()
 
-        self.variable_type = [
+        self.value_cols = [
             c for c in self.long.columns
             if c not in (
                 'concept', 'universe', 'survey', 'geoidfq', 'name',
@@ -954,25 +946,25 @@ class DimensionTable:
         """
         self.logger.info(f"Remapping variables: {list(variable_map)}.")
         self.long['variable_label'], self.long['variable'] = find_replace_variable_map(
-            self.long['variable_label'], self.long['variable'], map=variable_map
+            self.long['variable_label'], self.long['variable'], label_map=variable_map
         )
 
-        group_cols = [c for c in self.long.columns if c not in self.variable_type]
+        group_cols = [c for c in self.long.columns if c not in self.value_cols]
         long_work = self.long.copy()
         agg_dict = {}
 
-        if 'moe' in self.variable_type:
+        if 'moe' in self.value_cols:
             long_work['_moe_sq'] = pd.to_numeric(long_work['moe'], errors='coerce') ** 2
             agg_dict['_moe_sq'] = 'sum'
 
-        for col in self.variable_type:
+        for col in self.value_cols:
             if col != 'moe':
                 long_work[col] = pd.to_numeric(long_work[col], errors='coerce')
                 agg_dict[col] = 'sum'
 
         self.long = long_work.groupby(group_cols, observed=True).agg(agg_dict).reset_index()
 
-        if 'moe' in self.variable_type:
+        if 'moe' in self.value_cols:
             self.long['moe'] = np.sqrt(self.long['_moe_sq'])
             self.long = self.long.drop(columns=['_moe_sq'])
 
@@ -1057,7 +1049,7 @@ class DimensionTable:
         result.logger = self.logger
         result.long = new_long.reset_index(drop=True)
         result.dims = new_dims
-        result.variable_type = self.variable_type
+        result.value_cols = self.value_cols
         return result
 
     def _aggregate_dim(self, drop_dim, other_dims):
@@ -1068,7 +1060,7 @@ class DimensionTable:
         if included in the aggregation.
         """
         geo_meta = [c for c in self.long.columns
-                    if c not in ('variable', 'variable_label') + tuple(self.variable_type)]
+                    if c not in ('variable', 'variable_label') + tuple(self.value_cols)]
 
         long_d = self.long.copy()
         for d in self.dims.columns:
@@ -1077,18 +1069,18 @@ class DimensionTable:
         # Exclude subtotal rows for this dimension — they are pre-computed totals
         long_d = long_d.loc[long_d[drop_dim] != ''].copy()
 
-        for col in self.variable_type:
+        for col in self.value_cols:
             long_d[col] = pd.to_numeric(long_d[col], errors='coerce')
 
-        agg_dict = {col: 'sum' for col in self.variable_type if col != 'moe'}
-        if 'moe' in self.variable_type:
+        agg_dict = {col: 'sum' for col in self.value_cols if col != 'moe'}
+        if 'moe' in self.value_cols:
             long_d['_moe_sq'] = long_d['moe'] ** 2
             agg_dict['_moe_sq'] = 'sum'
 
         group_cols = geo_meta + other_dims
         grouped = long_d.groupby(group_cols, observed=True).agg(agg_dict).reset_index()
 
-        if 'moe' in self.variable_type:
+        if 'moe' in self.value_cols:
             grouped['moe'] = np.sqrt(grouped['_moe_sq'])
             grouped = grouped.drop(columns=['_moe_sq'])
 
@@ -1123,12 +1115,12 @@ class DimensionTable:
         long = self.long.replace(dict.fromkeys(MISSING_VALUES, np.nan))
 
         col_dims = [c for c in long.columns
-                    if c not in ('variable', 'variable_label') + tuple(self.variable_type)]
+                    if c not in ('variable', 'variable_label') + tuple(self.value_cols)]
 
         wide = long.pivot(
             index='variable',
             columns=col_dims,
-            values=self.variable_type,
+            values=self.value_cols,
         )
 
         # Strip ':' from dim values for display
@@ -1168,7 +1160,7 @@ class DimensionTable:
 
         return wide.sort_index(level='geoidfq', axis=1).drop_duplicates()
 
-    def percent(self, decimals=2):
+    def percent(self, decimals=2, _wide=None):
         """Compute column percentages relative to the grand total row.
 
         The grand total is the row where all dimension columns after the first
@@ -1185,11 +1177,19 @@ class DimensionTable:
 
             MOE(p) = (1/T) * sqrt(MOE_x² + p² * MOE_T²)
 
+        Parameters
+        ----------
+        decimals : int
+            Rounding precision for percentage values.
+        _wide : DataFrame, optional
+            Pre-computed result of :meth:`wide`. Pass it to avoid computing
+            the pivot twice when you need both ``wide()`` and ``percent()``.
+
         Returns
         -------
         pandas.DataFrame
         """
-        wide = self.wide()
+        wide = _wide if _wide is not None else self.wide()
 
         idx = wide.index
         if isinstance(idx, pd.MultiIndex):
@@ -1295,7 +1295,7 @@ class RaceDimensionTable(DimensionTable):
         effective_map = race_map if race_map is not None else RACE_TABLE_MAP
         processed = self._preprocess(long_data.copy(), effective_map)
         super().__init__(processed, dim_names)
-        self.variable_type = [c for c in self.variable_type if c != 'race']
+        self.value_cols = [c for c in self.value_cols if c != 'race']
         # Make race an ordered categorical in race_map insertion order so
         # wide() produces race columns in that order.
         race_categories = list(dict.fromkeys(effective_map.values()))
