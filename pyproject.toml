@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Typing :: Typed",
 ]
 dependencies = [
     "morpc",
@@ -47,4 +48,4 @@ exclude = ["demo"]
 namespaces = false
 
 [tool.setuptools.package-data]
-"*" = ["*.json"]
+"*" = ["*.json", "py.typed"]

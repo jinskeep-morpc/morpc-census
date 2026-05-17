@@ -87,8 +87,8 @@ See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and doc
 - [x] Fix the README usage example
 - [x] Expand test coverage for offline paths (`wide()`, `percent()`, `remap()`, `drop()`, `melt()`)
 - [x] Update `pyproject.toml` classifier from `Development Status :: 1 - Planning` to `4 - Beta`
-- [ ] Add a `CHANGELOG.md`
-- [ ] Add a `py.typed` marker file
+- [x] Add a `CHANGELOG.md`
+- [x] Add a `py.typed` marker file
 
 ### Phase 2 — Dependency audit
 

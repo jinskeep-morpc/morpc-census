@@ -1,5 +1,14 @@
 # morpc-census dev notes
 
+## 2026-05-16 — Phase 1 production readiness: CHANGELOG, py.typed, beta classifier (branch chore/beta-classifier, closes #72)
+
+Three Phase 1 items completed on one branch per the new per-phase branching rule:
+
+- **`pyproject.toml` classifier** → `"Development Status :: 4 - Beta"` + `"Typing :: Typed"` classifier added.
+- **`py.typed`** marker file created at `morpc_census/py.typed`; declared in `[tool.setuptools.package-data]` alongside `*.json`.
+- **`CHANGELOG.md`** created with a `0.1.0` entry covering all features, renames, and fixes shipped to date.
+
+
 ## 2026-05-16 — Update pyproject.toml classifier to 4 - Beta (branch chore/beta-classifier, closes #72)
 
 Changed `"Development Status :: 1 - Planning"` to `"Development Status :: 4 - Beta"` in `pyproject.toml`. The package has a stable public API, comprehensive offline test coverage, and multiple shipped features — Planning is no longer accurate.
