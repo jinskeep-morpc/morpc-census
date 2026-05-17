@@ -1,5 +1,12 @@
 # morpc-census dev notes
 
+## 2026-05-16 — Phase 4 versioning: setuptools-scm, v0.1.0 tag, CONTRIBUTING.md (branch chore/phase4-versioning, closes #78)
+
+- **Dynamic versioning:** Replaced hardcoded `__version__ = "0.1.0"` in `__init__.py` with `importlib.metadata.version("morpc-census")` (fallback `"0.1.0"` for non-installed editable environments). Removed `[tool.setuptools.dynamic]` `version = {attr = ...}` from `pyproject.toml`; added `[tool.setuptools_scm]` with `fallback_version = "0.1.0"`. `setuptools-scm` was already in `build-system.requires`.
+- **`CONTRIBUTING.md`** created with: dev setup steps, test commands, branching/PR process, SemVer table, definition of breaking changes, and release tagging instructions.
+- **`v0.1.0` tag** pushed after the PR merges (see release on GitHub).
+
+
 ## 2026-05-16 — Phase 3 CI/CD: GitHub Actions for test, build, and publish (branch chore/phase3-cicd, closes #76)
 
 Added two GitHub Actions workflows:
