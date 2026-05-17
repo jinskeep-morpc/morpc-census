@@ -1,5 +1,10 @@
 # morpc-census dev notes
 
+## 2026-05-16 — Simplify README roadmap to checklist; update modules and current state (main, closes #69)
+
+Stripped all detail text from both roadmap sections, leaving plain checkbox lines. Details for all items remain here in dev_notes. Updated modules section: `RaceDimensionTable` and `GeoIDFQ` added to descriptions, `morpc_census.constants` added as a fourth module entry. Checked off "Expand test coverage for offline paths" (completed across recent sessions). Added `RaceDimensionTable` to the usage example import.
+
+
 ## 2026-05-13 — RaceDimensionTable race column level is ordered categorical in race_map order (branch fix/highlevel-rename-fetch-name)
 
 `RaceDimensionTable.__init__` now converts `self.long['race']` to `pd.Categorical` with the values of `effective_map` (insertion order) as the ordered categories. `DimensionTable.wide()` re-applies this categorical metadata to the column MultiIndex after `from_tuples()` strips it, using `set_levels` with the **current** level values (preserving code→label mapping) and the desired order only in the `categories=` argument.
