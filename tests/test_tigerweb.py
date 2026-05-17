@@ -1,6 +1,6 @@
 import pytest
 from morpc_census.geos import SumLevel, Scope
-from morpc_census.tigerweb import get_layer_url
+from morpc_census.tigerweb import get_layer_url, get_tigerweb_layers_map, current_endpoints
 
 
 class TestSumLevelParts:
@@ -48,6 +48,31 @@ class TestGetLayerUrl:
     def test_invalid_layer_raises(self):
         with pytest.raises((ValueError, KeyError)):
             get_layer_url("bogus_layer_xyz")
+
+
+class TestGetTigerwebLayersMap:
+    def test_invalid_survey_raises(self):
+        with pytest.raises(ValueError):
+            get_tigerweb_layers_map(survey='XYZ')
+
+    def test_acs_without_year_raises(self):
+        with pytest.raises(ValueError):
+            get_tigerweb_layers_map(year=None, survey='ACS')
+
+    def test_dec_invalid_year_raises(self):
+        with pytest.raises(ValueError):
+            get_tigerweb_layers_map(year=2019, survey='DEC')
+
+    @pytest.mark.network
+    def test_current_endpoints_match_live_api(self):
+        live = get_tigerweb_layers_map(survey='current')
+        mismatches = {}
+        for name, layer_id in current_endpoints.items():
+            if name not in live:
+                mismatches[name] = {'expected': layer_id, 'actual': 'MISSING'}
+            elif live[name] != layer_id:
+                mismatches[name] = {'expected': layer_id, 'actual': live[name]}
+        assert not mismatches, f"current_endpoints has drifted from live TIGERweb API: {mismatches}"
 
 
 class TestScopeSql:

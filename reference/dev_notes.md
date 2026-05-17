@@ -1,5 +1,10 @@
 # morpc-census dev notes
 
+## 2026-05-16 — Validate tigerweb current_endpoints via network test (branch fix/tigerweb-validate-endpoints, closes #70)
+
+Extended `get_tigerweb_layers_map` to accept `survey='current'` (no year required), fetching from `tigerWMS_Current/MapServer/?f=pjson` and applying the same name normalization as the ACS/DEC paths. Added a `@pytest.mark.network` test `TestGetTigerwebLayersMap::test_current_endpoints_match_live_api` that compares every entry in the hardcoded `current_endpoints` dict against the live API response and reports any names missing or IDs that have drifted. Also fixed a stale `HIGHLEVEL_DESC_FROM_ID` import in `test_constants.py` (the constant was renamed to `HIGHLEVEL_DESC_TO_ID` in a prior session but the test was never updated). 237 tests passing.
+
+
 ## 2026-05-16 — Simplify README roadmap to checklist; update modules and current state (main, closes #69)
 
 Stripped all detail text from both roadmap sections, leaving plain checkbox lines. Details for all items remain here in dev_notes. Updated modules section: `RaceDimensionTable` and `GeoIDFQ` added to descriptions, `morpc_census.constants` added as a fourth module entry. Checked off "Expand test coverage for offline paths" (completed across recent sessions). Added `RaceDimensionTable` to the usage example import.
