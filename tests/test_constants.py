@@ -3,7 +3,7 @@
 import pytest
 from morpc_census.constants import (
     HIGHLEVEL_GROUP_DESC,
-    HIGHLEVEL_DESC_FROM_ID,
+    HIGHLEVEL_DESC_TO_ID,
     AGEGROUP_MAP,
     AGEGROUP_SORT_ORDER,
     RACE_TABLE_MAP,
@@ -27,7 +27,7 @@ class TestHighlevelGroupDesc:
         assert HIGHLEVEL_GROUP_DESC["01"] == "Sex, Age, and Population"
 
     def test_reverse_lookup_is_inverse(self):
-        for desc, code in HIGHLEVEL_DESC_FROM_ID.items():
+        for desc, code in HIGHLEVEL_DESC_TO_ID.items():
             assert HIGHLEVEL_GROUP_DESC[code] == desc
 
 

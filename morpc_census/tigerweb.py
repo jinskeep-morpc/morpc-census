@@ -61,17 +61,20 @@ current_endpoints: dict[str, int] = {
 
 
 def get_tigerweb_layers_map(
-    year: int = 2023,
-    survey: Literal['ACS', 'DEC'] = 'ACS',
+    year: int | None = None,
+    survey: Literal['ACS', 'DEC', 'current'] = 'ACS',
 ) -> dict[str, int]:
     """Return a mapping of layer names to MapServer IDs for a TIGERweb service.
 
     Parameters
     ----------
-    year : int
-        Vintage year of the TIGERweb service (e.g. ``2024``).
-    survey : {'ACS', 'DEC'}
-        Survey type. ``'ACS'`` requires 2012 or later; ``'DEC'`` accepts 2010 or 2020.
+    year : int, optional
+        Vintage year of the TIGERweb service (e.g. ``2024``). Not used when
+        ``survey='current'``.
+    survey : {'ACS', 'DEC', 'current'}
+        Survey type. ``'ACS'`` requires 2012 or later; ``'DEC'`` accepts 2010
+        or 2020; ``'current'`` fetches the most-recent geometries service
+        (no year required).
 
     Returns
     -------
@@ -83,16 +86,22 @@ def get_tigerweb_layers_map(
     >>> layers = get_tigerweb_layers_map(2024, survey='ACS')
     >>> layers['tracts']
     8
+    >>> layers = get_tigerweb_layers_map(survey='current')
+    >>> layers['counties']
+    82
     """
-    if survey not in ['ACS', 'DEC']:
-        raise ValueError(f"Invalid survey type {survey!r}. Must be 'ACS' or 'DEC'.")
+    if survey not in ['ACS', 'DEC', 'current']:
+        raise ValueError(f"Invalid survey type {survey!r}. Must be 'ACS', 'DEC', or 'current'.")
     if survey == 'DEC' and year not in [2010, 2020]:
         raise ValueError(f"Invalid year {year} for Decennial Census. Must be 2010 or 2020.")
-    if survey == 'ACS' and year < 2012:
+    if survey == 'ACS' and (year is None or year < 2012):
         raise ValueError(f"Invalid year {year} for ACS. Must be 2012 or later.")
 
-    survey_slug = 'Census' if survey == 'DEC' else survey
-    mapserver_url = f"https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_{survey_slug}{year}/MapServer/"
+    if survey == 'current':
+        mapserver_url = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer/"
+    else:
+        survey_slug = 'Census' if survey == 'DEC' else survey
+        mapserver_url = f"https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_{survey_slug}{year}/MapServer/"
 
     logger.info(f"Fetching metadata from {mapserver_url}?f=pjson")
     r = requests.get(f"{mapserver_url}?f=pjson")
