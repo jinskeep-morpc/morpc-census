@@ -1,5 +1,14 @@
 # morpc-census dev notes
 
+## 2026-05-16 — Phase 2 dependency audit: pin morpc, document install order (branch chore/phase2-dependency-audit, closes #74)
+
+**Assessment:** `morpc` (from `morpc-py`, currently v0.4.3) provides HTTP utilities (`morpc.req.get_json_safely/get_text_safely`), REST API helpers (`morpc.rest_api.resource/gdf_from_resource`), and MORPC-internal geography constants (`CONST_*`, `SUMLEVEL_*`, `CONST_REGIONS`). The geography constants are tightly coupled to internal MORPC data — publishing `morpc` to PyPI without significant restructuring is not practical. Recommendation: keep as private dependency.
+
+**Actions taken:**
+- Pinned `morpc>=0.4.3` in `pyproject.toml` (was unpinned).
+- Updated README Installation section to clearly state that `morpc-py` must be installed manually before `morpc-census`, with explicit two-step install commands for both the regular and dev install cases.
+
+
 ## 2026-05-16 — Phase 1 production readiness: CHANGELOG, py.typed, beta classifier (branch chore/beta-classifier, closes #72)
 
 Three Phase 1 items completed on one branch per the new per-phase branching rule:
