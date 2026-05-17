@@ -75,7 +75,7 @@ See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and doc
 - [x] Pin `numpy` as an explicit dependency
 - [x] Add minimum version pins to all dependencies
 - [x] Add module docstrings to `geos.py` and `tigerweb.py`
-- [ ] Validate or auto-fetch `tigerweb.py` `current_endpoints`
+- [x] Validate or auto-fetch `tigerweb.py` `current_endpoints`
 
 ---
 
@@ -86,9 +86,9 @@ See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and doc
 - [x] Apply all code improvement items above
 - [x] Fix the README usage example
 - [x] Expand test coverage for offline paths (`wide()`, `percent()`, `remap()`, `drop()`, `melt()`)
-- [ ] Update `pyproject.toml` classifier from `Development Status :: 1 - Planning` to `4 - Beta`
-- [ ] Add a `CHANGELOG.md`
-- [ ] Add a `py.typed` marker file
+- [x] Update `pyproject.toml` classifier from `Development Status :: 1 - Planning` to `4 - Beta`
+- [x] Add a `CHANGELOG.md`
+- [x] Add a `py.typed` marker file
 
 ### Phase 2 — Dependency audit
 

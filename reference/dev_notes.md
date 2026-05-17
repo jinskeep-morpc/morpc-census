@@ -1,5 +1,19 @@
 # morpc-census dev notes
 
+## 2026-05-16 — Phase 1 production readiness: CHANGELOG, py.typed, beta classifier (branch chore/beta-classifier, closes #72)
+
+Three Phase 1 items completed on one branch per the new per-phase branching rule:
+
+- **`pyproject.toml` classifier** → `"Development Status :: 4 - Beta"` + `"Typing :: Typed"` classifier added.
+- **`py.typed`** marker file created at `morpc_census/py.typed`; declared in `[tool.setuptools.package-data]` alongside `*.json`.
+- **`CHANGELOG.md`** created with a `0.1.0` entry covering all features, renames, and fixes shipped to date.
+
+
+## 2026-05-16 — Update pyproject.toml classifier to 4 - Beta (branch chore/beta-classifier, closes #72)
+
+Changed `"Development Status :: 1 - Planning"` to `"Development Status :: 4 - Beta"` in `pyproject.toml`. The package has a stable public API, comprehensive offline test coverage, and multiple shipped features — Planning is no longer accurate.
+
+
 ## 2026-05-16 — Validate tigerweb current_endpoints via network test (branch fix/tigerweb-validate-endpoints, closes #70)
 
 Extended `get_tigerweb_layers_map` to accept `survey='current'` (no year required), fetching from `tigerWMS_Current/MapServer/?f=pjson` and applying the same name normalization as the ACS/DEC paths. Added a `@pytest.mark.network` test `TestGetTigerwebLayersMap::test_current_endpoints_match_live_api` that compares every entry in the hardcoded `current_endpoints` dict against the live API response and reports any names missing or IDs that have drifted. Also fixed a stale `HIGHLEVEL_DESC_FROM_ID` import in `test_constants.py` (the constant was renamed to `HIGHLEVEL_DESC_TO_ID` in a prior session but the test was never updated). 237 tests passing.
