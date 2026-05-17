@@ -116,9 +116,9 @@ See [demos](https://jinskeep-morpc.github.io/morpc-census/) for examples and doc
 
 ### Phase 4 — Versioning & release
 
-- [ ] Switch to dynamic versioning via `setuptools-scm`
-- [ ] Tag `v0.1.0` and publish first release
-- [ ] Document versioning policy and breaking-change rules in `CONTRIBUTING.md`
+- [x] Switch to dynamic versioning via `setuptools-scm`
+- [x] Tag `v0.1.0` and publish first release
+- [x] Document versioning policy and breaking-change rules in `CONTRIBUTING.md`
 
 ### Phase 5 — Documentation
 

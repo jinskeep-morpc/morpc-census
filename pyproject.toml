@@ -28,8 +28,8 @@ dependencies = [
 requires = ["setuptools>=61.0", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.dynamic]
-version = {attr = "morpc_census.__version__"}
+[tool.setuptools_scm]
+fallback_version = "0.1.0"
 
 [project.optional-dependencies]
 dev = [
