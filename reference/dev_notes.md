@@ -1,5 +1,11 @@
 # morpc-census dev notes
 
+## 2026-05-18 — Fix numeric Census sentinel values in DimensionTable.wide() (branch fix/numeric-sentinel-values, closes #84)
+
+`MISSING_VALUES` contains sentinel strings (e.g. `"-555555555"`) but `_pivot_and_coerce` coerces API values to float, so the string-keyed `replace()` silently missed float forms like `-555555555.0`. This caused `DimensionTable.percent()` to compute astronomical percent-MOE values (~20,000%) when the total row's MOE was a controlled-total sentinel. Added `_MISSING_VALUES_NUMERIC` (integer equivalents) and included them in `wide()`'s replace dict. After fix, sentinel `moe_T` becomes NaN → falls back to 0 in the formula → `m_x / T * 100` (Census Bureau recommended approach). 5 new tests in `TestMissingValueSentinels`.
+
+---
+
 ## 2026-05-16 — Rewrite 01-morpc-geos-demo.ipynb around user workflow (branch doc/geos-demo-rewrite, closes #82)
 
 Rewrote the geos demo notebook from 45 cells to 25, restructured around four sections: Scopes, Scales, Fetching geometries, GEOIDFQs.
