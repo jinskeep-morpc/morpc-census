@@ -712,6 +712,74 @@ class TestRaceDimensionTable:
 
 
 # ---------------------------------------------------------------------------
+# TestMissingValueSentinels
+# ---------------------------------------------------------------------------
+
+class TestMissingValueSentinels:
+    """Numeric Census sentinel values must be treated as NaN in wide() and percent()."""
+
+    def _make_sentinel_long(self, moe_total=-555555555):
+        """Two-row long DF where the total row has a numeric sentinel MOE."""
+        return pd.DataFrame({
+            'variable':         ['B01_001', 'B01_002'],
+            'variable_label':   ['Total:', 'Total:!!Male:'],
+            'geoidfq':          ['0500000US39049'] * 2,
+            'name':             ['Franklin County'] * 2,
+            'concept':          ['Test'] * 2,
+            'universe':         ['Pop'] * 2,
+            'survey':           ['acs/acs5'] * 2,
+            'reference_period': [2023] * 2,
+            'estimate':         [1_000_000, 490_000],
+            'moe':              [float(moe_total), 5_200.0],
+        })
+
+    def test_numeric_missing_values_constant_populated(self):
+        from morpc_census.api import _MISSING_VALUES_NUMERIC
+        assert -555555555 in _MISSING_VALUES_NUMERIC
+        assert -999999999 in _MISSING_VALUES_NUMERIC
+        assert -222222222 in _MISSING_VALUES_NUMERIC
+
+    def test_wide_replaces_numeric_sentinel_moe_with_nan(self):
+        import numpy as np
+        dt = DimensionTable(self._make_sentinel_long())
+        wide = dt.wide()
+        moe_cols = [c for c in wide.columns if c[-1] == 'moe']
+        total_row = wide.iloc[0]
+        total_moe = float(total_row[moe_cols[0]])
+        assert np.isnan(total_moe), f"Expected NaN, got {total_moe}"
+
+    def test_percent_moe_reasonable_when_total_moe_is_sentinel(self):
+        # When total MOE is a sentinel (→ NaN → treated as 0), the formula
+        # falls back to moe_x / T * 100.  For m_x=5200, T=1_000_000: 0.52%.
+        # The result must NOT be astronomical (the broken pre-fix value was ~20 000%).
+        dt = DimensionTable(self._make_sentinel_long())
+        pct = dt.percent()
+        moe_cols = [c for c in pct.columns if c[-1] == 'moe']
+        assert len(moe_cols) > 0
+        pct_moe = float(pct[moe_cols[0]].iloc[0])
+        assert pct_moe < 100, f"Percent MOE should be <100%, got {pct_moe}"
+        assert pct_moe > 0, f"Percent MOE should be positive, got {pct_moe}"
+
+    def test_percent_estimate_unaffected_by_sentinel_moe(self):
+        dt = DimensionTable(self._make_sentinel_long())
+        pct = dt.percent()
+        est_cols = [c for c in pct.columns if c[-1] == 'estimate']
+        pct_est = round(float(pct[est_cols[0]].iloc[0]), 1)
+        assert pct_est == 49.0, f"Percent estimate should still be ~49%, got {pct_est}"
+
+    def test_all_numeric_sentinel_codes_replaced(self):
+        import numpy as np
+        from morpc_census.api import _MISSING_VALUES_NUMERIC
+        for sentinel in _MISSING_VALUES_NUMERIC:
+            long = self._make_sentinel_long(moe_total=sentinel)
+            dt = DimensionTable(long)
+            wide = dt.wide()
+            moe_cols = [c for c in wide.columns if c[-1] == 'moe']
+            total_moe = float(wide.iloc[0][moe_cols[0]])
+            assert np.isnan(total_moe), f"Sentinel {sentinel} not replaced with NaN"
+
+
+# ---------------------------------------------------------------------------
 # TestCensusAPIClassNormalization
 # ---------------------------------------------------------------------------
 
