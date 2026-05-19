@@ -46,6 +46,9 @@ MISSING_VALUES = [
     "", "-222222222", "-333333333", "-555555555",
     "-666666666", "-888888888", "-999999999", "*****",
 ]
+# Numeric equivalents — sentinel strings are coerced to floats/ints after the
+# Census API pivot, so replacement in wide() must cover both forms.
+_MISSING_VALUES_NUMERIC = [int(v) for v in MISSING_VALUES if v.lstrip("-").isdigit()]
 
 VARIABLE_TYPES = {
     "E": "estimate",
@@ -1135,7 +1138,9 @@ class DimensionTable:
         ['concept', 'universe', 'survey', 'geoidfq', 'name', 'reference_period', 'value_type']
         >>> pct = table.percent(_wide=wide)     # doctest: +SKIP
         """
-        long = self.long.replace(dict.fromkeys(MISSING_VALUES, np.nan))
+        long = self.long.replace(
+            dict.fromkeys(MISSING_VALUES + _MISSING_VALUES_NUMERIC, np.nan)
+        )
 
         col_dims = [c for c in long.columns
                     if c not in ('variable', 'variable_label') + tuple(self.value_cols)]
