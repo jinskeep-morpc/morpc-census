@@ -272,7 +272,7 @@ class _LazyScopes(dict):
             ("regionceds",   "CEDS Region",       "state:39"),
             ("regioncbsa",   "CBSA",              "state:39"),
             ("regionmobility", "Mobility Region", "state:39"),
-            ("regionmpo",    "MPO Region",        "state:39"),
+            ("regionmpo",    "FRADEL",            "state:39"),
         ]:
             fips = ', '.join(morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS[region_key])
             self[name] = Scope(name=name, for_param=f"county:{fips}", in_param=in_param)
