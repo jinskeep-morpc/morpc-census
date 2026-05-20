@@ -301,6 +301,19 @@ class Group:
             return overrides[self.code]
         return _infer_dim_names(self)
 
+    @cached_property
+    def dim_names(self) -> list[str]:
+        """Ordered list of human-readable dimension names for :class:`DimensionTable`.
+
+        Returns
+        -------
+        list[str]
+            E.g. ``["Total", "Sex", "Age"]``. Directly usable as the
+            ``dim_names`` parameter of :class:`DimensionTable`.
+        """
+        cd = self.concept_dims
+        return [cd[k] for k in sorted(cd, key=lambda k: int(k.split("_")[1]))]
+
 
 # ---------------------------------------------------------------------------
 # Dim-naming helpers
@@ -1022,9 +1035,12 @@ class DimensionTable:
     dim_names : list of str, optional
         Names for the dimension columns parsed from ``variable_label``.
         Auto-named ``dim_0``, ``dim_1``, … when omitted.
+    group : Group, optional
+        When provided and ``dim_names`` is not given, ``group.dim_names`` is
+        used to name the dimension columns.
     """
 
-    def __init__(self, long_data, dim_names=None):
+    def __init__(self, long_data, dim_names=None, group=None):
         self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
         self.long = long_data.copy()
 
@@ -1035,6 +1051,9 @@ class DimensionTable:
                 'reference_period', 'variable_label', 'variable',
             )
         ]
+
+        if dim_names is None and group is not None:
+            dim_names = group.dim_names
 
         self.dims = self._parse_dims(dim_names)
 
