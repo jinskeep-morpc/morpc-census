@@ -274,7 +274,7 @@ class _LazyScopes(dict):
             ("regionmobility", "Mobility Region", "state:39"),
             ("regionmpo",    "MPO Region",        "state:39"),
         ]:
-            fips = ",".join(morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS[region_key])
+            fips = ', '.join(morpc.CONST_COUNTY_NAME_TO_ID[x][2:6] for x in morpc.CONST_REGIONS[region_key])
             self[name] = Scope(name=name, for_param=f"county:{fips}", in_param=in_param)
         self._loaded = True
 
@@ -691,7 +691,7 @@ def _fetch_layer(sumlevel: SumLevel, geoids: list[str], year: int | None, survey
     for i, chunk in enumerate(chunks):
         if len(chunks) > 1:
             logger.info(f"  chunk {i + 1}/{len(chunks)} ({len(chunk)} records)")
-        where = "GEOID in ({})".format(",".join(f"'{g}'" for g in chunk))
+        where = "GEOID in ({})".format(', '.join(f"'{g}'" for g in chunk))
         resource = morpc.rest_api.resource(name='temp', url=url, where=where, outfields='GEOID', max_record_count=chunk_size)
         results.append(morpc.rest_api.gdf_from_resource(resource))
 
@@ -861,7 +861,7 @@ def morpc_juris_part_to_full(geoidSeries: Series, validateTranslation: bool = Tr
         missingIndex = df.loc[df["VALID"] != True].index
         if(not len(missingIndex) == 0):
             logger.warn("The following GEOIDs were not found in the MORPC geography lookup table and may be invalid.  If so, their mappings will also be invalid.")
-            logger.warn(f"Missing GEOIDs: {",".join(list(missingIndex))}")
+            logger.warn(f"Missing GEOIDs: {', '.join(list(missingIndex))}")
         df = df.drop(columns="VALID")
 
     if(includedSumlevel == "M11"):
@@ -899,7 +899,7 @@ def morpc_juris_part_to_full(geoidSeries: Series, validateTranslation: bool = Tr
         missingIndex = df.loc[df["VALID"] != True].index
         if(not len(missingIndex) == 0):
             logger.warn("The following parent GEOIDs were not found in the MORPC geography lookup table and may be invalid.")
-            logger.warn(f"Missing parent GEOIDs: {",".join(list(missingIndex))}")
+            logger.warn(f"Missing parent GEOIDs: {', '.join(list(missingIndex))}")
         df = df.drop(columns="VALID")
     
     mappingDataFrame = df.copy()
@@ -1000,7 +1000,8 @@ def census_geoid_to_morpc(geoidSeries: Series, targetSumlevel: str, validateTran
     # SUMLEVEL. If the set of SUMLEVELs included in the series is not a subset of the possible Census SUMLEVELS in the
     # target MORPC SUMLEVEL, then throw an error.
     if(not (set(df["SUMLEVEL_ORIG"].unique()) <= set(sumlevelMap[targetSumlevel]))):
-        logger.error(f"The user-provided series includes geographies in the following SUMLEVEL(s) which do not have equivalent geographies in the target SUMLEVEL ({targetSumlevel}): {",".join(list(set(df["SUMLEVEL_ORIG"].unique()) - set(sumlevelMap[targetSumlevel])))}")
+        bad_sumlevels = ', '.join(list(set(df["SUMLEVEL_ORIG"].unique()) - set(sumlevelMap[targetSumlevel])))
+        logger.error(f"The user-provided series includes geographies in the following SUMLEVEL(s) which do not have equivalent geographies in the target SUMLEVEL ({targetSumlevel}): {bad_sumlevels}")
         raise RuntimeError
     
     # Try to load the geography lookup table output from the morpc-geos-collect workflow from a local copy of the repository
@@ -1032,7 +1033,7 @@ def census_geoid_to_morpc(geoidSeries: Series, targetSumlevel: str, validateTran
         missingIndex = df.loc[df["VALID"] != True].index
         if(not len(missingIndex) == 0):
             logger.warn("The following GEOIDs were not found in the MORPC geography lookup table and may be invalid.  If so, their translations will also be invalid.")
-            logger.warn(f"Missing GEOIDs: {",".join(list(missingIndex))}")
+            logger.warn(f"Missing GEOIDs: {', '.join(list(missingIndex))}")
         df = df.drop(columns="VALID")
 
     # Since we've already verified that all of the user-provided geographies have an equivalent in the target SUMLEVEL, we can simply replace
@@ -1168,7 +1169,7 @@ def morpc_geoid_to_census(geoidSeries: Series, validateTranslation: bool = True,
         missingIndex = df.loc[df["VALID"] != True].index
         if(not len(missingIndex) == 0):
             logger.warn("The following GEOIDs were not found in the MORPC geography lookup table and may be invalid.  If so, their translations will also be invalid.")
-            logger.warn(f"Missing GEOIDs: {",".join(list(missingIndex))}")
+            logger.warn(f"Missing GEOIDs: {', '.join(list(missingIndex))}")
         df = df.drop(columns="VALID")
 
     # We'll handle the collection of geographies in each SUMLEVEL separately. Iterate through the SUMLEVELs
@@ -1180,8 +1181,8 @@ def morpc_geoid_to_census(geoidSeries: Series, validateTranslation: bool = True,
         if(sumlevel == "M10" or sumlevel == "M24"):
             if(verbose):
                 logger.info(f"MORPC SUMLEVEL {sumlevel} is comprised of complete cities, villages, and non-incorporated townships.")
-                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP["COUNTY-TOWNSHIP-REMAINDER"]} for non-incorporated townships.")
-                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP["PLACE"]} for places (cities and villages.)")
+                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP['COUNTY-TOWNSHIP-REMAINDER']} for non-incorporated townships.")
+                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP['PLACE']} for places (cities and villages.)")
             # Identify townships. Township GEOIDs end in 99999
             thisSumlevel["TOWNSHIP"] = thisSumlevel["GEOIDFQ"].str.endswith("99999")
             # Modify the GEOIDs for the township geographies
@@ -1195,8 +1196,8 @@ def morpc_geoid_to_census(geoidSeries: Series, validateTranslation: bool = True,
         elif(sumlevel == "M11" or sumlevel == "M25"):
             if(verbose):
                 logger.info(f"MORPC SUMLEVEL {sumlevel} is comprised of county parts of cities, villages, and non-incorporated townships.")
-                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP["COUNTY-TOWNSHIP-REMAINDER"]} for county parts of non-incorporated townships.")
-                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP["PLACE-COUNTY"]} for county parts of places (cities and villages).")
+                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP['COUNTY-TOWNSHIP-REMAINDER']} for county parts of non-incorporated townships.")
+                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP['PLACE-COUNTY']} for county parts of places (cities and villages).")
             # Identify townships. Township GEOIDs end in 99999
             thisSumlevel["TOWNSHIP"] = thisSumlevel["GEOIDFQ"].str.endswith("99999")
             # Modify the GEOIDs for the township geographies
@@ -1210,7 +1211,7 @@ def morpc_geoid_to_census(geoidSeries: Series, validateTranslation: bool = True,
         elif(sumlevel == "M23"):
             if(verbose):
                 logger.info(f"MORPC SUMLEVEL {sumlevel} is comprised of counties.")
-                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP["COUNTY"]} for counties.")
+                logger.info(f"Substituting Census SUMLEVEL {morpc.SUMLEVEL_LOOKUP['COUNTY']} for counties.")
             # Modify the GEOIDs for all geos in this SUMLEVEL (all counties)
             thisSumlevel["GEOIDFQ_CENSUS"] = morpc.SUMLEVEL_LOOKUP["COUNTY"] + thisSumlevel["GEOIDFQ"].str.removeprefix(sumlevel)
             # Update the values for this SUMLEVEL only in the working dataframe
