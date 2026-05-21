@@ -416,7 +416,20 @@ def get_concept_dims_from_long(long_df: "pd.DataFrame") -> dict[str, str]:
     """
     if long_df.empty:
         return {}
-    return DimensionTable(long_df).concept_dims
+
+    group_code = ""
+    if "variable" in long_df.columns:
+        m = re.match(r"^([A-Z][A-Z0-9]+)_", str(long_df["variable"].iloc[0]))
+        if m:
+            group_code = m.group(1)
+
+    overrides = _load_dim_names_json()
+    if group_code in overrides:
+        return overrides[group_code]
+
+    concept = str(long_df["concept"].iloc[0]) if "concept" in long_df.columns else ""
+    dt = DimensionTable(long_df)
+    return _infer_dim_names_from_dims(dt.dims, concept)
 
 
 def get_dim_variables(group: Group) -> dict[str, list[str]]:
@@ -439,16 +452,18 @@ def get_dim_variables(group: Group) -> dict[str, list[str]]:
     if label_df.empty:
         return {}
 
-    dt = DimensionTable(label_df, group=group)
+    dt = DimensionTable(label_df)
+    names = group.concept_dims
 
     result: dict[str, list[str]] = {}
     for col in dt.dims.columns:
+        dim_name = names.get(col, col)
         cats = [
             str(v).rstrip(":").strip()
             for v in dt.dims[col].cat.categories
             if str(v).strip(":").strip()
         ]
-        result[col] = cats
+        result[dim_name] = cats
     return result
 
 
@@ -1037,62 +1052,12 @@ class DimensionTable:
             )
         ]
 
-        self.concept_dims = self._resolve_dim_names(dim_names, group)
-        self.dims = self._parse_dims(self.concept_dims)
+        if dim_names is None and group is not None:
+            dim_names = group.dim_names
 
-    def _resolve_dim_names(self, dim_names_arg, group_arg) -> dict:
-        """Centralise dim-name resolution into a single ``dict[str, str]``.
+        self.dims = self._parse_dims(dim_names)
 
-        Priority order
-        --------------
-        1. ``dim_names_arg`` is a ``dict``  → return as-is.
-        2. ``dim_names_arg`` is a ``list``  → build ``{"dim_i": name, …}``.
-        3. ``group_arg is not None``         → return ``group_arg.concept_dims``.
-        4. Auto-infer from ``self.long``     → extract group code / concept and
-           run the same inference pipeline used by :attr:`Group.concept_dims`.
-           Only used when the concept string contains ``" by "`` (or a curated
-           override exists in ``dim_names.json``).
-        5. ``{}`` fallback.
-        """
-        # Priority 1: dict passed directly
-        if isinstance(dim_names_arg, dict):
-            return dim_names_arg
-
-        # Priority 2: list passed
-        if isinstance(dim_names_arg, list):
-            return {f"dim_{i}": name for i, name in enumerate(dim_names_arg)}
-
-        # Priority 3: group object
-        if group_arg is not None:
-            return group_arg.concept_dims
-
-        # Priority 4: auto-infer from self.long
-        try:
-            group_code = ""
-            if "variable" in self.long.columns and not self.long.empty:
-                m = re.match(r"^([A-Z][A-Z0-9]+)_", str(self.long["variable"].iloc[0]))
-                if m:
-                    group_code = m.group(1)
-
-            # Check curated override
-            overrides = _load_dim_names_json()
-            if group_code and group_code in overrides:
-                return overrides[group_code]
-
-            # Auto-infer only when concept contains " by "
-            concept = ""
-            if "concept" in self.long.columns and not self.long.empty:
-                concept = str(self.long["concept"].iloc[0])
-
-            if " by " not in concept.lower():
-                return {}
-
-            temp_dims = self._parse_dims({})
-            return _infer_dim_names_from_dims(temp_dims, concept)
-        except Exception:
-            return {}
-
-    def _parse_dims(self, concept_dims=None):
+    def _parse_dims(self, dim_names=None):
         """Parse ``variable_label`` into a structured dimension DataFrame.
 
         Each ``!!``-delimited label is split into subtotal segments (ending
@@ -1160,8 +1125,8 @@ class DimensionTable:
         rows = paths.map(lambda x: align(*x))
         n = S + L
         dims = pd.DataFrame(rows.tolist(), index=unique.index)
-        cd = concept_dims or {}
-        dims.columns = [cd.get(f"dim_{i}", f"dim_{i}") for i in range(n)]
+        named = list(dim_names or [])
+        dims.columns = named[:n] + [f'dim_{i}' for i in range(len(named), n)]
 
         # Convert each column to an ordered categorical using first-appearance order
         # (Census variables are returned in their defined hierarchical order).
@@ -1207,7 +1172,7 @@ class DimensionTable:
             self.long['moe'] = np.sqrt(self.long['_moe_sq'])
             self.long = self.long.drop(columns=['_moe_sq'])
 
-        self.dims = self._parse_dims(self.concept_dims)
+        self.dims = self._parse_dims(dim_names=list(self.dims.columns))
         return self
 
     def drop(self, dim, method='summarize'):
@@ -1289,7 +1254,6 @@ class DimensionTable:
         result.long = new_long.reset_index(drop=True)
         result.dims = new_dims
         result.value_cols = self.value_cols
-        result.concept_dims = self.concept_dims
         return result
 
     def _aggregate_dim(self, drop_dim, other_dims):
