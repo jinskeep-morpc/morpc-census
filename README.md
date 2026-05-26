@@ -8,7 +8,7 @@ This package depends on [morpc-py](https://github.com/morpc/morpc-py) for shared
 
 ### Modules
 
-- **morpc_census.api** — Census API client (`Endpoint`, `Group`, `CensusAPI`) and data structuring classes (`DimensionTable`, `RaceDimensionTable`) for reshaping results into long- and wide-format DataFrames with frictionless metadata.
+- **morpc_census.api** — Census API client (`Endpoint`, `Group`, `CensusAPI`) and data structuring classes (`DimensionTable`, `RaceDimensionTable`, `TimeSeries`, `RaceTable`) for reshaping results into long- and wide-format DataFrames with frictionless metadata.
 - **morpc_census.geos** — Geography utilities: `Scope` (named query extents), `SumLevel` (summary level codes), `GeoIDFQ` (GEOID parser/builder), and functions for translating between Census GEOIDs and MORPC geography definitions.
 - **morpc_census.tigerweb** — Fetches GeoDataFrames from the Census TIGERweb REST API.
 - **morpc_census.constants** — Domain lookup tables for age groups, race, education, income-to-poverty, and NTD categories.

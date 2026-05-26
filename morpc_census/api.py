@@ -1543,3 +1543,352 @@ class RaceDimensionTable(DimensionTable):
             )
 
         return long
+
+
+# ---------------------------------------------------------------------------
+# Private schema helper
+# ---------------------------------------------------------------------------
+
+def _build_long_schema(long_df: pd.DataFrame):
+    """Build a frictionless Schema from a long-format DataFrame."""
+    import frictionless
+
+    fixed_fields = [
+        {'name': 'geoidfq',          'type': 'string',  'description': 'Census geography fully-qualified identifier'},
+        {'name': 'reference_period', 'type': 'integer', 'description': 'Reference year'},
+        {'name': 'survey',           'type': 'string',  'description': 'Census survey endpoint'},
+        {'name': 'concept',          'type': 'string',  'description': 'Table concept description'},
+        {'name': 'universe',         'type': 'string',  'description': 'Universe for the table'},
+        {'name': 'variable_label',   'type': 'string',  'description': 'Human-readable variable label'},
+        {'name': 'variable',         'type': 'string',  'description': 'Base variable code'},
+    ]
+    if 'name' in long_df.columns:
+        fixed_fields.insert(1, {'name': 'name', 'type': 'string', 'description': 'Geography name'})
+
+    fixed_names = {f['name'] for f in fixed_fields}
+    value_fields = []
+    for col in long_df.columns:
+        if col in fixed_names:
+            continue
+        if col not in _VALUE_FIELD_DEFS:
+            raise ValueError(f"Unexpected column {col!r} in long data.")
+        value_fields.append(_VALUE_FIELD_DEFS[col])
+
+    descriptor = {
+        'fields': fixed_fields + value_fields,
+        'missingValues': MISSING_VALUES,
+        'primaryKey': ['geoidfq', 'reference_period', 'variable'],
+    }
+    result = frictionless.Schema.validate_descriptor(descriptor)
+    if not result.valid:
+        raise ValueError(f"Schema descriptor invalid: {result}")
+    return frictionless.Schema.from_descriptor(descriptor)
+
+
+# ---------------------------------------------------------------------------
+# TimeSeries
+# ---------------------------------------------------------------------------
+
+class TimeSeries:
+    """Fetches the same Census group across multiple vintage years and concatenates into one long DataFrame.
+
+    Parameters
+    ----------
+    survey : str
+        Survey name, e.g. ``'acs/acs5'``.
+    years : list of int
+        Vintage years to fetch.
+    scope : str or Scope
+        Geographic scope key or instance.
+    group : str, Group, or None
+        Group code, e.g. ``'B01001'``. Required unless *variables* is given.
+    sumlevel : str or SumLevel, optional
+    variables : list of str, optional
+    """
+
+    def __init__(self, survey, years, scope, group=None, sumlevel=None, variables=None):
+        self.survey = survey
+        self.years = sorted(int(y) for y in years)
+        self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
+
+        self.calls: dict[int, CensusAPI] = {}
+        for year in self.years:
+            endpoint = Endpoint(survey, year)
+            self.calls[year] = CensusAPI(endpoint, scope, group=group, sumlevel=sumlevel, variables=variables)
+
+        first = next(iter(self.calls.values()))
+        self.scope = first.scope
+        self.sumlevel = first.sumlevel
+        self.group = first.group
+        self.variables = first.variables
+
+        self.long = pd.concat(
+            [call.long for call in self.calls.values()],
+            ignore_index=True,
+        )
+
+    @cached_property
+    def name(self) -> str:
+        """Canonical name with year range, e.g. ``census-acs-acs5-2019-2023-county-ohio-b01001``."""
+        base = censusapi_name(
+            Endpoint(self.survey, self.years[0]),
+            self.scope,
+            self.group,
+            sumlevel=self.sumlevel,
+            variables=self.variables,
+        )
+        if len(self.years) == 1:
+            return base
+        survey_part = self.survey.replace('/', '-')
+        old_prefix = f"census-{survey_part}-{self.years[0]}-"
+        new_prefix = f"census-{survey_part}-{self.years[0]}-{self.years[-1]}-"
+        return base.replace(old_prefix, new_prefix, 1)
+
+    def define_schema(self):
+        """Build a frictionless Schema for the concatenated long-format data."""
+        self.logger.info(f"Defining schema for {self.survey} {self.years[0]}-{self.years[-1]}.")
+        return _build_long_schema(self.long)
+
+    def create_resource(self):
+        """Build a frictionless Resource descriptor for the time-series dataset."""
+        import frictionless
+
+        year_range = f"{self.years[0]}–{self.years[-1]}" if len(self.years) > 1 else str(self.years[0])
+        scope_name = self.scope.name
+        sumlevel_prefix = f'{self.sumlevel.plural} in ' if self.sumlevel is not None else ''
+
+        if self.group is not None:
+            subject = f"{self.group.code}: {self.group.description}"
+            title = f"{year_range} {self.group.description} for {sumlevel_prefix}{scope_name}"
+        else:
+            vars_summary = ', '.join(self.variables[:3])
+            if len(self.variables) > 3:
+                vars_summary += f', ... ({len(self.variables)} total)'
+            subject = vars_summary
+            title = f"{year_range} selected variables for {sumlevel_prefix}{scope_name}"
+
+        sources = [
+            {
+                'title': f'US Census Bureau API ({year})',
+                'path': call.request['url'],
+                '_params': call.request['params'],
+            }
+            for year, call in self.calls.items()
+        ]
+
+        return frictionless.Resource.from_descriptor({
+            'name': self.name,
+            'title': title,
+            'description': (
+                f"Census API time-series data for {subject} from {self.survey} "
+                f"{year_range} for {sumlevel_prefix}{scope_name}."
+            ),
+            'path': self.filename,
+            'schema': self.schema_filename,
+            'sources': sources,
+        })
+
+    def save(self, output_path):
+        """Write concatenated long data, schema, and resource files to *output_path*.
+
+        Produces three files:
+        - ``{name}.long.csv``
+        - ``{name}.schema.yaml``
+        - ``{name}.resource.yaml``
+        """
+        import contextlib
+        import frictionless
+
+        output = Path(output_path)
+        output.mkdir(parents=True, exist_ok=True)
+
+        self.datapath        = output
+        self.filename        = f"{self.name}.long.csv"
+        self.schema_filename = f"{self.name}.schema.yaml"
+        resource_filename    = f"{self.name}.resource.yaml"
+
+        self.logger.info(f"Writing data to {output / self.filename}.")
+        self.long.to_csv(output / self.filename, index=False)
+
+        self.logger.info(f"Writing schema to {output / self.schema_filename}.")
+        self.schema = self.define_schema()
+        self.schema.to_yaml(str(output / self.schema_filename))
+
+        self.logger.info(f"Writing resource to {output / resource_filename}.")
+        resource = self.create_resource()
+        with contextlib.chdir(output):
+            resource.to_yaml(resource_filename)
+            result = frictionless.Resource(resource_filename).validate()
+
+        if not result.valid:
+            self.logger.error(f"Resource validation failed: {result.stats}")
+            raise RuntimeError("Resource validation failed after save.")
+
+        self.logger.info("Save complete and resource validated.")
+
+    def dimension_table(self, **kwargs):
+        """Return a :class:`DimensionTable` built from the concatenated long data."""
+        return DimensionTable(self.long, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# RaceTable
+# ---------------------------------------------------------------------------
+
+class RaceTable:
+    """Fetches racial iteration groups for a base group code and concatenates into one long DataFrame.
+
+    Discovers which race letter suffixes (A–I) exist for the given endpoint and group,
+    fetches each as a separate :class:`CensusAPI` call, and concatenates the results.
+    The concatenated ``long`` DataFrame can be passed directly to
+    :class:`RaceDimensionTable`.
+
+    Parameters
+    ----------
+    endpoint : Endpoint
+        Survey and vintage year.
+    scope : str or Scope
+        Geographic scope key or instance.
+    group : str
+        Base group code **without** the race letter suffix, e.g. ``'B17020'``.
+    sumlevel : str or SumLevel, optional
+    race_codes : list of str, optional
+        Subset of race letter codes to fetch, e.g. ``['A', 'B', 'C']``.
+        Defaults to all codes in :data:`RACE_TABLE_MAP` that exist for the endpoint.
+    """
+
+    def __init__(self, endpoint, scope, group, sumlevel=None, race_codes=None):
+        self.endpoint = endpoint if isinstance(endpoint, Endpoint) else Endpoint(*endpoint)
+        self.logger = logging.getLogger(__name__).getChild(self.__class__.__name__)
+
+        self.base_code = (group.upper() if isinstance(group, str) else group.code)
+
+        candidate_codes = race_codes if race_codes is not None else list(RACE_TABLE_MAP.keys())
+        existing_groups = endpoint.groups
+        valid_codes = [c for c in candidate_codes if f"{self.base_code}{c}" in existing_groups]
+
+        if not valid_codes:
+            raise ValueError(
+                f"No racial iteration groups found for {self.base_code!r} in "
+                f"{endpoint.survey!r} {endpoint.year}."
+            )
+
+        skipped = [c for c in candidate_codes if c not in valid_codes]
+        if skipped:
+            self.logger.warning(
+                f"Race codes {skipped} not found for {self.base_code} in "
+                f"{endpoint.survey} {endpoint.year} — skipping."
+            )
+
+        self.calls: dict[str, CensusAPI] = {}
+        for code in valid_codes:
+            self.calls[code] = CensusAPI(
+                endpoint, scope, group=f"{self.base_code}{code}", sumlevel=sumlevel
+            )
+
+        first = next(iter(self.calls.values()))
+        self.scope = first.scope
+        self.sumlevel = first.sumlevel
+
+        self.long = pd.concat(
+            [call.long for call in self.calls.values()],
+            ignore_index=True,
+        )
+
+    @cached_property
+    def name(self) -> str:
+        """Canonical name with ``-race`` suffix, e.g. ``census-acs-acs5-2023-county-ohio-b17020-race``."""
+        base = censusapi_name(self.endpoint, self.scope, self.base_code, sumlevel=self.sumlevel)
+        return f"{base}-race"
+
+    def define_schema(self):
+        """Build a frictionless Schema for the concatenated long-format data."""
+        self.logger.info(
+            f"Defining schema for {self.endpoint.survey} {self.endpoint.year} "
+            f"{self.base_code} (race)."
+        )
+        return _build_long_schema(self.long)
+
+    def create_resource(self):
+        """Build a frictionless Resource descriptor for the racial iteration dataset."""
+        import frictionless
+        import re as _re
+
+        scope_name = self.scope.name
+        sumlevel_prefix = f'{self.sumlevel.plural} in ' if self.sumlevel is not None else ''
+        year = self.endpoint.year
+
+        first_group = next(iter(self.calls.values())).group
+        base_description = _re.sub(r'\s*\([^)]+\)\s*$', '', first_group.description).strip()
+
+        race_labels = [RACE_TABLE_MAP.get(c, c) for c in self.calls]
+        race_codes_str = ', '.join(self.calls.keys())
+        title = (
+            f"{year} {base_description} by race "
+            f"for {sumlevel_prefix}{scope_name}"
+        )
+
+        sources = [
+            {
+                'title': f'US Census Bureau API ({self.base_code}{code}: {RACE_TABLE_MAP.get(code, code)})',
+                'path': call.request['url'],
+                '_params': call.request['params'],
+            }
+            for code, call in self.calls.items()
+        ]
+
+        return frictionless.Resource.from_descriptor({
+            'name': self.name,
+            'title': title,
+            'description': (
+                f"Census API racial iteration data for {self.base_code} ({base_description}) "
+                f"from {self.endpoint.survey} {year} "
+                f"for {sumlevel_prefix}{scope_name}. "
+                f"Race codes fetched: {race_codes_str}."
+            ),
+            'path': self.filename,
+            'schema': self.schema_filename,
+            'sources': sources,
+        })
+
+    def save(self, output_path):
+        """Write concatenated long data, schema, and resource files to *output_path*.
+
+        Produces three files:
+        - ``{name}.long.csv``
+        - ``{name}.schema.yaml``
+        - ``{name}.resource.yaml``
+        """
+        import contextlib
+        import frictionless
+
+        output = Path(output_path)
+        output.mkdir(parents=True, exist_ok=True)
+
+        self.datapath        = output
+        self.filename        = f"{self.name}.long.csv"
+        self.schema_filename = f"{self.name}.schema.yaml"
+        resource_filename    = f"{self.name}.resource.yaml"
+
+        self.logger.info(f"Writing data to {output / self.filename}.")
+        self.long.to_csv(output / self.filename, index=False)
+
+        self.logger.info(f"Writing schema to {output / self.schema_filename}.")
+        self.schema = self.define_schema()
+        self.schema.to_yaml(str(output / self.schema_filename))
+
+        self.logger.info(f"Writing resource to {output / resource_filename}.")
+        resource = self.create_resource()
+        with contextlib.chdir(output):
+            resource.to_yaml(resource_filename)
+            result = frictionless.Resource(resource_filename).validate()
+
+        if not result.valid:
+            self.logger.error(f"Resource validation failed: {result.stats}")
+            raise RuntimeError("Resource validation failed after save.")
+
+        self.logger.info("Save complete and resource validated.")
+
+    def dimension_table(self, **kwargs):
+        """Return a :class:`RaceDimensionTable` built from the concatenated long data."""
+        return RaceDimensionTable(self.long, **kwargs)
