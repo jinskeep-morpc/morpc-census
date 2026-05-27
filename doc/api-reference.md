@@ -90,6 +90,65 @@ Subclass of `DimensionTable` for racial-iteration groups (e.g. B17020A–I). Add
 
 ---
 
+### `TimeSeries`
+
+```python
+TimeSeries(survey, years, scope, group=None, sumlevel=None, variables=None)
+```
+
+Fetches the same Census group across multiple vintage years and concatenates the results into a single long-format DataFrame. Each year is a separate `CensusAPI` call.
+
+| Attribute | Description |
+|-----------|-------------|
+| `.calls`  | `dict[int, CensusAPI]` — one entry per year |
+| `.long`   | Concatenated long-format DataFrame; `reference_period` distinguishes years |
+| `.years`  | Sorted list of vintage years |
+
+```python
+ts = TimeSeries('acs/acs5', [2019, 2021, 2023], SCOPES['region15'], group='B01001', sumlevel='county')
+ts.long.head()
+ts.dimension_table().wide()
+ts.save('./output')
+```
+
+The `.name` property encodes the full year range: `census-acs-acs5-2019-2023-county-region15-b01001`.
+
+`save(output_path)` writes three files: `{name}.long.csv`, `{name}.schema.yaml` (frictionless Schema; primary key = `['geoidfq', 'reference_period', 'variable']`), and `{name}.resource.yaml` (frictionless Resource; sources list one entry per year).
+
+`.dimension_table(**kwargs)` → `DimensionTable(self.long, **kwargs)`
+
+---
+
+### `RaceTable`
+
+```python
+RaceTable(endpoint, scope, group, sumlevel=None, race_codes=None)
+```
+
+Fetches racial iteration groups (e.g. `B17020A`–`B17020I`) for a base group code and concatenates them. Automatically discovers which race letter suffixes exist for the given endpoint and skips missing ones with a warning. Raises `ValueError` if no valid codes are found.
+
+| Attribute | Description |
+|-----------|-------------|
+| `.calls`      | `dict[str, CensusAPI]` — one entry per race letter |
+| `.long`       | Concatenated long-format DataFrame (race encoded in variable codes, e.g. `B17020A_001`) |
+| `.base_code`  | Uppercase base group code without race letter (e.g. `'B17020'`) |
+
+```python
+ep  = Endpoint('acs/acs5', 2023)
+rt  = RaceTable(ep, SCOPES['region15'], 'B17020', sumlevel='county')
+rt.long.head()
+rt.dimension_table().wide()   # returns RaceDimensionTable
+rt.save('./output')
+```
+
+The `.name` property appends `-race`: `census-acs-acs5-2023-county-region15-b17020-race`.
+
+`save(output_path)` writes three files (same structure as `CensusAPI.save`). The resource `sources` list includes one entry per race code with the human-readable race label, e.g. `'US Census Bureau API (B17020A: White Alone)'`.
+
+`.dimension_table(**kwargs)` → `RaceDimensionTable(self.long, **kwargs)`
+
+---
+
 ## Geography — `morpc_census.geos`
 
 ### `SCOPES`

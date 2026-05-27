@@ -12,6 +12,8 @@ from .api import (
     CensusAPI,
     DimensionTable,
     RaceDimensionTable,
+    TimeSeries,
+    RaceTable,
     get_all_avail_endpoints,
     get_dim_variables,
     get_concept_dims_from_long,

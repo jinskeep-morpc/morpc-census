@@ -18,7 +18,10 @@ from morpc_census.api import (
     Group,
     CensusAPI,
     IMPLEMENTED_ENDPOINTS,
+    TimeSeries,
+    RaceTable,
 )
+from unittest.mock import MagicMock
 
 
 # ---------------------------------------------------------------------------
@@ -1228,3 +1231,528 @@ class TestGroup:
             g = Group(ep, 'B01001')
             universe = g.universe
         assert universe == 'All people'
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers for TimeSeries and RaceTable tests
+# ---------------------------------------------------------------------------
+
+def _make_long_for_year(year):
+    """_make_long() with reference_period set to year."""
+    df = _make_long()
+    df['reference_period'] = year
+    return df
+
+
+def _make_fake_census_call(long_df, year, survey='acs/acs5', scope='franklin', group_code=None):
+    """Build a CensusAPI-like object without hitting the network."""
+    from morpc_census.geos import Scope
+    api = CensusAPI.__new__(CensusAPI)
+    api.long = long_df.copy()
+    api.scope = Scope(scope)
+    api.sumlevel = None
+    api.group = None
+    api.variables = None
+    ep = Endpoint.__new__(Endpoint)
+    ep.survey = survey
+    ep.year = year
+    api.endpoint = ep
+    api.request = {
+        'url': f'https://api.census.gov/data/{year}/{survey}?',
+        'params': {'get': f'group({group_code or "B01001"})'},
+    }
+    return api
+
+
+def _make_timeseries(years=(2022, 2023)):
+    import logging
+    from morpc_census.api import Group
+    ts = TimeSeries.__new__(TimeSeries)
+    ts.survey = 'acs/acs5'
+    ts.years = sorted(years)
+    ts.logger = logging.getLogger('morpc_census.api.TimeSeries')
+    calls = {y: _make_fake_census_call(_make_long_for_year(y), y) for y in ts.years}
+    ts.calls = calls
+    first = next(iter(calls.values()))
+    ts.scope = first.scope
+    ts.sumlevel = None
+    ts.variables = None
+    # Attach a minimal fake Group so create_resource() can access .code and .description
+    grp = Group.__new__(Group)
+    grp.code = 'B01001'
+    grp.__dict__['description'] = 'Sex by Age'
+    ep_grp = Endpoint.__new__(Endpoint)
+    ep_grp.survey = 'acs/acs5'
+    ep_grp.year = ts.years[0]
+    grp.endpoint = ep_grp
+    ts.group = grp
+    ts.long = pd.concat([c.long for c in calls.values()], ignore_index=True)
+    return ts
+
+
+def _make_race_long_for_code(code):
+    """Build a long DataFrame whose variable codes match racial iteration format B17020{code}_NNN."""
+    from morpc_census.api import RACE_TABLE_MAP
+    race_label = RACE_TABLE_MAP.get(code, code)
+    rows = []
+    for num, label, est, moe in [
+        ('001', 'Total:',                                     200, 10),
+        ('002', 'Total:!!Below poverty level:',                50,  5),
+        ('003', 'Total:!!Below poverty level:!!Under 6 years', 20,  4),
+    ]:
+        rows.append({
+            'variable':       f'B17020{code}_{num}',
+            'variable_label': label,
+            'geoidfq':        '0500000US39049',
+            'name':           'Franklin County, Ohio',
+            'concept':        f'POVERTY STATUS BY AGE ({race_label.upper()})',
+            'universe':       f'{race_label} population for whom poverty status is determined',
+            'survey':         'acs/acs5',
+            'reference_period': 2023,
+            'estimate':       est,
+            'moe':            moe,
+        })
+    return pd.DataFrame(rows)
+
+
+def _make_race_table(race_codes=('A', 'B')):
+    import logging
+    from morpc_census.geos import Scope
+    from morpc_census.api import Group, RACE_TABLE_MAP
+    rt = RaceTable.__new__(RaceTable)
+    rt.survey = 'acs/acs5'
+    rt.logger = logging.getLogger('morpc_census.api.RaceTable')
+    rt.base_code = 'B17020'
+    ep = Endpoint.__new__(Endpoint)
+    ep.survey = 'acs/acs5'
+    ep.year = 2023
+    rt.endpoint = ep
+    rt.scope = Scope('franklin')
+    rt.sumlevel = None
+    calls = {}
+    for code in race_codes:
+        long_df = _make_race_long_for_code(code)
+        call = _make_fake_census_call(long_df, 2023, group_code=f'B17020{code}')
+        grp = Group.__new__(Group)
+        grp.code = f'B17020{code}'
+        race_label = RACE_TABLE_MAP.get(code, code)
+        grp.__dict__['description'] = f'POVERTY STATUS BY AGE ({race_label.upper()})'
+        ep2 = Endpoint.__new__(Endpoint)
+        ep2.survey = 'acs/acs5'
+        ep2.year = 2023
+        grp.endpoint = ep2
+        call.group = grp
+        call.request = {
+            'url': f'https://api.census.gov/data/2023/acs/acs5?',
+            'params': {'get': f'group(B17020{code})'},
+        }
+        calls[code] = call
+    rt.calls = calls
+    rt.long = pd.concat([c.long for c in calls.values()], ignore_index=True)
+    return rt
+
+
+# Shared fake data / JSON for full-constructor integration tests
+_ts_fake_data = pd.DataFrame({
+    'GEO_ID':      ['0500000US39049'],
+    'NAME':        ['Franklin County'],
+    'B01001_001E': ['100'],
+    'B01001_001M': ['5'],
+})
+
+_ts_groups_json = {
+    'groups': [
+        {'name': 'B01001', 'description': 'Sex by Age', 'variables': '', 'universe ': 'All people'}
+    ]
+}
+_ts_vars_json = {
+    'variables': {
+        'B01001_001E': {'label': 'Estimate!!Total:'},
+        'B01001_001M': {'label': 'Margin of Error!!Total:'},
+        'GEO_ID': {},
+        'NAME': {},
+    }
+}
+
+
+def _ts_census_json(url, **kwargs):
+    if url.endswith('/groups.json'):
+        return _ts_groups_json
+    if '/groups/B01001.json' in url:
+        return _ts_vars_json
+    raise ValueError(f"Unexpected URL in TimeSeries test: {url}")
+
+
+def _make_timeseries_via_init(years=(2022, 2023)):
+    with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2022, 2023]}), \
+         patch('morpc.req.get_json_safely', side_effect=_ts_census_json), \
+         patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+         patch.object(CensusAPI, '_fetch', return_value=_ts_fake_data):
+        return TimeSeries('acs/acs5', list(years), 'franklin', group='B01001')
+
+
+_rt_fake_groups = {
+    'B17020A': {
+        'description': 'POVERTY STATUS BY AGE (WHITE ALONE)',
+        'variables': '',
+        'universe ': 'White alone population for whom poverty status is determined',
+    },
+    'B17020B': {
+        'description': 'POVERTY STATUS BY AGE (BLACK OR AFRICAN AMERICAN ALONE)',
+        'variables': '',
+        'universe ': 'Black or African American alone population for whom poverty status is determined',
+    },
+}
+
+_rt_fake_data = pd.DataFrame({
+    'GEO_ID':       ['0500000US39049'],
+    'NAME':         ['Franklin County'],
+    'B17020A_001E': ['200'],
+    'B17020A_001M': ['10'],
+})
+
+_rt_vars_json = {
+    'variables': {
+        'B17020A_001E': {'label': 'Estimate!!Total:'},
+        'B17020A_001M': {'label': 'Margin of Error!!Total:'},
+        'GEO_ID': {},
+        'NAME': {},
+    }
+}
+
+
+def _rt_race_json(url, **kwargs):
+    if url.endswith('/groups.json'):
+        return {
+            'groups': [
+                {'name': k, 'description': v['description'], 'variables': v['variables'],
+                 'universe ': v['universe ']}
+                for k, v in _rt_fake_groups.items()
+            ]
+        }
+    if '/groups/B17020' in url:
+        return _rt_vars_json
+    raise ValueError(f"Unexpected URL in RaceTable test: {url}")
+
+
+def _make_race_table_via_init(race_codes=None):
+    with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}), \
+         patch('morpc.req.get_json_safely', side_effect=_rt_race_json), \
+         patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+         patch.object(CensusAPI, '_fetch', return_value=_rt_fake_data):
+        ep = Endpoint('acs/acs5', 2023)
+        ep.__dict__['groups'] = _rt_fake_groups
+        return RaceTable(ep, 'franklin', 'B17020', race_codes=race_codes)
+
+
+# ---------------------------------------------------------------------------
+# TestTimeSeries
+# ---------------------------------------------------------------------------
+
+class TestTimeSeries:
+
+    # ------------------------------------------------------------------
+    # Constructor tests (via _make_timeseries_via_init)
+    # ------------------------------------------------------------------
+
+    def test_calls_has_one_entry_per_year(self):
+        ts = _make_timeseries_via_init(years=(2022, 2023))
+        assert len(ts.calls) == 2
+
+    def test_calls_keyed_by_integer_year(self):
+        ts = _make_timeseries_via_init(years=(2022, 2023))
+        assert all(isinstance(k, int) for k in ts.calls.keys())
+
+    def test_years_are_sorted(self):
+        ts = _make_timeseries_via_init(years=(2023, 2022))
+        assert ts.years == [2022, 2023]
+
+    def test_long_has_both_reference_periods(self):
+        ts = _make_timeseries_via_init(years=(2022, 2023))
+        assert set(ts.long['reference_period']) == {2022, 2023}
+
+    def test_long_row_count_equals_sum_of_per_year_rows(self):
+        ts = _make_timeseries_via_init(years=(2022, 2023))
+        total = sum(call.long.shape[0] for call in ts.calls.values())
+        assert len(ts.long) == total
+
+    # ------------------------------------------------------------------
+    # Name tests (via _make_timeseries)
+    # ------------------------------------------------------------------
+
+    def test_name_contains_year_range(self):
+        ts = _make_timeseries()
+        assert '2022-2023' in ts.name
+
+    def test_name_single_year(self):
+        ts = _make_timeseries(years=(2023,))
+        # Single-year name should not have a year range segment like '2023-2023'
+        assert '2023-2023' not in ts.name
+        # And the year should appear exactly once
+        assert ts.name.count('2023') == 1
+
+    def test_name_is_lowercase(self):
+        ts = _make_timeseries()
+        assert ts.name == ts.name.lower()
+
+    # ------------------------------------------------------------------
+    # create_resource() tests (via _make_timeseries)
+    # ------------------------------------------------------------------
+
+    def test_create_resource_title_has_year_range(self):
+        import frictionless
+        ts = _make_timeseries()
+        ts.filename = 'test.long.csv'
+        ts.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            ts.create_resource()
+        assert '–2023' in captured.get('title', '') or '2022–2023' in captured.get('title', '')
+
+    def test_create_resource_sources_count(self):
+        import frictionless
+        ts = _make_timeseries()
+        ts.filename = 'test.long.csv'
+        ts.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            ts.create_resource()
+        assert len(captured.get('sources', [])) == len(ts.years)
+
+    def test_create_resource_source_urls_contain_year(self):
+        import frictionless
+        ts = _make_timeseries()
+        ts.filename = 'test.long.csv'
+        ts.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            ts.create_resource()
+        sources = captured.get('sources', [])
+        for year, source in zip(ts.years, sources):
+            assert str(year) in source['path']
+
+    def test_create_resource_source_titles_mention_year(self):
+        import frictionless
+        ts = _make_timeseries()
+        ts.filename = 'test.long.csv'
+        ts.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            ts.create_resource()
+        sources = captured.get('sources', [])
+        for year, source in zip(ts.years, sources):
+            assert str(year) in source['title']
+
+    # ------------------------------------------------------------------
+    # define_schema() tests (via _make_timeseries)
+    # ------------------------------------------------------------------
+
+    def test_define_schema_primary_key_includes_reference_period(self):
+        ts = _make_timeseries()
+        schema = ts.define_schema()
+        assert 'reference_period' in schema.primary_key
+
+    def test_define_schema_has_estimate_field(self):
+        ts = _make_timeseries()
+        schema = ts.define_schema()
+        assert any(f.name == 'estimate' for f in schema.fields)
+
+    # ------------------------------------------------------------------
+    # dimension_table() test
+    # ------------------------------------------------------------------
+
+    def test_dimension_table_returns_dimension_table(self):
+        ts = _make_timeseries()
+        assert isinstance(ts.dimension_table(), DimensionTable)
+
+    # ------------------------------------------------------------------
+    # save() tests (via _make_timeseries, uses tmp_path fixture)
+    # ------------------------------------------------------------------
+
+    def test_save_writes_long_csv(self, tmp_path):
+        ts = _make_timeseries()
+        fake_result = MagicMock()
+        fake_result.valid = True
+        with patch('frictionless.Resource.validate', return_value=fake_result):
+            ts.save(tmp_path)
+        assert (tmp_path / f'{ts.name}.long.csv').exists()
+
+    def test_save_writes_schema_yaml(self, tmp_path):
+        ts = _make_timeseries()
+        fake_result = MagicMock()
+        fake_result.valid = True
+        with patch('frictionless.Resource.validate', return_value=fake_result):
+            ts.save(tmp_path)
+        assert (tmp_path / f'{ts.name}.schema.yaml').exists()
+
+    def test_save_writes_resource_yaml(self, tmp_path):
+        ts = _make_timeseries()
+        fake_result = MagicMock()
+        fake_result.valid = True
+        with patch('frictionless.Resource.validate', return_value=fake_result):
+            ts.save(tmp_path)
+        assert (tmp_path / f'{ts.name}.resource.yaml').exists()
+
+
+# ---------------------------------------------------------------------------
+# TestRaceTable
+# ---------------------------------------------------------------------------
+
+class TestRaceTable:
+
+    # ------------------------------------------------------------------
+    # Constructor tests (via _make_race_table_via_init)
+    # ------------------------------------------------------------------
+
+    def test_base_code_uppercased(self):
+        # Use __new__ + direct attribute assignment to verify uppercasing logic
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}), \
+             patch('morpc.req.get_json_safely', side_effect=_rt_race_json), \
+             patch('morpc_census.geos.geoinfo_from_scope_sumlevel', return_value={'for': 'county:049'}), \
+             patch.object(CensusAPI, '_fetch', return_value=_rt_fake_data):
+            ep = Endpoint('acs/acs5', 2023)
+            ep.__dict__['groups'] = _rt_fake_groups
+            rt = RaceTable(ep, 'franklin', 'b17020')
+        assert rt.base_code == 'B17020'
+
+    def test_calls_keyed_by_race_letter(self):
+        rt = _make_race_table_via_init()
+        assert set(rt.calls.keys()) == {'A', 'B'}
+        assert all(isinstance(k, str) and len(k) == 1 for k in rt.calls.keys())
+
+    def test_long_has_rows_from_each_race(self):
+        rt = _make_race_table_via_init()
+        total = sum(call.long.shape[0] for call in rt.calls.values())
+        assert len(rt.long) == total
+
+    def test_nonexistent_codes_silently_skipped(self):
+        rt = _make_race_table_via_init(race_codes=['A', 'Z'])
+        assert list(rt.calls.keys()) == ['A']
+
+    def test_no_valid_codes_raises_value_error(self):
+        ep = Endpoint.__new__(Endpoint)
+        ep.survey = 'acs/acs5'
+        ep.year = 2023
+        ep.__dict__['groups'] = {}
+        with pytest.raises(ValueError, match="No racial iteration groups found"):
+            RaceTable(ep, 'franklin', 'B17020', race_codes=['Z'])
+
+    # ------------------------------------------------------------------
+    # Name tests (via _make_race_table)
+    # ------------------------------------------------------------------
+
+    def test_name_ends_with_race(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        assert rt.name.endswith('-race')
+
+    def test_name_contains_base_code(self):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        assert 'b17020' in rt.name
+
+    # ------------------------------------------------------------------
+    # create_resource() tests (via _make_race_table)
+    # ------------------------------------------------------------------
+
+    def test_create_resource_title_contains_by_race(self):
+        import frictionless
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        rt.filename = 'test.long.csv'
+        rt.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            rt.create_resource()
+        assert 'by race' in captured.get('title', '').lower()
+
+    def test_create_resource_sources_count(self):
+        import frictionless
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        rt.filename = 'test.long.csv'
+        rt.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            rt.create_resource()
+        assert len(captured.get('sources', [])) == len(rt.calls)
+
+    def test_create_resource_source_titles_include_race_label(self):
+        import frictionless
+        from morpc_census.api import RACE_TABLE_MAP
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table(race_codes=('A',))
+        rt.filename = 'test.long.csv'
+        rt.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            rt.create_resource()
+        sources = captured.get('sources', [])
+        assert len(sources) == 1
+        assert RACE_TABLE_MAP['A'] in sources[0]['title']
+
+    def test_create_resource_source_titles_include_race_code(self):
+        import frictionless
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table(race_codes=('A',))
+        rt.filename = 'test.long.csv'
+        rt.schema_filename = 'test.schema.yaml'
+        captured = {}
+        with patch.object(frictionless.Resource, 'from_descriptor', side_effect=lambda d: captured.update(d)):
+            rt.create_resource()
+        sources = captured.get('sources', [])
+        assert len(sources) == 1
+        assert 'B17020A' in sources[0]['title']
+
+    # ------------------------------------------------------------------
+    # define_schema() tests (via _make_race_table)
+    # ------------------------------------------------------------------
+
+    def test_define_schema_primary_key_includes_reference_period(self):
+        rt = _make_race_table()
+        schema = rt.define_schema()
+        assert 'reference_period' in schema.primary_key
+
+    def test_define_schema_has_estimate_field(self):
+        rt = _make_race_table()
+        schema = rt.define_schema()
+        assert any(f.name == 'estimate' for f in schema.fields)
+
+    # ------------------------------------------------------------------
+    # dimension_table() test
+    # ------------------------------------------------------------------
+
+    def test_dimension_table_returns_race_dimension_table(self):
+        rt = _make_race_table()
+        assert isinstance(rt.dimension_table(), RaceDimensionTable)
+
+    # ------------------------------------------------------------------
+    # save() tests (via _make_race_table, uses tmp_path fixture)
+    # ------------------------------------------------------------------
+
+    def test_save_writes_long_csv(self, tmp_path):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        fake_result = MagicMock()
+        fake_result.valid = True
+        with patch('frictionless.Resource.validate', return_value=fake_result):
+            rt.save(tmp_path)
+        assert (tmp_path / f'{rt.name}.long.csv').exists()
+
+    def test_save_writes_schema_yaml(self, tmp_path):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        fake_result = MagicMock()
+        fake_result.valid = True
+        with patch('frictionless.Resource.validate', return_value=fake_result):
+            rt.save(tmp_path)
+        assert (tmp_path / f'{rt.name}.schema.yaml').exists()
+
+    def test_save_writes_resource_yaml(self, tmp_path):
+        with patch('morpc_census.api.get_all_avail_endpoints', return_value={'acs/acs5': [2023]}):
+            rt = _make_race_table()
+        fake_result = MagicMock()
+        fake_result.valid = True
+        with patch('frictionless.Resource.validate', return_value=fake_result):
+            rt.save(tmp_path)
+        assert (tmp_path / f'{rt.name}.resource.yaml').exists()
