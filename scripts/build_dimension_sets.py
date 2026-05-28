@@ -207,6 +207,7 @@ def _concept_heads(concept: str) -> list[str]:
 def build_dimension_sets(
     group_sets: dict[str, list[list[str]]],
     concepts: dict[str, str],
+    universes: dict[str, str] | None = None,
 ) -> dict[str, dict]:
     """Collapse per-group column value-sets into one entry per distinct ordered tuple.
 
@@ -220,6 +221,7 @@ def build_dimension_sets(
     for its specific phrase position.  When the mapping is ambiguous all heads are
     tallied as before.
     """
+    universes = universes or {}
     sig_values: dict[tuple, list[str]] = {}
     sig_groups: dict[tuple, OrderedDict] = {}
 
@@ -237,6 +239,7 @@ def build_dimension_sets(
     for i, sig in enumerate(order):
         codes = list(sig_groups[sig])
         tally: Counter = Counter()
+        universe_tally: Counter = Counter()
         for code in codes:
             heads = _concept_heads(concepts.get(code, ""))
             group_cols = group_sets.get(code, [])
@@ -259,9 +262,13 @@ def build_dimension_sets(
             else:
                 for head in heads:
                     tally[head] += 1
+            u = universes.get(code, "").strip()
+            if u:
+                universe_tally[u] += 1
         result[f"dim_{i}"] = {
             "variables": sig_values[sig],
             "concept_components": dict(tally.most_common()),
+            "universes": [u for u, _ in universe_tally.most_common()],
             "groups": [{code: concepts.get(code, "") for code in codes}],
         }
     return result
@@ -274,6 +281,7 @@ def build_dimension_sets(
 def main() -> None:
     source = json.loads(SOURCE.read_text())
     concepts = {code: meta.get("concept", "") for code, meta in source.items()}
+    universes = {code: meta.get("universe", "") for code, meta in source.items()}
 
     print("Stage 1: parsing and aligning variable labels...")
     group_sets = build_group_sets(source)
@@ -282,7 +290,7 @@ def main() -> None:
     print(f"  {len(group_sets)} groups written to {OUT_SETS.name} ({skipped} skipped, no E vars)")
 
     print("Stage 2: collapsing to unique value-sets...")
-    dims = build_dimension_sets(group_sets, concepts)
+    dims = build_dimension_sets(group_sets, concepts, universes)
     OUT_DIMS.write_text(json.dumps(dims, indent=2, ensure_ascii=False) + "\n")
     n = len(dims)
     print(f"  {n} unique value-sets written to {OUT_DIMS.name}")
