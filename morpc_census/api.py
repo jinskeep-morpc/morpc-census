@@ -328,6 +328,61 @@ def _load_dim_names_json() -> dict:
         return {}
 
 
+@functools.lru_cache(maxsize=1)
+def _load_dims_json() -> dict:
+    path = Path(__file__).parent / "dims.json"
+    try:
+        return json.loads(path.read_text())
+    except FileNotFoundError:
+        return {}
+
+
+@functools.lru_cache(maxsize=1)
+def _load_group_dims_json() -> dict:
+    path = Path(__file__).parent / "group_dims.json"
+    try:
+        return json.loads(path.read_text())
+    except FileNotFoundError:
+        return {}
+
+
+def _match_col_names(dims_df: "pd.DataFrame", group_code: str) -> list:
+    """Match parsed dim columns to human-readable names via dims.json + group_dims.json.
+
+    For each column, scores every candidate dim ID (from group_dims.json) by
+    Jaccard similarity between the column's unique non-empty values and the
+    dim's variable list in dims.json.  Returns a list parallel to the columns;
+    unmatched positions are None (caller falls back to 'dim_N').
+    """
+    dims_data = _load_dims_json()
+    group_dims_data = _load_group_dims_json()
+    dim_ids = group_dims_data.get(group_code, [])
+    if not dims_data or not dim_ids:
+        return []
+
+    used: set = set()
+    result: list = []
+    for col in dims_df.columns:
+        col_vals = {v for v in dims_df[col].unique() if v}
+        best_id, best_score = None, -1.0
+        for dim_id in dim_ids:
+            if dim_id in used:
+                continue
+            dim_vars = set(dims_data.get(dim_id, {}).get("variables", []))
+            if not dim_vars:
+                continue
+            union = col_vals | dim_vars
+            score = len(col_vals & dim_vars) / len(union) if union else 0.0
+            if score > best_score:
+                best_score, best_id = score, dim_id
+        if best_id and best_score > 0:
+            used.add(best_id)
+            result.append(dims_data[best_id]["name"])
+        else:
+            result.append(None)
+    return result
+
+
 def _build_group_label_df(group: Group) -> pd.DataFrame:
     """Build a minimal ``variable``/``variable_label`` DataFrame from group metadata.
 
@@ -1125,9 +1180,21 @@ class DimensionTable:
         dims = dims.loc[:, dims.notna().any(axis=0)]
         dims = dims.where(dims.notna(), '')
 
+        if dim_names is None:
+            group_code = ''
+            if 'variable' in self.long.columns and len(self.long):
+                m = re.match(r'^([A-Z][A-Z0-9]+)_', str(self.long['variable'].iloc[0]))
+                if m:
+                    group_code = m.group(1)
+            if group_code:
+                dim_names = _match_col_names(dims, group_code)
+
         named = list(dim_names or [])
         n = len(dims.columns)
-        dims.columns = named[:n] + [f'dim_{i}' for i in range(len(named), n)]
+        dims.columns = [
+            named[i] if i < len(named) and named[i] is not None else f'dim_{i}'
+            for i in range(n)
+        ]
 
         # Convert each column to an ordered categorical using first-appearance
         # order (Census variables are returned in their defined order).
