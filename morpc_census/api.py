@@ -377,7 +377,8 @@ def _match_col_names(dims_df: "pd.DataFrame", group_code: str) -> list:
                 best_score, best_id = score, dim_id
         if best_id and best_score > 0:
             used.add(best_id)
-            result.append(dims_data[best_id]["name"])
+            name = re.sub(r'\s*\([^)]*\)', '', dims_data[best_id]["name"]).strip()
+            result.append(name)
         else:
             result.append(None)
     return result
