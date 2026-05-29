@@ -111,6 +111,16 @@ def main() -> None:
                 concept_str = "  /  ".join(f"{cname} × {count}" for cname, count in concepts)
                 print(f"  {BOLD}Concepts:{RESET}  {concept_str}")
 
+            if groups := entry.get("groups", [{}])[0]:
+                MAX_GROUPS = 8
+                items = list(groups.items())
+                print()
+                print(f"  {BOLD}Groups ({len(items)}):{RESET}")
+                for code, concept in items[:MAX_GROUPS]:
+                    print(f"    {DIM}{code}{RESET}  {concept}")
+                if len(items) > MAX_GROUPS:
+                    print(f"    {DIM}(+{len(items) - MAX_GROUPS} more){RESET}")
+
             if variables:
                 MAX_VARS = 12
                 shown = variables[:MAX_VARS]
