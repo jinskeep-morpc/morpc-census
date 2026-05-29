@@ -37,13 +37,6 @@ def _is_unnamed(key: str, names: dict) -> bool:
     return names.get(key, key) == key
 
 
-def _prompt_prefill(prompt: str, prefill: str) -> str:
-    readline.set_startup_hook(lambda: readline.insert_text(prefill))
-    try:
-        return input(prompt)
-    finally:
-        readline.set_startup_hook()
-
 
 def _top_similar(
     name: str,
@@ -103,29 +96,31 @@ def main() -> None:
 
             status = f"{YELLOW}(unnamed){RESET}" if _is_unnamed(key, names) else f"{GREEN}(named){RESET}"
             print(f"{BOLD}{CYAN}{key}{RESET}  {status}  {DIM}{n_groups} groups  •  {unnamed_remaining} unnamed remaining{RESET}")
-            print()
-
-            if variables:
-                print(f"  {BOLD}Variables:{RESET}  {' | '.join(variables)}")
-                print()
-
-            if concepts:
-                print(f"  {BOLD}Top concepts:{RESET}")
-                for cname, count in concepts:
-                    print(f"    {cname} × {count}")
-                print()
 
             if similar:
+                print()
                 print(f"  {BOLD}Most similar:{RESET}")
                 for sim_key, sim_name in similar:
                     sim_entry = dim_sets.get(_unpad(sim_key), {})
                     sim_vars  = " | ".join(sim_entry.get("variables", [])[:5])
                     label = f'"{sim_name}"' if sim_name != sim_key else "(unnamed)"
                     print(f"    {sim_key}  {label:<34}  {DIM}{sim_vars}{RESET}")
+
+            if concepts:
                 print()
+                concept_str = "  /  ".join(f"{cname} × {count}" for cname, count in concepts)
+                print(f"  {BOLD}Concepts:{RESET}  {concept_str}")
+
+            if variables:
+                MAX_VARS = 12
+                shown = variables[:MAX_VARS]
+                tail = f"  {DIM}(+{len(variables) - MAX_VARS} more){RESET}" if len(variables) > MAX_VARS else ""
+                print()
+                print(f"  {BOLD}Variables ({len(variables)}):{RESET}  {' | '.join(shown)}{tail}")
 
             # ── Prompt ───────────────────────────────────────────────────
-            result = _prompt_prefill(f"  Name: ", current_name).strip()
+            print()
+            result = input("  Name: ").strip()
 
             if result and result != current_name:
                 old_name = names[key]
