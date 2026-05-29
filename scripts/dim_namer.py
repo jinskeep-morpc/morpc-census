@@ -85,6 +85,7 @@ def main() -> None:
             current_name = names[key]
             entry = dim_sets.get(_unpad(key), {})
             variables = entry.get("variables", [])
+            all_concepts = list(entry.get("concept_components", {}).keys())
             concepts  = list(entry.get("concept_components", {}).items())[:3]
             n_groups  = len(entry.get("groups", [{}])[0])
             unnamed_remaining = sum(1 for k in names if _is_unnamed(k, names))
@@ -129,6 +130,9 @@ def main() -> None:
                 print(f"  {BOLD}Variables ({len(variables)}):{RESET}  {' | '.join(shown)}{tail}")
 
             # ── Prompt ───────────────────────────────────────────────────
+            readline.clear_history()
+            for concept in reversed(all_concepts):
+                readline.add_history(concept)
             print()
             result = input("  Name: ").strip()
 
