@@ -1129,8 +1129,11 @@ class DimensionTable:
         """
         # One label per variable code — different vintages may use the same
         # code with slightly different label text (e.g. trailing ':' present
-        # or absent); keep only the first occurrence.
+        # or absent); keep only the first occurrence.  Sort by variable code
+        # first so category order matches Census-defined variable order
+        # regardless of how rows arrive (e.g. from a DB cache).
         unique = (self.long[['variable', 'variable_label']]
+                  .sort_values('variable')
                   .drop_duplicates(subset='variable')
                   .set_index('variable')
                   .copy())
