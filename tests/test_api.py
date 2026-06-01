@@ -382,61 +382,124 @@ class TestDimensionTableCrossVintage:
 # TestDimensionTableDrop
 # ---------------------------------------------------------------------------
 
+def _make_long_leaves():
+    """Long DataFrame with no partial subtotals — pure cross-product of two dims.
+
+    Only the grand-total row (all dims '') exists as a subtotal; no pre-computed
+    dim-specific subtotals are present.  Dropping any real dim must therefore
+    aggregate rather than filter.
+    """
+    rows = [
+        # variable,    label,                          est, moe
+        ('B99_001', 'Total:',                          400, 10),
+        ('B99_002', 'Total:!!TypeA:!!ValX',            100,  5),
+        ('B99_003', 'Total:!!TypeA:!!ValY',            100,  5),
+        ('B99_004', 'Total:!!TypeB:!!ValX',            100,  5),
+        ('B99_005', 'Total:!!TypeB:!!ValY',            100,  5),
+    ]
+    variables, labels, estimates, moes = zip(*rows)
+    n = len(rows)
+    return pd.DataFrame({
+        'variable': list(variables),
+        'variable_label': list(labels),
+        'geoidfq': ['0500000US39049'] * n,
+        'name': ['Franklin County, Ohio'] * n,
+        'concept': ['Test'] * n,
+        'universe': ['Population'] * n,
+        'survey': ['acs/acs5'] * n,
+        'reference_period': [2023] * n,
+        'estimate': list(estimates),
+        'moe': list(moes),
+    })
+
+
 class TestDimensionTableDrop:
     def test_drop_returns_dimension_table(self):
         dt = DimensionTable(_make_long())
         result = dt.drop('dim_1')
         assert isinstance(result, DimensionTable)
 
-    def test_drop_summarize_keeps_aggregate_rows(self):
-        # _make_long: dim_1 is 'Male:' / 'Female:' / ''. Summarize keeps '' rows.
-        dt = DimensionTable(_make_long())
-        result = dt.drop('dim_1', method='summarize')
-        assert set(result.long['variable']) == {'B01_001'}
-
-    def test_drop_summarize_removes_leaf_rows(self):
-        # Cross-dim: dropping the sex (leaf) column keeps nativity totals only
-        dt = DimensionTable(_make_long_cross())
-        last_col = dt.dims.columns[-1]
-        result = dt.drop(last_col, method='summarize')
-        # No rows with Male or Female in the sex column should remain
-        assert result.dims[result.dims.columns[-1]].isin(['Male', 'Female']).sum() == 0
-
     def test_drop_reduces_dim_count_by_one(self):
         dt = DimensionTable(_make_long())
-        result = dt.drop('dim_1', method='summarize')
+        result = dt.drop('dim_1')
         assert len(result.dims.columns) == len(dt.dims.columns) - 1
 
     def test_drop_invalid_dim_raises(self):
-        import pytest
         dt = DimensionTable(_make_long())
         with pytest.raises(ValueError, match="not in"):
             dt.drop('nonexistent')
 
-    def test_drop_invalid_method_raises(self):
-        import pytest
-        dt = DimensionTable(_make_long())
-        with pytest.raises(ValueError, match="method must be"):
-            dt.drop('dim_1', method='invalid')
+    # --- auto-detection: filter path ---
+
+    def test_drop_auto_detects_filter(self):
+        # _make_long_cross has pre-computed sex subtotals for each nativity value.
+        # Dropping the sex dim should auto-detect the filter path and keep only
+        # those rows (where sex == ''), not sum the leaf rows.
+        dt = DimensionTable(_make_long_cross())
+        sex_col = dt.dims.columns[-1]
+        result = dt.drop(sex_col)
+        # Leaf sex rows (Male / Female) must be absent from the result
+        sex_vals = result.dims[result.dims.columns[-1]] if result.dims.columns.tolist() else None
+        assert 'Male' not in dt.long.merge(
+            result.long[['variable']], on='variable'
+        )['variable_label'].str.cat()
+        # The pre-existing nativity subtotals are present
+        assert len(result.long) > 0
+
+    def test_drop_filter_keeps_subtotal_rows_only(self):
+        # Concrete variable check: after filtering out sex, only rows where
+        # sex == '' (B05_001, B05_004, B05_007, B05_010) survive.
+        dt = DimensionTable(_make_long_cross())
+        sex_col = dt.dims.columns[-1]
+        result = dt.drop(sex_col)
+        expected_vars = {
+            v for v in dt.dims.index if dt.dims.loc[v, sex_col] == ''
+        }
+        assert set(result.long['variable'].unique()) == expected_vars
+
+    def test_drop_filter_removes_leaf_rows(self):
+        dt = DimensionTable(_make_long_cross())
+        sex_col = dt.dims.columns[-1]
+        result = dt.drop(sex_col)
+        remaining_cols = list(result.dims.columns)
+        if remaining_cols:
+            last = remaining_cols[-1]
+            assert not result.dims[last].isin(['Male', 'Female']).any()
+
+    # --- auto-detection: aggregate path ---
+
+    def test_drop_auto_detects_aggregate(self):
+        # _make_long_leaves has no partial subtotals — only a grand-total row.
+        # Dropping a real dim must aggregate the leaf rows.
+        dt = DimensionTable(_make_long_leaves())
+        type_col = dt.dims.columns[-2]   # 'TypeA'/'TypeB' column
+        result = dt.drop(type_col)
+        # Result should have two rows (one per Val category) with summed estimates
+        assert len(result.dims) == 2
 
     def test_drop_aggregate_sums_estimates(self):
-        # Drop sex from cross-dim fixture; Native total should be sum of Native+Male + Native+Female
-        dt = DimensionTable(_make_long_cross())
-        last_col = dt.dims.columns[-1]
-        result = dt.drop(last_col, method='aggregate')
-        native_var = result.dims.loc[result.dims['dim_1'] == 'Native'].index[0]
-        native_est = result.long.loc[result.long['variable'] == native_var, 'estimate'].iloc[0]
-        assert native_est == 200  # 100 + 100
+        # Drop the type dim from the leaves fixture; each Val total = TypeA + TypeB = 200.
+        import numpy as np
+        dt = DimensionTable(_make_long_leaves())
+        type_col = dt.dims.columns[-2]
+        result = dt.drop(type_col)
+        val_col = result.dims.columns[-1]
+        valx_var = result.dims.loc[result.dims[val_col] == 'ValX'].index[0]
+        est = result.long.loc[result.long['variable'] == valx_var, 'estimate'].iloc[0]
+        assert est == 200  # 100 (TypeA/ValX) + 100 (TypeB/ValX)
 
     def test_drop_aggregate_propagates_moe(self):
         import numpy as np
-        dt = DimensionTable(_make_long_cross())
-        last_col = dt.dims.columns[-1]
-        result = dt.drop(last_col, method='aggregate')
-        native_var = result.dims.loc[result.dims['dim_1'] == 'Native'].index[0]
-        native_moe = result.long.loc[result.long['variable'] == native_var, 'moe'].iloc[0]
-        expected_moe = np.sqrt(5**2 + 5**2)
-        assert abs(native_moe - expected_moe) < 1e-9
+        dt = DimensionTable(_make_long_leaves())
+        type_col = dt.dims.columns[-2]
+        result = dt.drop(type_col)
+        val_col = result.dims.columns[-1]
+        valx_var = result.dims.loc[result.dims[val_col] == 'ValX'].index[0]
+        moe = result.long.loc[result.long['variable'] == valx_var, 'moe'].iloc[0]
+        expected = np.sqrt(5**2 + 5**2)
+        assert abs(moe - expected) < 1e-9
+
+    # --- integer / list indexing ---
 
     def test_drop_by_integer_index(self):
         dt = DimensionTable(_make_long())

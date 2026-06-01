@@ -1260,8 +1260,46 @@ class DimensionTable:
         self.dims = self._parse_dims(dim_names=list(self.dims.columns))
         return self
 
-    def drop(self, dim, method='summarize'):
+    def _has_partial_subtotals(self, dim: str) -> bool:
+        """Return True if pre-computed partial subtotal rows exist for *dim*.
+
+        A partial subtotal row is one where ``dims[dim] == ''`` (already
+        aggregated across *dim*) but at least one sibling dimension carries a
+        specific non-empty value — meaning the Census data contains results
+        pre-summed over *dim* for particular slices of the other dimensions.
+
+        Rows where *every* dimension is ``''`` are the grand total and do not
+        qualify as partial subtotals.  A sibling dimension must have 2+ globally
+        distinct non-empty values to be counted; this rules out trivial "Total:"
+        root columns that appear identically in every row.
+        """
+        if dim not in self.dims.columns:
+            return False
+        other_dims = [d for d in self.dims.columns if d != dim]
+        if not other_dims:
+            return False
+        subtotal_rows = self.dims.loc[self.dims[dim] == '']
+        if subtotal_rows.empty:
+            return False
+        for other in other_dims:
+            non_empty_here = subtotal_rows[other][subtotal_rows[other] != '']
+            globally_non_empty = self.dims[other][self.dims[other] != '']
+            if len(non_empty_here) > 0 and globally_non_empty.nunique() >= 2:
+                return True
+        return False
+
+    def drop(self, dim):
         """Drop one or more dimension levels, returning a new DimensionTable.
+
+        The transformation mode is auto-detected from the data:
+
+        * **Filter** — when the data already contains pre-computed partial
+          subtotal rows for *dim* (rows where ``dims[dim] == ''`` but other
+          dimensions carry specific values).  Only those rows are kept; leaf
+          rows specific to *dim* are discarded.
+        * **Aggregate** — when no such partial subtotals exist.  Leaf rows are
+          grouped by the remaining dimensions and geography; estimates are
+          summed and MOE is propagated as ``sqrt(sum(moe_i²))``.
 
         Parameters
         ----------
@@ -1270,14 +1308,6 @@ class DimensionTable:
             ``self.dims``; an integer selects by 0-based position. A list
             drops each element in order, with each drop applied to the result
             of the previous one.
-        method : {'summarize', 'aggregate'}
-            ``'summarize'``: keep only rows where *dim* is absent (``''``),
-            i.e. rows that are already aggregated across this dimension.
-            Rows that carry a specific value for *dim* are discarded.
-
-            ``'aggregate'``: group all remaining rows by the other dimensions
-            and geography, sum estimates, and propagate MOE via
-            ``sqrt(sum(moe_i²))``.
 
         Returns
         -------
@@ -1302,7 +1332,7 @@ class DimensionTable:
                     resolved.append(d)
             result = self
             for d in resolved:
-                result = result.drop(d, method=method)
+                result = result.drop(d)
             return result
 
         if isinstance(dim, int):
@@ -1318,21 +1348,19 @@ class DimensionTable:
 
         other_dims = [d for d in self.dims.columns if d != dim]
 
-        if method == 'summarize':
-            # Keep only rows where this dimension is absent — i.e. already aggregated
-            # across it.  Rows where dim is 'Male:', 'Spanish:', etc. represent a
-            # specific value of that dimension and are discarded.
+        if not other_dims or self._has_partial_subtotals(dim):
+            # Filter path: keep only rows where this dimension is already absent
+            # (dim == ''), then drop the column.  Also used when dim is the last
+            # remaining column, since _aggregate_dim requires at least one other
+            # dimension to group by.
             mask = self.dims[dim] == ''
             keep_vars = set(self.dims.index[mask])
             new_long = self.long.loc[self.long['variable'].isin(keep_vars)].copy()
             new_dims = (self.dims.loc[self.dims.index.isin(keep_vars)]
                         .drop(columns=[dim]))
-
-        elif method == 'aggregate':
-            new_long, new_dims = self._aggregate_dim(dim, other_dims)
-
         else:
-            raise ValueError(f"method must be 'summarize' or 'aggregate', got '{method}'.")
+            # No pre-aggregation — sum leaf rows and propagate MOE.
+            new_long, new_dims = self._aggregate_dim(dim, other_dims)
 
         result = DimensionTable.__new__(DimensionTable)
         result.logger = self.logger
