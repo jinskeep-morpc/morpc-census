@@ -466,6 +466,17 @@ class TestDimensionTableDrop:
             last = remaining_cols[-1]
             assert not result.dims[last].isin(['Male', 'Female']).any()
 
+    def test_drop_removes_grand_total_row(self):
+        # After dropping a dim, any row where ALL remaining dims are '' (grand-
+        # total row) must be excluded from the result.
+        dt = DimensionTable(_make_long_cross())
+        sex_col = dt.dims.columns[-1]
+        result = dt.drop(sex_col)
+        # The grand-total row (all remaining dims == '') must not be present
+        if len(result.dims.columns) > 0:
+            all_empty = (result.dims == '').all(axis=1)
+            assert not all_empty.any(), "Grand-total row survived the drop"
+
     # --- auto-detection: aggregate path ---
 
     def test_drop_auto_detects_aggregate(self):

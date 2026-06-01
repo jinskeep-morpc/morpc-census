@@ -1362,6 +1362,15 @@ class DimensionTable:
             # No pre-aggregation — sum leaf rows and propagate MOE.
             new_long, new_dims = self._aggregate_dim(dim, other_dims)
 
+        # Remove grand-total rows — after the drop, any row where every remaining
+        # dim column is '' carries no categorical label and is not meaningful.
+        if len(new_dims.columns) > 0 and not new_dims.empty:
+            all_empty = (new_dims == '').all(axis=1)
+            if all_empty.any():
+                keep = set(new_dims.index[~all_empty])
+                new_dims = new_dims.loc[~all_empty]
+                new_long = new_long.loc[new_long['variable'].isin(keep)]
+
         result = DimensionTable.__new__(DimensionTable)
         result.logger = self.logger
         result.long = new_long.reset_index(drop=True)
