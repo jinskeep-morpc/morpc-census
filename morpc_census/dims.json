@@ -13,14 +13,14 @@
     ]
   },
   "dim_002": {
-    "name": "Allocated",
+    "name": "Allocation Flag",
     "variables": [
       "Allocated",
       "Not allocated"
     ]
   },
   "dim_003": {
-    "name": "Tenure",
+    "name": "Tenure (Owner/Renter)",
     "variables": [
       "Owner occupied",
       "Renter occupied"
@@ -48,7 +48,7 @@
     ]
   },
   "dim_007": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (7 Groups)",
     "variables": [
       "Car, truck, or van - drove alone",
       "Car, truck, or van - carpooled",
@@ -59,7 +59,7 @@
     ]
   },
   "dim_008": {
-    "name": "Poverty Status",
+    "name": "Poverty Status (2 Categories)",
     "variables": [
       "Income in the past 12 months below poverty level",
       "Income in the past 12 months at or above poverty level"
@@ -84,14 +84,14 @@
     ]
   },
   "dim_011": {
-    "name": "Employment Status",
+    "name": "Labor Force Participation (In/Not)",
     "variables": [
       "In labor force",
       "Not in labor force"
     ]
   },
   "dim_012": {
-    "name": "Family Type",
+    "name": "Family Type (Married/Other)",
     "variables": [
       "Married-couple family",
       "Other family"
@@ -105,7 +105,7 @@
     ]
   },
   "dim_014": {
-    "name": "Citizenship Status",
+    "name": "Citizenship Status (5 Categories)",
     "variables": [
       "Naturalized U.S. citizen",
       "Not a U.S. citizen"
@@ -151,7 +151,7 @@
     ]
   },
   "dim_020": {
-    "name": "Age",
+    "name": "Age (3 Ranges)",
     "variables": [
       "Under 19 years",
       "19 to 64 years",
@@ -166,7 +166,7 @@
     ]
   },
   "dim_022": {
-    "name": "Occupation",
+    "name": "Occupation (5 Groups)",
     "variables": [
       "Management, business, science, and arts occupations",
       "Service occupations",
@@ -176,21 +176,21 @@
     ]
   },
   "dim_023": {
-    "name": "Nativity",
+    "name": "Nativity (2 Categories)",
     "variables": [
       "Native",
       "Foreign-born"
     ]
   },
   "dim_024": {
-    "name": "Ability to Speak English",
+    "name": "English Ability (2 Categories)",
     "variables": [
       "Speak English \"very well\"",
       "Speak English less than \"very well\""
     ]
   },
   "dim_025": {
-    "name": "Nativity",
+    "name": "Nativity (3 Categories)",
     "variables": [
       "Native",
       "Foreign born"
@@ -204,7 +204,7 @@
     ]
   },
   "dim_027": {
-    "name": "Presence of Own Children Under 18 Years",
+    "name": "Own Children Under 18 (Yes/No)",
     "variables": [
       "With own children of the householder under 18 years",
       "No own children of the householder under 18 years"
@@ -787,7 +787,7 @@
     ]
   },
   "dim_030": {
-    "name": "Class of Worker",
+    "name": "Class of Worker (Private)",
     "variables": [
       "Employee of private company workers",
       "Self-employed in own incorporated business workers"
@@ -808,7 +808,7 @@
     ]
   },
   "dim_033": {
-    "name": "Industry",
+    "name": "Industry (Major Groups)",
     "variables": [
       "Agriculture, forestry, fishing and hunting, and mining",
       "Construction",
@@ -835,7 +835,7 @@
     ]
   },
   "dim_035": {
-    "name": "School Enrollment",
+    "name": "School Enrollment (4 Groups)",
     "variables": [
       "Enrolled in school",
       "Not enrolled in school"
@@ -849,7 +849,7 @@
     ]
   },
   "dim_037": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (4 Groups)",
     "variables": [
       "Householder 15 to 34 years",
       "Householder 35 to 64 years",
@@ -857,7 +857,7 @@
     ]
   },
   "dim_038": {
-    "name": "Year Householder Moved Into Unit",
+    "name": "Year Moved In (8 Groups)",
     "variables": [
       "Moved in 2021 or later",
       "Moved in 2018 to 2020",
@@ -868,7 +868,7 @@
     ]
   },
   "dim_039": {
-    "name": "Year Structure Built",
+    "name": "Year Built (8 Groups)",
     "variables": [
       "Built 2020 or later",
       "Built 2010 to 2019",
@@ -908,7 +908,7 @@
     ]
   },
   "dim_042": {
-    "name": "Language Spoken at Home",
+    "name": "Language at Home (4 Groups)",
     "variables": [
       "Speak only English",
       "Speak Spanish",
@@ -918,21 +918,21 @@
     ]
   },
   "dim_043": {
-    "name": "Household Type",
+    "name": "Household Type (Family Detail)",
     "variables": [
       "Married-couple family",
       "Other families"
     ]
   },
   "dim_044": {
-    "name": "Receipt of Food Stamps/SNAP",
+    "name": "SNAP Receipt (Yes/No)",
     "variables": [
       "Household received Food Stamps/SNAP in the past 12 months",
       "Household did not receive Food Stamps/SNAP in the past 12 months"
     ]
   },
   "dim_045": {
-    "name": "Occupation",
+    "name": "Occupation (Detailed)",
     "variables": [
       "Management, business, and financial occupations",
       "Computer, engineering, and science occupations",
@@ -954,7 +954,7 @@
     ]
   },
   "dim_046": {
-    "name": "Occupation",
+    "name": "Occupation (Subcategories)",
     "variables": [
       "Management occupations",
       "Business and financial operations occupations",
@@ -972,7 +972,7 @@
     ]
   },
   "dim_047": {
-    "name": "Industry",
+    "name": "Industry (Sub-Groups)",
     "variables": [
       "Agriculture, forestry, fishing and hunting",
       "Mining, quarrying, and oil and gas extraction",
@@ -990,14 +990,14 @@
     ]
   },
   "dim_048": {
-    "name": "Mortgage Status",
+    "name": "Mortgage Status (2 Categories)",
     "variables": [
       "With a mortgage",
       "Not mortgaged"
     ]
   },
   "dim_049": {
-    "name": "Educational Attainment",
+    "name": "Educational Attainment (4 Levels)",
     "variables": [
       "Less than high school graduate",
       "High school graduate (includes equivalency)",
@@ -1007,7 +1007,7 @@
     ]
   },
   "dim_050": {
-    "name": "Individual Income",
+    "name": "Individual Income (Brackets)",
     "variables": [
       "$1 to $9,999 or loss",
       "$10,000 to $14,999",
@@ -1020,7 +1020,7 @@
     ]
   },
   "dim_051": {
-    "name": "Poverty Status",
+    "name": "Poverty Status (Ratio)",
     "variables": [
       "Below 100 percent of the poverty level",
       "100 to 149 percent of the poverty level",
@@ -1028,14 +1028,14 @@
     ]
   },
   "dim_052": {
-    "name": "Marital Status",
+    "name": "Marital Status (5 Categories)",
     "variables": [
       "Now married (including separated and spouse absent)",
       "Unmarried (never married, widowed and divorced)"
     ]
   },
   "dim_053": {
-    "name": "Field of Bachelor's Degree",
+    "name": "Bachelor's Degree Field (Broad)",
     "variables": [
       "Science and Engineering",
       "Science and Engineering Related Fields",
@@ -1045,7 +1045,7 @@
     ]
   },
   "dim_054": {
-    "name": "Household Income",
+    "name": "Household Income (16 Brackets)",
     "variables": [
       "Less than $10,000",
       "$10,000 to $14,999",
@@ -1073,7 +1073,7 @@
     ]
   },
   "dim_056": {
-    "name": "Mortgage Status",
+    "name": "Mortgage Status (3 Categories)",
     "variables": [
       "Housing units with a mortgage",
       "Housing units without a mortgage"
@@ -1101,7 +1101,7 @@
     ]
   },
   "dim_060": {
-    "name": "Language Spoken at Home",
+    "name": "Language at Home (5 Groups)",
     "variables": [
       "Speak only English",
       "Speak Spanish",
@@ -1109,14 +1109,14 @@
     ]
   },
   "dim_061": {
-    "name": "Individual Income",
+    "name": "Individual Income (With/Without)",
     "variables": [
       "No income",
       "With income"
     ]
   },
   "dim_062": {
-    "name": "Tenure",
+    "name": "Tenure (3 Categories)",
     "variables": [
       "Householder lived in owner-occupied housing units",
       "Householder lived in renter-occupied housing units"
@@ -1131,19 +1131,19 @@
     ]
   },
   "dim_064": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (Transit Detail)",
     "variables": [
       "Drove alone",
       "Carpooled",
       "Bus",
       "Subway or elevated rail",
       "Long-distance train or commuter rail",
-      "Light rail, streetcar or trolley (carro público in Puerto Rico)",
+      "Light rail, streetcar or trolley (carro p\u00fablico in Puerto Rico)",
       "Ferryboat"
     ]
   },
   "dim_065": {
-    "name": "Travel Time to Work",
+    "name": "Travel Time to Work (8 Groups)",
     "variables": [
       "Less than 5 minutes",
       "5 to 9 minutes",
@@ -1160,13 +1160,13 @@
     ]
   },
   "dim_066": {
-    "name": "Median Earnings",
+    "name": "Median Earnings (by Occupation)",
     "variables": [
       "Median earnings in the past 12 months --"
     ]
   },
   "dim_067": {
-    "name": "Class of Worker",
+    "name": "Class of Worker (Full)",
     "variables": [
       "Private for-profit wage and salary workers",
       "Private not-for-profit wage and salary workers",
@@ -1178,7 +1178,7 @@
     ]
   },
   "dim_068": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (Summary)",
     "variables": [
       "Car, truck, or van",
       "Public transportation (excluding taxicab)",
@@ -1187,14 +1187,14 @@
     ]
   },
   "dim_069": {
-    "name": "Size of Carpool",
+    "name": "Carpool Size (4 Groups)",
     "variables": [
       "In 2-person carpool",
       "In 3-or-more-person carpool"
     ]
   },
   "dim_070": {
-    "name": "Number of Workers in Family",
+    "name": "Workers in Family (Count)",
     "variables": [
       "No workers",
       "1 worker",
@@ -1218,7 +1218,7 @@
     ]
   },
   "dim_073": {
-    "name": "Educational Attainment",
+    "name": "Educational Attainment (7 Levels)",
     "variables": [
       "Less than high school graduate",
       "High school graduate (includes equivalency)",
@@ -1235,7 +1235,7 @@
     ]
   },
   "dim_075": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (5 Groups)",
     "variables": [
       "Householder under 25 years",
       "Householder 25 to 44 years",
@@ -1244,20 +1244,20 @@
     ]
   },
   "dim_076": {
-    "name": "Aggregate Family Income",
+    "name": "Aggregate Family Income (Total)",
     "variables": [
       "Aggregate family income in the past 12 months (in 2023 inflation-adjusted dollars)"
     ]
   },
   "dim_077": {
-    "name": "Employment Status",
+    "name": "Civilian Status",
     "variables": [
       "In Armed Forces",
       "Civilian"
     ]
   },
   "dim_078": {
-    "name": "Class of Worker",
+    "name": "Class of Worker (Condensed)",
     "variables": [
       "Private for-profit wage and salary workers",
       "Private not-for-profit wage and salary workers",
@@ -1268,14 +1268,14 @@
     ]
   },
   "dim_079": {
-    "name": "Tenure",
+    "name": "Tenure (4 Categories)",
     "variables": [
       "Owner-occupied housing units",
       "Renter-occupied housing units"
     ]
   },
   "dim_080": {
-    "name": "Plumbing Facilities",
+    "name": "Plumbing Facilities (2 Categories)",
     "variables": [
       "Complete plumbing facilities",
       "Lacking complete plumbing facilities"
@@ -1296,13 +1296,13 @@
     ]
   },
   "dim_083": {
-    "name": "Aggregate Gross Rent",
+    "name": "Aggregate Gross Rent (Total)",
     "variables": [
       "Aggregate gross rent"
     ]
   },
   "dim_084": {
-    "name": "Units in Structure",
+    "name": "Units in Structure (9 Groups)",
     "variables": [
       "1, detached or attached",
       "2 to 4",
@@ -1320,7 +1320,7 @@
     ]
   },
   "dim_086": {
-    "name": "Presence of a Computer",
+    "name": "Computer Presence (Yes/No)",
     "variables": [
       "Has a computer",
       "No computer"
@@ -1334,7 +1334,7 @@
     ]
   },
   "dim_088": {
-    "name": "Allocated",
+    "name": "Allocation Flag (alt.)",
     "variables": [
       "Allocated",
       "Not Allocated"
@@ -1354,7 +1354,7 @@
     ]
   },
   "dim_091": {
-    "name": "Ancestry",
+    "name": "Ancestry (African and West Indian)",
     "variables": [
       "Arab",
       "Cape Verdean",
@@ -1407,7 +1407,7 @@
     ]
   },
   "dim_094": {
-    "name": "Marital Status",
+    "name": "Marital Status (4 Categories)",
     "variables": [
       "Never married",
       "Now married, except separated",
@@ -1444,7 +1444,7 @@
     ]
   },
   "dim_099": {
-    "name": "Travel Time to Work",
+    "name": "Travel Time to Work (5 Groups)",
     "variables": [
       "Less than 10 minutes",
       "10 to 14 minutes",
@@ -1465,14 +1465,14 @@
     ]
   },
   "dim_101": {
-    "name": "Household Type",
+    "name": "Household Membership",
     "variables": [
       "In family households",
       "In nonfamily households"
     ]
   },
   "dim_102": {
-    "name": "Living Alone",
+    "name": "Living Alone (Yes/No)",
     "variables": [
       "Living alone",
       "Not living alone"
@@ -1486,7 +1486,7 @@
     ]
   },
   "dim_104": {
-    "name": "Marital Status",
+    "name": "Marital Status (3 Categories)",
     "variables": [
       "Never married",
       "Now married (except separated)",
@@ -1496,7 +1496,7 @@
     ]
   },
   "dim_105": {
-    "name": "Field of Bachelor's Degree",
+    "name": "Bachelor's Degree Field (Detailed)",
     "variables": [
       "Computers, Mathematics, and Statistics",
       "Biological, Agricultural, and Environmental Sciences",
@@ -1513,14 +1513,14 @@
     ]
   },
   "dim_106": {
-    "name": "Age",
+    "name": "Age (Child vs Adult)",
     "variables": [
       "5 to 17 years",
       "18 years and over"
     ]
   },
   "dim_107": {
-    "name": "Ability to Speak English",
+    "name": "English Ability (4 Categories)",
     "variables": [
       "Speak English \"very well\"",
       "Speak English \"well\"",
@@ -1529,7 +1529,7 @@
     ]
   },
   "dim_108": {
-    "name": "Age",
+    "name": "Age (6 Groups)",
     "variables": [
       "Under 5 years",
       "5 to 17 years",
@@ -1540,7 +1540,7 @@
     ]
   },
   "dim_109": {
-    "name": "Age",
+    "name": "Age (5 Groups, 5+)",
     "variables": [
       "5 to 17 years",
       "18 to 34 years",
@@ -1562,14 +1562,14 @@
     ]
   },
   "dim_112": {
-    "name": "Work Experience",
+    "name": "Work Experience (3 Categories)",
     "variables": [
       "Worked full-time, year-round in the past 12 months",
       "Other"
     ]
   },
   "dim_113": {
-    "name": "Earnings",
+    "name": "Earnings (Brackets)",
     "variables": [
       "$1 to $2,499 or loss",
       "$2,500 to $4,999",
@@ -1594,7 +1594,7 @@
     ]
   },
   "dim_114": {
-    "name": "Employment Status",
+    "name": "Labor Force Component",
     "variables": [
       "Civilian labor force",
       "Armed Forces"
@@ -1869,7 +1869,7 @@
     ]
   },
   "dim_117": {
-    "name": "Bedrooms",
+    "name": "Bedrooms (6 Groups)",
     "variables": [
       "No bedroom",
       "1 bedroom",
@@ -1916,7 +1916,7 @@
     ]
   },
   "dim_120": {
-    "name": "Household Income",
+    "name": "Household Income (12 Brackets)",
     "variables": [
       "Less than $10,000",
       "$10,000 to $19,999",
@@ -1928,13 +1928,13 @@
     ]
   },
   "dim_121": {
-    "name": "Median Value",
+    "name": "Median Value (Overall)",
     "variables": [
       "Median value --"
     ]
   },
   "dim_122": {
-    "name": "Age",
+    "name": "Age (9 Groups)",
     "variables": [
       "Under 6 years",
       "6 to 18 years",
@@ -1962,7 +1962,7 @@
     ]
   },
   "dim_125": {
-    "name": "Age",
+    "name": "Age (Child/Working/Senior)",
     "variables": [
       "Under 18 years",
       "18 to 64 years",
@@ -1970,7 +1970,7 @@
     ]
   },
   "dim_126": {
-    "name": "Ratio of Income to Poverty Level",
+    "name": "Income-to-Poverty Ratio (4 Groups)",
     "variables": [
       "Under 1.00 of poverty threshold",
       "1.00 to 1.37 of poverty threshold",
@@ -1980,7 +1980,7 @@
     ]
   },
   "dim_127": {
-    "name": "Sex",
+    "name": "Sex (Allocated)",
     "variables": [
       "Total",
       "Male",
@@ -2023,7 +2023,7 @@
     ]
   },
   "dim_129": {
-    "name": "Selected Groups (NHOPI)",
+    "name": "Selected NHOPI Groups (Broad)",
     "variables": [
       "Native Hawaiian",
       "Samoan",
@@ -2077,7 +2077,7 @@
     ]
   },
   "dim_131": {
-    "name": "Ancestry",
+    "name": "Ancestry (World)",
     "variables": [
       "Afghan",
       "Albanian",
@@ -2162,7 +2162,7 @@
     ]
   },
   "dim_133": {
-    "name": "Continent of Birth",
+    "name": "Continent of Birth (7 Groups)",
     "variables": [
       "Europe",
       "Asia",
@@ -2171,7 +2171,7 @@
     ]
   },
   "dim_134": {
-    "name": "Place of Birth Central America",
+    "name": "Latin America Region",
     "variables": [
       "Caribbean",
       "Central America",
@@ -2179,7 +2179,7 @@
     ]
   },
   "dim_135": {
-    "name": "Place of Birth Central America",
+    "name": "Mexico and Central America",
     "variables": [
       "Mexico",
       "Other Central America"
@@ -2194,7 +2194,7 @@
     ]
   },
   "dim_137": {
-    "name": "Age",
+    "name": "Age (Young Children)",
     "variables": [
       "Under 6 years",
       "6 to 17 years"
@@ -2220,7 +2220,7 @@
     ]
   },
   "dim_140": {
-    "name": "Age",
+    "name": "Age (13 Groups)",
     "variables": [
       "1 to 4 years",
       "5 to 17 years",
@@ -2249,7 +2249,7 @@
     ]
   },
   "dim_142": {
-    "name": "Moved from",
+    "name": "Moved From (4 Groups)",
     "variables": [
       "Moved from principal city",
       "Moved from remainder of Metropolitan Statistical Area",
@@ -2257,7 +2257,7 @@
     ]
   },
   "dim_143": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (with WFH)",
     "variables": [
       "Car, truck, or van",
       "Public transportation (excluding taxicab)",
@@ -2268,7 +2268,7 @@
     ]
   },
   "dim_144": {
-    "name": "Size of Carpool",
+    "name": "Carpool Size (3 Groups)",
     "variables": [
       "In 2-person carpool",
       "In 3-person carpool",
@@ -2276,14 +2276,14 @@
     ]
   },
   "dim_145": {
-    "name": "Worked in State of Residence",
+    "name": "Worked in State (3 Categories)",
     "variables": [
       "Worked in state of residence",
       "Worked outside state of residence"
     ]
   },
   "dim_146": {
-    "name": "Vehicles Available",
+    "name": "Vehicles Available (5 Groups)",
     "variables": [
       "No vehicle available",
       "1 vehicle available",
@@ -2301,7 +2301,7 @@
     ]
   },
   "dim_148": {
-    "name": "Age",
+    "name": "Age (7 Groups, 16+)",
     "variables": [
       "16 to 19 years",
       "20 to 24 years",
@@ -2313,7 +2313,7 @@
     ]
   },
   "dim_149": {
-    "name": "Occupation",
+    "name": "Occupation (Broad Groups)",
     "variables": [
       "Management, business, science, and arts occupations",
       "Service occupations",
@@ -2324,7 +2324,7 @@
     ]
   },
   "dim_150": {
-    "name": "Industry",
+    "name": "Industry (Detailed Groups)",
     "variables": [
       "Agriculture, forestry, fishing and hunting, and mining",
       "Construction",
@@ -2343,7 +2343,7 @@
     ]
   },
   "dim_151": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (6 Groups)",
     "variables": [
       "Car, truck, or van - drove alone",
       "Car, truck, or van - carpooled",
@@ -2353,17 +2353,17 @@
     ]
   },
   "dim_152": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (Drive Detail)",
     "variables": [
       "Drove alone",
       "Carpooled",
       "Bus",
-      "Subway or elevated rail, Light rail, streetcar, or trolley (carro público in Puerto Rico)",
+      "Subway or elevated rail, Light rail, streetcar, or trolley (carro p\u00fablico in Puerto Rico)",
       "Long-distance train or commuter rail or Ferryboat"
     ]
   },
   "dim_153": {
-    "name": "Vehicles Available",
+    "name": "Vehicles Available (4 Groups)",
     "variables": [
       "No vehicle available",
       "1 vehicle available",
@@ -2372,7 +2372,7 @@
     ]
   },
   "dim_154": {
-    "name": "Household Size",
+    "name": "Household Size (7 Groups)",
     "variables": [
       "1-person household",
       "2-person household",
@@ -2381,7 +2381,7 @@
     ]
   },
   "dim_155": {
-    "name": "Vehicles Available",
+    "name": "Vehicles Available (3 Groups)",
     "variables": [
       "No vehicle available",
       "1 vehicle available",
@@ -2391,7 +2391,7 @@
     ]
   },
   "dim_156": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (Detailed)",
     "variables": [
       "Car, truck, or van",
       "Public transportation (excluding taxicab)",
@@ -2404,7 +2404,7 @@
     ]
   },
   "dim_157": {
-    "name": "Size of Carpool",
+    "name": "Carpool Size (2 Groups)",
     "variables": [
       "In 2-person carpool",
       "In 3-person carpool",
@@ -2414,17 +2414,17 @@
     ]
   },
   "dim_158": {
-    "name": "Means of Transportation to Work",
+    "name": "Means of Transportation (Drive Detail, alt.)",
     "variables": [
       "Drove alone",
       "Carpooled",
       "Bus",
-      "Subway or elevated rail or Light rail, streetcar or trolley (carro público in Puerto Rico)",
+      "Subway or elevated rail or Light rail, streetcar or trolley (carro p\u00fablico in Puerto Rico)",
       "Long-distance train or commuter rail or Ferryboat"
     ]
   },
   "dim_159": {
-    "name": "Household Type",
+    "name": "Family Subtype",
     "variables": [
       "In married-couple family",
       "In male householder, no spouse present, family",
@@ -2446,14 +2446,14 @@
     ]
   },
   "dim_162": {
-    "name": "Marital Status",
+    "name": "Marital Status (6 Categories)",
     "variables": [
       "Now married (including separated and spouse absent)",
       "Unmarried (never married, widowed, and divorced)"
     ]
   },
   "dim_163": {
-    "name": "Household Subtype",
+    "name": "Household Subtype (Living Arrangement)",
     "variables": [
       "Married-couple family",
       "Other family",
@@ -2462,7 +2462,7 @@
     ]
   },
   "dim_164": {
-    "name": "Household Subtype",
+    "name": "Household Subtype (Householder Sex)",
     "variables": [
       "Married-couple family",
       "Other family",
@@ -2471,7 +2471,7 @@
     ]
   },
   "dim_165": {
-    "name": "Marital Status",
+    "name": "Marital Status (2 Categories)",
     "variables": [
       "Never married",
       "Now married",
@@ -2501,7 +2501,7 @@
     ]
   },
   "dim_169": {
-    "name": "Level of School",
+    "name": "Level of School (4 Groups)",
     "variables": [
       "Enrolled in nursery school, preschool",
       "Enrolled in kindergarten",
@@ -2513,14 +2513,14 @@
     ]
   },
   "dim_170": {
-    "name": "Poverty Status",
+    "name": "Poverty Status (3 Categories)",
     "variables": [
       "Income in the past 12 months below the poverty level",
       "Income in the past 12 months at or above the poverty level"
     ]
   },
   "dim_171": {
-    "name": "Educational Attainment",
+    "name": "Educational Attainment (3 Levels)",
     "variables": [
       "Less than 9th grade",
       "9th to 12th grade, no diploma",
@@ -2539,7 +2539,7 @@
     ]
   },
   "dim_173": {
-    "name": "Age",
+    "name": "Age (School/Working/Senior)",
     "variables": [
       "5 to 17 years",
       "18 to 64 years",
@@ -2547,7 +2547,7 @@
     ]
   },
   "dim_174": {
-    "name": "Educational Attainment",
+    "name": "Educational Attainment (5 Levels)",
     "variables": [
       "Less than high school graduate",
       "High school graduate (includes equivalency)",
@@ -2564,7 +2564,7 @@
     ]
   },
   "dim_176": {
-    "name": "Ratio of Income to Poverty Level",
+    "name": "Income-to-Poverty Ratio (6 Groups)",
     "variables": [
       "Under .50",
       ".50 to .74",
@@ -2581,13 +2581,13 @@
     ]
   },
   "dim_177": {
-    "name": "Median Household Income",
+    "name": "Median Household Income (by Type)",
     "variables": [
       "Median household income in the past 12 months (in 2023 inflation-adjusted dollars)"
     ]
   },
   "dim_178": {
-    "name": "Median Household Income",
+    "name": "Median Household Income (by Size)",
     "variables": [
       "Median household income in the past 12 months (in 2023 inflation-adjusted dollars) --"
     ]
@@ -2620,13 +2620,13 @@
     ]
   },
   "dim_182": {
-    "name": "Aggregate Nonfamily Household Income",
+    "name": "Aggregate Nonfamily Income (Total)",
     "variables": [
       "Aggregate nonfamily household income in the past 12 months (in 2023 inflation-adjusted dollars)"
     ]
   },
   "dim_183": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (2 Groups)",
     "variables": [
       "Householder 15 to 64 years (dollars)",
       "Householder 65 years and over (dollars)"
@@ -2647,13 +2647,13 @@
     ]
   },
   "dim_186": {
-    "name": "Median Earnings",
+    "name": "Median Earnings (by Education)",
     "variables": [
       "Median earnings in the past 12 months (in 2023 inflation-adjusted dollars) --"
     ]
   },
   "dim_187": {
-    "name": "Number of Workers in Family",
+    "name": "Workers in Family (Spouses)",
     "variables": [
       "Both spouses worked",
       "Other"
@@ -2679,7 +2679,7 @@
     ]
   },
   "dim_190": {
-    "name": "Occupants per Room",
+    "name": "Occupants per Room (5 Groups)",
     "variables": [
       "1.00 or less occupants per room",
       "1.01 to 1.50 occupants per room",
@@ -2707,7 +2707,7 @@
     ]
   },
   "dim_193": {
-    "name": "Units in Structure",
+    "name": "Units in Structure (7 Groups)",
     "variables": [
       "1, detached",
       "1, attached",
@@ -2745,7 +2745,7 @@
     ]
   },
   "dim_196": {
-    "name": "Percentage of Household Income",
+    "name": "Housing Cost Ratio (6 Groups)",
     "variables": [
       "Less than 10.0 percent",
       "10.0 to 14.9 percent",
@@ -2760,7 +2760,7 @@
     ]
   },
   "dim_197": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (7 Groups)",
     "variables": [
       "Householder 15 to 24 years",
       "Householder 25 to 34 years",
@@ -2769,7 +2769,7 @@
     ]
   },
   "dim_198": {
-    "name": "Percentage of Household Income",
+    "name": "Housing Cost Ratio (4 Groups)",
     "variables": [
       "Less than 20.0 percent",
       "20.0 to 24.9 percent",
@@ -2793,7 +2793,7 @@
     ]
   },
   "dim_200": {
-    "name": "Value",
+    "name": "Value (12 Brackets)",
     "variables": [
       "Less than $10,000",
       "$10,000 to $14,999",
@@ -2824,13 +2824,13 @@
     ]
   },
   "dim_201": {
-    "name": "Median Value",
+    "name": "Median Value (by Rooms)",
     "variables": [
       "Median value (dollars)"
     ]
   },
   "dim_202": {
-    "name": "Mortgage Status",
+    "name": "Mortgage Status (4 Categories)",
     "variables": [
       "Housing units with a mortgage (dollars)",
       "Housing units without a mortgage (dollars)"
@@ -2851,14 +2851,14 @@
     ]
   },
   "dim_205": {
-    "name": "Occupancy Status",
+    "name": "Occupancy Status (2 Categories)",
     "variables": [
       "Occupied Units",
       "Vacant Units"
     ]
   },
   "dim_206": {
-    "name": "Age (10 Types)",
+    "name": "Age (10 Types, Broad)",
     "variables": [
       "Under 15 years",
       "15 to 17 years",
@@ -2918,27 +2918,27 @@
     ]
   },
   "dim_213": {
-    "name": "Group Quarters Population",
+    "name": "Group Quarters Population (Detailed)",
     "variables": [
       "Group quarters population"
     ]
   },
   "dim_214": {
-    "name": "Receipt of Food Stamps/SNAP",
+    "name": "SNAP Receipt (by Poverty)",
     "variables": [
       "Received Food Stamps/SNAP in the past 12 months",
       "Did not receive Food Stamps/SNAP in the past 12 months"
     ]
   },
   "dim_215": {
-    "name": "Computers in Household",
+    "name": "Computer Access",
     "variables": [
       "Has one or more types of computing devices",
       "No Computer"
     ]
   },
   "dim_216": {
-    "name": "Types of Computers in Household",
+    "name": "Computer Types",
     "variables": [
       "Desktop or laptop",
       "Smartphone",
@@ -2975,14 +2975,14 @@
     ]
   },
   "dim_221": {
-    "name": "Language Spoken at Home",
+    "name": "Language at Home (2 Groups)",
     "variables": [
       "Speak only English",
       "Speak other languages"
     ]
   },
   "dim_222": {
-    "name": "Allocation of income",
+    "name": "Income Allocation (Summary)",
     "variables": [
       "No income allocated",
       "Dollar value of zero allocated",
@@ -2994,7 +2994,7 @@
     ]
   },
   "dim_223": {
-    "name": "Allocation of income",
+    "name": "Income Allocation (Brackets)",
     "variables": [
       "No income allocated",
       "Dollar value of zero allocated",
@@ -3068,14 +3068,14 @@
     ]
   },
   "dim_228": {
-    "name": "Two or More Races",
+    "name": "Two or More Races (Broad)",
     "variables": [
       "Two races including Some Other Race",
       "Two races excluding Some Other Race, and three or more races"
     ]
   },
   "dim_229": {
-    "name": "Asian Alone",
+    "name": "Asian Alone (Detailed)",
     "variables": [
       "East Asian",
       "Southeast Asian",
@@ -3087,7 +3087,7 @@
     ]
   },
   "dim_230": {
-    "name": "Native Hawaiian & Other Pacific Islander Alone",
+    "name": "NHOPI Alone (Detailed)",
     "variables": [
       "Polynesian",
       "Micronesian",
@@ -3097,7 +3097,7 @@
     ]
   },
   "dim_231": {
-    "name": "Asian Alone",
+    "name": "Asian Alone (Broad)",
     "variables": [
       "East Asian",
       "Southeast Asian",
@@ -3108,7 +3108,7 @@
     ]
   },
   "dim_232": {
-    "name": "Native Hawaiian & Other Pacific Islander Alone",
+    "name": "NHOPI Alone (Broad)",
     "variables": [
       "Polynesian",
       "Micronesian",
@@ -3117,7 +3117,7 @@
     ]
   },
   "dim_233": {
-    "name": "American Indian & Alaska Native Alone",
+    "name": "AIAN Alone (Detailed)",
     "variables": [
       "American Indian tribes, specified",
       "American Indian, not specified",
@@ -3129,7 +3129,7 @@
     ]
   },
   "dim_234": {
-    "name": "American Indian & Alaska Native Alone",
+    "name": "AIAN Alone (Broad)",
     "variables": [
       "American Indian tribes, specified",
       "American Indian, not specified",
@@ -3140,7 +3140,7 @@
     ]
   },
   "dim_235": {
-    "name": "Specific Origin (Hispanic or Latino)",
+    "name": "Hispanic Origin (Groups)",
     "variables": [
       "Mexican",
       "Puerto Rican",
@@ -3152,7 +3152,7 @@
     ]
   },
   "dim_236": {
-    "name": "Specific Origin (Hispanic or Latino)",
+    "name": "Hispanic Origin (Detailed)",
     "variables": [
       "Costa Rican",
       "Guatemalan",
@@ -3190,14 +3190,14 @@
     ]
   },
   "dim_238": {
-    "name": "Two or More Races",
+    "name": "Two or More Races (Detailed)",
     "variables": [
       "Two races including Some other race",
       "Two races excluding Some other race, and three or more races"
     ]
   },
   "dim_239": {
-    "name": "Ancestry",
+    "name": "Ancestry (World, Extended)",
     "variables": [
       "Afghan",
       "Albanian",
@@ -3335,7 +3335,7 @@
     ]
   },
   "dim_246": {
-    "name": "Continent of Birth",
+    "name": "Continent of Birth (4 Groups)",
     "variables": [
       "Europe",
       "Asia",
@@ -3373,7 +3373,7 @@
     ]
   },
   "dim_248": {
-    "name": "Country (Place of Birth)",
+    "name": "Country of Birth (Comprehensive)",
     "variables": [
       "Denmark",
       "Ireland",
@@ -3487,7 +3487,7 @@
     ]
   },
   "dim_249": {
-    "name": "Country (Place of Birth)",
+    "name": "Country of Birth (Detailed)",
     "variables": [
       "United Kingdom, excluding England and Scotland",
       "England",
@@ -3539,7 +3539,7 @@
     ]
   },
   "dim_251": {
-    "name": "Ratio of Income to Poverty Level",
+    "name": "Income-to-Poverty Ratio (7 Groups)",
     "variables": [
       "Under 1.00",
       "1.00 to 1.99",
@@ -3685,7 +3685,7 @@
     ]
   },
   "dim_264": {
-    "name": "Moved from",
+    "name": "Moved From (5 Groups)",
     "variables": [
       "Moved from principal city",
       "Moved from remainder of Micropolitan Statistical Area",
@@ -3753,7 +3753,7 @@
     ]
   },
   "dim_273": {
-    "name": "Worked in MSA",
+    "name": "Worked in MSA (2 Categories)",
     "variables": [
       "Worked in Metropolitan Statistical Area of residence",
       "Worked in a different Metropolitan Statistical Area",
@@ -3762,7 +3762,7 @@
     ]
   },
   "dim_274": {
-    "name": "Worked in MSA",
+    "name": "Worked in MSA (3 Categories)",
     "variables": [
       "Worked in Micropolitan Statistical Area of residence",
       "Worked in a different Micropolitan Statistical Area",
@@ -3779,7 +3779,7 @@
     ]
   },
   "dim_276": {
-    "name": "Worked in State of Residence",
+    "name": "Worked in State (2 Categories)",
     "variables": [
       "Worked in State of residence",
       "Worked outside State of residence"
@@ -3808,7 +3808,7 @@
     ]
   },
   "dim_279": {
-    "name": "Family Type",
+    "name": "Family Type (4 Categories)",
     "variables": [
       "In married-couple families",
       "In other families"
@@ -3898,7 +3898,7 @@
     ]
   },
   "dim_288": {
-    "name": "Age",
+    "name": "Age (Adult 3 Groups)",
     "variables": [
       "18 to 34 years",
       "35 to 64 years",
@@ -3939,7 +3939,7 @@
     ]
   },
   "dim_293": {
-    "name": "Median family income",
+    "name": "Median Family Income (by Type)",
     "variables": [
       "Median family income in the past 12 months--"
     ]
@@ -4034,7 +4034,7 @@
     ]
   },
   "dim_306": {
-    "name": "Presence of Own Child",
+    "name": "Presence of Own Child (Yes/No)",
     "variables": [
       "With own children of the householder under 18 years",
       "With no own children of the householder under 18 years"
@@ -4049,7 +4049,7 @@
     ]
   },
   "dim_308": {
-    "name": "Sex of Spouse",
+    "name": "Sex of Spouse (2 Categories)",
     "variables": [
       "Opposite-sex",
       "Same-sex"
@@ -4072,7 +4072,7 @@
     ]
   },
   "dim_311": {
-    "name": "Living Alone",
+    "name": "Living Alone (by Age)",
     "variables": [
       "Householder 15 to 64 years",
       "Householder 65 years and over"
@@ -4087,7 +4087,7 @@
     ]
   },
   "dim_313": {
-    "name": "Household Type",
+    "name": "Household Type (3 Categories)",
     "variables": [
       "Married-couple household",
       "Cohabiting couple household",
@@ -4106,7 +4106,7 @@
     ]
   },
   "dim_315": {
-    "name": "Subfamily Type",
+    "name": "Subfamily Type (2 Categories)",
     "variables": [
       "Married-couple subfamily",
       "Mother-child subfamily",
@@ -4114,7 +4114,7 @@
     ]
   },
   "dim_316": {
-    "name": "Presence of Own Child",
+    "name": "Presence of Own Child (by Age)",
     "variables": [
       "With own children under 18 years",
       "No own children under 18 years"
@@ -4129,7 +4129,7 @@
     ]
   },
   "dim_318": {
-    "name": "Subfamily Type",
+    "name": "Subfamily Type (3 Categories)",
     "variables": [
       "Husband/wife in a childless subfamily",
       "Husband/wife in a subfamily with children",
@@ -4145,7 +4145,7 @@
     ]
   },
   "dim_320": {
-    "name": "Household Size",
+    "name": "Household Size (4 Groups)",
     "variables": [
       "2-person household",
       "3-person household",
@@ -4218,7 +4218,7 @@
     ]
   },
   "dim_328": {
-    "name": "Sex of Spouse",
+    "name": "Sex of Spouse (3 Categories)",
     "variables": [
       "Opposite-sex spouse",
       "Same-sex spouse"
@@ -4276,7 +4276,7 @@
     ]
   },
   "dim_335": {
-    "name": "Level of School",
+    "name": "Level of School (2 Groups)",
     "variables": [
       "Enrolled in nursery school, preschool",
       "Enrolled in kindergarten",
@@ -4295,7 +4295,7 @@
     ]
   },
   "dim_337": {
-    "name": "School Enrollment",
+    "name": "School Enrollment (2 Groups)",
     "variables": [
       "Enrolled in public school",
       "Enrolled in private school",
@@ -4624,7 +4624,7 @@
     ]
   },
   "dim_364": {
-    "name": "Supplemental Security Income",
+    "name": "SSI Receipt (Yes/No)",
     "variables": [
       "With Social Security income in the past 12 months",
       "Without Social Security income in the past 12 months"
@@ -4638,7 +4638,7 @@
     ]
   },
   "dim_366": {
-    "name": "Work Experience of Householder",
+    "name": "Work Experience of Householder (3 Categories)",
     "variables": [
       "Householder worked full-time, year-round in the past 12 months",
       "Householder worked part-time or part-year in the past 12 months",
@@ -4666,14 +4666,14 @@
     ]
   },
   "dim_369": {
-    "name": "Living Arrangement",
+    "name": "Living Arrangement (Family/Other)",
     "variables": [
       "In family households",
       "In non-family households and other living arrangement"
     ]
   },
   "dim_370": {
-    "name": "Living Arrangement",
+    "name": "Living Arrangement (4-Way)",
     "variables": [
       "In married couple families",
       "In other families",
@@ -4682,7 +4682,7 @@
     ]
   },
   "dim_371": {
-    "name": "Living Arrangement",
+    "name": "Living Arrangement (Other Family)",
     "variables": [
       "Male householder, no spouse present",
       "Female householder, no spouse present",
@@ -4716,7 +4716,7 @@
     ]
   },
   "dim_375": {
-    "name": "Age (10 Types)",
+    "name": "Age (10 Types, Detailed)",
     "variables": [
       "Under 6 years",
       "6 to 11 years",
@@ -4798,7 +4798,7 @@
     ]
   },
   "dim_385": {
-    "name": "Household Size",
+    "name": "Household Size (2 Groups)",
     "variables": [
       "1-person households",
       "2-person households",
@@ -4845,7 +4845,7 @@
     ]
   },
   "dim_391": {
-    "name": "Supplemental Security Income",
+    "name": "SSI Receipt (by Poverty)",
     "variables": [
       "With Supplemental Security Income (SSI)",
       "No Supplemental Security Income (SSI)"
@@ -4964,13 +4964,13 @@
     ]
   },
   "dim_409": {
-    "name": "Median family income",
+    "name": "Median Family Income (by Size)",
     "variables": [
       "Median family income in the past 12 months (in 2023 inflation-adjusted dollars)"
     ]
   },
   "dim_410": {
-    "name": "Number of Earners in Family",
+    "name": "Earners in Family (4 Groups)",
     "variables": [
       "No earners (dollars)",
       "1 earner (dollars)",
@@ -4979,7 +4979,7 @@
     ]
   },
   "dim_411": {
-    "name": "Number of Earners in Family",
+    "name": "Earners in Family (3 Groups)",
     "variables": [
       "No earners",
       "1 earner",
@@ -4995,27 +4995,27 @@
     ]
   },
   "dim_413": {
-    "name": "Median family income",
+    "name": "Median Family Income (Overall)",
     "variables": [
       "Median family income in the past 12 months (in 2023 inflation-adjusted dollars) --"
     ]
   },
   "dim_414": {
-    "name": "Family Type",
+    "name": "Family Type (Married vs Other)",
     "variables": [
       "Married-couple family --",
       "Other family --"
     ]
   },
   "dim_415": {
-    "name": "Family Type",
+    "name": "Family Type (Other Family)",
     "variables": [
       "Male householder, no spouse present --",
       "Female householder, no spouse present --"
     ]
   },
   "dim_416": {
-    "name": "Aggregate Family Income",
+    "name": "Aggregate Family Income (by Workers)",
     "variables": [
       "No workers (dollars)",
       "1 worker (dollars)",
@@ -5026,21 +5026,21 @@
     ]
   },
   "dim_417": {
-    "name": "Aggregate Family Income",
+    "name": "Aggregate Family Income (by Type)",
     "variables": [
       "Married couple family (dollars)",
       "Other family (dollars)"
     ]
   },
   "dim_418": {
-    "name": "Family Type",
+    "name": "Family Type (3 Categories)",
     "variables": [
       "Male householder, no spouse present (dollars)",
       "Female householder, no spouse present (dollars)"
     ]
   },
   "dim_419": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (6 Groups)",
     "variables": [
       "Householder 15 to 24 years (dollars)",
       "Householder 25 to 34 years (dollars)",
@@ -5072,21 +5072,21 @@
     ]
   },
   "dim_423": {
-    "name": "Living Alone",
+    "name": "Living Alone (3 Categories)",
     "variables": [
       "Living alone --",
       "Not living alone --"
     ]
   },
   "dim_424": {
-    "name": "Aggregate Nonfamily Household Income",
+    "name": "Aggregate Nonfamily Income (by Sex)",
     "variables": [
       "Male householder (dollars)",
       "Female householder (dollars)"
     ]
   },
   "dim_425": {
-    "name": "Living Alone",
+    "name": "Living Alone (by Sex)",
     "variables": [
       "Living alone (dollars)",
       "Not living alone (dollars)"
@@ -5105,13 +5105,13 @@
     ]
   },
   "dim_428": {
-    "name": "Median income",
+    "name": "Median Income (by Work)",
     "variables": [
       "Median income in the past 12 months (in 2023 inflation-adjusted dollars) --"
     ]
   },
   "dim_429": {
-    "name": "Earnings",
+    "name": "Earnings (With/Without)",
     "variables": [
       "No earnings",
       "With earnings"
@@ -5124,7 +5124,7 @@
     ]
   },
   "dim_431": {
-    "name": "Age",
+    "name": "Age (Adult 5 Groups)",
     "variables": [
       "18 to 34 years",
       "35 to 54 years",
@@ -5154,13 +5154,13 @@
     ]
   },
   "dim_433": {
-    "name": "Median income",
+    "name": "Median Income (by Education)",
     "variables": [
       "Median income in the past 12 months (in 2023 inflation-adjusted dollars)--"
     ]
   },
   "dim_434": {
-    "name": "Age",
+    "name": "Age (Working Age)",
     "variables": [
       "18 to 34 years",
       "35 to 54 years",
@@ -5200,7 +5200,7 @@
     ]
   },
   "dim_439": {
-    "name": "Household Type",
+    "name": "Household Type (Presence)",
     "variables": [
       "Married-couple family",
       "Other family",
@@ -5208,7 +5208,7 @@
     ]
   },
   "dim_440": {
-    "name": "Median household income",
+    "name": "Median Household Income (by Tenure)",
     "variables": [
       "Median household income in the past 12 months (in 2023 inflation-adjusted dollars)--"
     ]
@@ -5221,7 +5221,7 @@
     ]
   },
   "dim_442": {
-    "name": "Age",
+    "name": "Age (Detailed, 16+)",
     "variables": [
       "16 to 19 years",
       "20 and 21 years",
@@ -5239,14 +5239,14 @@
     ]
   },
   "dim_443": {
-    "name": "Presence of Own Children Under 18 Years",
+    "name": "Own Children Under 18 (Count)",
     "variables": [
       "With own children under 18 years",
       "No children under 18 years"
     ]
   },
   "dim_444": {
-    "name": "Family Type",
+    "name": "Family Type (With Children)",
     "variables": [
       "Opposite-sex married-couple family",
       "Other family"
@@ -5262,7 +5262,7 @@
     ]
   },
   "dim_446": {
-    "name": "Employment Status",
+    "name": "Employment Status (Parent)",
     "variables": [
       "Employed or in Armed Forces",
       "Unemployed",
@@ -5271,7 +5271,7 @@
     ]
   },
   "dim_447": {
-    "name": "Employment Status",
+    "name": "Employment Status (Husband)",
     "variables": [
       "Employed or in Armed Forces",
       "Wife in labor force",
@@ -5279,7 +5279,7 @@
     ]
   },
   "dim_448": {
-    "name": "Employment Status",
+    "name": "Employment Status (With Spouse)",
     "variables": [
       "Employed or in Armed Forces",
       "Wife in labor force",
@@ -5299,7 +5299,7 @@
     ]
   },
   "dim_450": {
-    "name": "Work Experience of Householder",
+    "name": "Work Experience of Householder (2 Categories)",
     "variables": [
       "Householder worked full-time, year-round in the past 12 months",
       "Householder worked less than full-time, year-round in the past 12 months",
@@ -5333,7 +5333,7 @@
     ]
   },
   "dim_455": {
-    "name": "Full-Time, Year-Round Work Status",
+    "name": "Full-Time Work Status (by Age)",
     "variables": [
       "16 to 19 years",
       "20 to 24 years",
@@ -5345,14 +5345,14 @@
     ]
   },
   "dim_456": {
-    "name": "Full-Time, Year-Round Work Status",
+    "name": "Full-Time Work Status (Yes/No)",
     "variables": [
       "Worked full-time, year-round",
       "Worked less than full-time, year-round"
     ]
   },
   "dim_457": {
-    "name": "Occupancy Status",
+    "name": "Occupancy Status (3 Categories)",
     "variables": [
       "Occupied",
       "Vacant"
@@ -5397,7 +5397,7 @@
     ]
   },
   "dim_462": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (3 Groups)",
     "variables": [
       "Householder 15 to 24 years",
       "Householder 25 to 34 years",
@@ -5411,7 +5411,7 @@
     ]
   },
   "dim_463": {
-    "name": "Household Size",
+    "name": "Household Size (3 Groups)",
     "variables": [
       "1-person household",
       "2-person household",
@@ -5429,14 +5429,14 @@
     ]
   },
   "dim_465": {
-    "name": "Presence of Own Children",
+    "name": "Related Children Under 18",
     "variables": [
       "With related children of the householder under 18",
       "No related children of the householder under 18"
     ]
   },
   "dim_466": {
-    "name": "Presence of Own Children",
+    "name": "Own Children Under 18",
     "variables": [
       "With own children of the householder under 18",
       "No own children of the householder under 18"
@@ -5460,7 +5460,7 @@
     ]
   },
   "dim_469": {
-    "name": "Occupants per Room",
+    "name": "Occupants per Room (3 Groups)",
     "variables": [
       "0.50 or less occupants per room",
       "0.51 to 1.00 occupants per room",
@@ -5470,13 +5470,13 @@
     ]
   },
   "dim_470": {
-    "name": "Median number of rooms",
+    "name": "Median Rooms (Overall)",
     "variables": [
       "Median number of rooms"
     ]
   },
   "dim_471": {
-    "name": "Median number of rooms",
+    "name": "Median Rooms (by Tenure)",
     "variables": [
       "Median number of rooms --"
     ]
@@ -5488,7 +5488,7 @@
     ]
   },
   "dim_473": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (9 Groups)",
     "variables": [
       "Householder 15 to 34 years",
       "Householder 35 to 44 years",
@@ -5510,13 +5510,13 @@
     ]
   },
   "dim_475": {
-    "name": "Median year structure built",
+    "name": "Median Year Built (Overall)",
     "variables": [
       "Median year structure built"
     ]
   },
   "dim_476": {
-    "name": "Median year structure built",
+    "name": "Median Year Built (by Tenure)",
     "variables": [
       "Median year structure built --"
     ]
@@ -5543,7 +5543,7 @@
     ]
   },
   "dim_480": {
-    "name": "Vehicles Available",
+    "name": "Vehicles Available (6 Groups)",
     "variables": [
       "No vehicle available",
       "1 or more vehicles available"
@@ -5556,21 +5556,21 @@
     ]
   },
   "dim_482": {
-    "name": "Plumbing Facilities",
+    "name": "Plumbing Facilities (3 Categories)",
     "variables": [
       "Complete plumbing facilities",
       "Lacking plumbing facilities"
     ]
   },
   "dim_483": {
-    "name": "Occupants per Room",
+    "name": "Occupants per Room (2 Groups)",
     "variables": [
       "1.00 or less occupants per room",
       "1.01 or more occupants per room"
     ]
   },
   "dim_484": {
-    "name": "Year Structure Built",
+    "name": "Year Built (5 Groups)",
     "variables": [
       "Built 1950 or later",
       "Built 1940 to 1949",
@@ -5614,7 +5614,7 @@
     ]
   },
   "dim_491": {
-    "name": "Aggregate Gross Rent",
+    "name": "Aggregate Gross Rent (by Structure)",
     "variables": [
       "1, detached or attached",
       "2 to 4",
@@ -5626,7 +5626,7 @@
     ]
   },
   "dim_492": {
-    "name": "Bedrooms",
+    "name": "Bedrooms (5 Groups)",
     "variables": [
       "No bedroom",
       "1 bedroom",
@@ -5635,7 +5635,7 @@
     ]
   },
   "dim_493": {
-    "name": "Gross Rent",
+    "name": "Gross Rent (12 Brackets)",
     "variables": [
       "Less than $300",
       "$300 to $499",
@@ -5671,7 +5671,7 @@
     ]
   },
   "dim_498": {
-    "name": "Age of Householder",
+    "name": "Age of Householder (Detailed)",
     "variables": [
       "Householder 15 to 24 years (dollars)",
       "Householder 25 to 34 years (dollars)",
@@ -5680,7 +5680,7 @@
     ]
   },
   "dim_499": {
-    "name": "Units in Structure",
+    "name": "Units in Structure (5 Groups)",
     "variables": [
       "1, detached (dollars)",
       "1, attached (dollars)",
@@ -5692,14 +5692,14 @@
     ]
   },
   "dim_500": {
-    "name": "Mortgage Status",
+    "name": "Mortgage Status (With/Without)",
     "variables": [
       "Housing units with a mortgage, contract to purchase, or similar debt",
       "Housing units without a mortgage"
     ]
   },
   "dim_501": {
-    "name": "Mortgage Status",
+    "name": "Mortgage Status (Types)",
     "variables": [
       "Housing units with no second mortgage and no home equity loan",
       "Housing units with multiple mortgages",
@@ -5707,7 +5707,7 @@
     ]
   },
   "dim_502": {
-    "name": "Mortgage Status",
+    "name": "Mortgage Status (Secondary Liens)",
     "variables": [
       "Mortgage with both second mortgage and home equity loan",
       "Mortgage, with only home equity loan",
@@ -5721,7 +5721,7 @@
     ]
   },
   "dim_504": {
-    "name": "Selected Monthly Owner Costs",
+    "name": "Monthly Owner Costs (12 Brackets)",
     "variables": [
       "Less than $200",
       "$200 to $299",
@@ -5803,7 +5803,7 @@
     ]
   },
   "dim_512": {
-    "name": "Selected Monthly Owner Costs",
+    "name": "Monthly Owner Costs (6 Brackets)",
     "variables": [
       "Less than $200",
       "$200 to $299",
@@ -5825,7 +5825,7 @@
     ]
   },
   "dim_513": {
-    "name": "Household Income",
+    "name": "Household Income (4 Groups)",
     "variables": [
       "Less than $10,000",
       "$10,000 to $19,999",
@@ -5838,7 +5838,7 @@
     ]
   },
   "dim_514": {
-    "name": "Value",
+    "name": "Value (4 Groups)",
     "variables": [
       "Less than $50,000",
       "$50,000 to $99,999",
@@ -5852,14 +5852,14 @@
     ]
   },
   "dim_515": {
-    "name": "Median Value",
+    "name": "Median Value (by Mortgage)",
     "variables": [
       "Median value for units with a mortgage",
       "Median value for units without a mortgage"
     ]
   },
   "dim_516": {
-    "name": "Household Income",
+    "name": "Household Income (9 Brackets)",
     "variables": [
       "Less than $10,000",
       "$10,000 to $24,999",
@@ -5872,13 +5872,13 @@
     ]
   },
   "dim_517": {
-    "name": "Median household income",
+    "name": "Median Household Income (by Workers)",
     "variables": [
       "Median household income --"
     ]
   },
   "dim_518": {
-    "name": "Median Household Income",
+    "name": "Median Household Income (Overall)",
     "variables": [
       "Median household income for units with a mortgage",
       "Median household income for units without a mortgage"
@@ -5895,7 +5895,7 @@
     ]
   },
   "dim_520": {
-    "name": "Household Income",
+    "name": "Household Income (7 Brackets)",
     "variables": [
       "Less than $20,000",
       "$20,000 to $34,999",
@@ -5957,7 +5957,7 @@
     ]
   },
   "dim_526": {
-    "name": "Housing Costs as a Percentage of Household Income",
+    "name": "Housing Cost Percentage (Owner)",
     "variables": [
       "Less than $20,000",
       "$20,000 to $34,999",
@@ -5975,14 +5975,14 @@
     ]
   },
   "dim_528": {
-    "name": "Household Size",
+    "name": "Household Size (5 Groups)",
     "variables": [
       "1-person household",
       "2-or-more person household"
     ]
   },
   "dim_529": {
-    "name": "Household Income",
+    "name": "Household Income (3 Groups)",
     "variables": [
       "Less than $5,000",
       "$5,000 to $9,999",
@@ -5998,7 +5998,7 @@
     ]
   },
   "dim_530": {
-    "name": "Tenure",
+    "name": "Tenure (with Mortgage)",
     "variables": [
       "Owner occupied (dollars)",
       "Renter occupied (dollars)"
@@ -6011,7 +6011,7 @@
     ]
   },
   "dim_532": {
-    "name": "Value",
+    "name": "Value (9 Brackets)",
     "variables": [
       "Value less than $10,000",
       "Value $10,000 to $19,999",
@@ -6036,7 +6036,7 @@
     ]
   },
   "dim_534": {
-    "name": "Gross Rent",
+    "name": "Gross Rent (6 Brackets)",
     "variables": [
       "Less than $100",
       "$100 to $199",
@@ -6065,7 +6065,7 @@
     ]
   },
   "dim_536": {
-    "name": "Household Size",
+    "name": "Household Size (6 Groups)",
     "variables": [
       "1-person household",
       "2-person household",
@@ -6075,7 +6075,7 @@
     ]
   },
   "dim_537": {
-    "name": "Year Structure Built",
+    "name": "Year Built (4 Groups)",
     "variables": [
       "Built 2020 or later",
       "Built 2000 to 2019",
@@ -6086,7 +6086,7 @@
     ]
   },
   "dim_538": {
-    "name": "Year Householder Moved Into Unit",
+    "name": "Year Moved In (5 Groups)",
     "variables": [
       "Moved in 2018 or later",
       "Moved in 2010 to 2017",
@@ -6096,14 +6096,14 @@
     ]
   },
   "dim_539": {
-    "name": "Monthly Electricity Costs",
+    "name": "Electricity Cost (Charged/Not)",
     "variables": [
       "Not charged, not used, or payment included in other fees",
       "Charged for electricity"
     ]
   },
   "dim_540": {
-    "name": "Monthly Electricity Costs",
+    "name": "Electricity Cost (Brackets)",
     "variables": [
       "Less than $50",
       "$50 to $99",
@@ -6114,14 +6114,14 @@
     ]
   },
   "dim_541": {
-    "name": "Monthly Gas Costs",
+    "name": "Gas Cost (Charged/Not)",
     "variables": [
       "Not charged, not used, or payment included in other fees",
       "Charged for gas"
     ]
   },
   "dim_542": {
-    "name": "Monthly Gas Costs",
+    "name": "Gas Cost (Brackets)",
     "variables": [
       "Less than $25",
       "$25 to $49",
@@ -6150,14 +6150,14 @@
     ]
   },
   "dim_545": {
-    "name": "Annual Other Fuel Costs",
+    "name": "Other Fuel Cost (Charged/Not)",
     "variables": [
       "Not charged, not used, or payment included in other fees",
       "Charged for other fuels"
     ]
   },
   "dim_546": {
-    "name": "Annual Other Fuel Costs",
+    "name": "Other Fuel Cost (Brackets)",
     "variables": [
       "Less than $250",
       "$250 to $749",
@@ -6176,7 +6176,7 @@
     ]
   },
   "dim_548": {
-    "name": "Bedrooms",
+    "name": "Bedrooms (4 Groups)",
     "variables": [
       "One or fewer bedrooms",
       "Two bedrooms",
@@ -6196,7 +6196,7 @@
     ]
   },
   "dim_551": {
-    "name": "Tenure",
+    "name": "Tenure (5 Categories)",
     "variables": [
       "Owned Units with a Mortgage",
       "Owned Units without a Mortgage",
@@ -6204,7 +6204,7 @@
     ]
   },
   "dim_552": {
-    "name": "Housing Costs as a Percentage of Household Income",
+    "name": "Housing Cost Percentage (Renter)",
     "variables": [
       "Over 30 Percent",
       "Over 50 Percent",
@@ -6229,7 +6229,7 @@
     ]
   },
   "dim_554": {
-    "name": "Age of Population",
+    "name": "Age of Population (3 Groups)",
     "variables": [
       "Population under 18 years",
       "Population 18 to 64 years",
@@ -6244,7 +6244,7 @@
     ]
   },
   "dim_556": {
-    "name": "Group Quarters Type",
+    "name": "Group Quarters Type (Broad)",
     "variables": [
       "Adult correctional facilities",
       "Nursing facilities/skilled nursing facilities",
@@ -6253,7 +6253,7 @@
     ]
   },
   "dim_557": {
-    "name": "Age of Population",
+    "name": "Age of Population (2 Groups)",
     "variables": [
       "Population under 18 years",
       "Population 18 to 64 years",
@@ -6270,7 +6270,7 @@
     ]
   },
   "dim_559": {
-    "name": "Group Quarters Type",
+    "name": "Group Quarters Type (Detailed)",
     "variables": [
       "College/university student housing",
       "Military quarters/military ships"
@@ -6294,7 +6294,7 @@
     ]
   },
   "dim_562": {
-    "name": "Health Insurance Coverage",
+    "name": "Health Insurance (2 Categories)",
     "variables": [
       "With employer-based health insurance only",
       "With direct-purchase health insurance only",
@@ -6312,7 +6312,7 @@
     ]
   },
   "dim_563": {
-    "name": "Household Income",
+    "name": "Household Income (2 Groups)",
     "variables": [
       "Under $25,000",
       "$25,000 to $49,999",
@@ -6322,28 +6322,28 @@
     ]
   },
   "dim_564": {
-    "name": "Age",
+    "name": "Age (Working vs Senior)",
     "variables": [
       "26 to 64 years",
       "65 years and over"
     ]
   },
   "dim_565": {
-    "name": "Citizenship Status",
+    "name": "Citizenship Status (2 Categories)",
     "variables": [
       "Naturalized",
       "Noncitizen"
     ]
   },
   "dim_566": {
-    "name": "Enrollment Status",
+    "name": "Enrollment Status (4 Groups)",
     "variables": [
       "With private health insurance coverage",
       "No private health insurance coverage"
     ]
   },
   "dim_567": {
-    "name": "Types of Computers in Household",
+    "name": "Computer Types (Exclusive)",
     "variables": [
       "Desktop or laptop with no other type of computing device",
       "Smartphone with no other type of computing device",
@@ -6352,7 +6352,7 @@
     ]
   },
   "dim_568": {
-    "name": "Types of Internet Subscriptions in Household",
+    "name": "Internet Subscription Types",
     "variables": [
       "Dial-up with no other type of Internet subscription",
       "Broadband of any type",
@@ -6363,7 +6363,7 @@
     ]
   },
   "dim_569": {
-    "name": "Types of Internet Subscriptions in Household",
+    "name": "Internet Subscription Types (Exclusive)",
     "variables": [
       "Cellular data plan with no other type of Internet subscription",
       "Broadband such as cable, fiber optic or DSL with no other type of Internet subscription",
@@ -6382,7 +6382,7 @@
     ]
   },
   "dim_571": {
-    "name": "Educational Attainment",
+    "name": "Educational Attainment (2 Levels)",
     "variables": [
       "Less than high school graduate or equivalency",
       "High school graduate (includes equivalency) , some college or associate's degree",
@@ -6397,14 +6397,14 @@
     ]
   },
   "dim_573": {
-    "name": "Presence of a Computer",
+    "name": "Computer Presence (Type)",
     "variables": [
       "Has a computer",
       "No Computer"
     ]
   },
   "dim_574": {
-    "name": "Type of Internet Subscription in Household",
+    "name": "Internet Subscription (Summary)",
     "variables": [
       "With dial-up Internet subscription alone",
       "With a broadband subscription",
@@ -6412,7 +6412,7 @@
     ]
   },
   "dim_575": {
-    "name": "Type of Internet Subscription in Household",
+    "name": "Internet Subscription (Broadband)",
     "variables": [
       "With a fixed broadband Internet subscription",
       "Cellular data plan alone or with dial-up"
@@ -6426,14 +6426,14 @@
     ]
   },
   "dim_577": {
-    "name": "Computers in Household",
+    "name": "Computer Type (Desktop vs Mobile)",
     "variables": [
       "Desktop or laptop",
       "Smartphone, tablet or other portable wireless computer or other computer"
     ]
   },
   "dim_578": {
-    "name": "Computers in Household",
+    "name": "Computer Type (Exclusive)",
     "variables": [
       "Desktop or laptop alone",
       "Smartphone, tablet or other portable wireless computer or other computer, no desktop or laptop"
@@ -6449,14 +6449,14 @@
     ]
   },
   "dim_580": {
-    "name": "Age of Population",
+    "name": "Age of Population (4 Groups)",
     "variables": [
       "Population 3 and older",
       "Population 2 and under"
     ]
   },
   "dim_581": {
-    "name": "Enrollment Status",
+    "name": "Enrollment Status (2 Groups)",
     "variables": [
       "Enrolled in school",
       "Not Enrolled in school"
@@ -6479,7 +6479,7 @@
     ]
   },
   "dim_584": {
-    "name": "Age",
+    "name": "Age (Adult 4 Groups)",
     "variables": [
       "18 to 29 years",
       "30 to 44 years",
@@ -6488,7 +6488,7 @@
     ]
   },
   "dim_585": {
-    "name": "Poverty Status",
+    "name": "Poverty Status (4 Categories)",
     "variables": [
       "Income in the past 12 months below poverty level",
       "Income in the past 12 months at or above the poverty level"
@@ -6531,7 +6531,7 @@
     ]
   },
   "dim_591": {
-    "name": "Nonresponse Rates With Reasons",
+    "name": "Nonresponse Rates (Summary)",
     "variables": [
       "Refusal",
       "Unable To Locate",
@@ -6544,7 +6544,7 @@
     ]
   },
   "dim_592": {
-    "name": "Nonresponse Rates With Reasons",
+    "name": "Nonresponse Rates (Detailed)",
     "variables": [
       "Group Quarters Person Refusal",
       "Unable To Locate Group Quarters Person",
@@ -6615,7 +6615,7 @@
     ]
   },
   "dim_602": {
-    "name": "Allocation of Poverty Status",
+    "name": "Poverty Allocation (2 Categories)",
     "variables": [
       "Total",
       "Percent of income allocated for individuals with income in the past 12 months below poverty level --",
@@ -6623,7 +6623,7 @@
     ]
   },
   "dim_603": {
-    "name": "Allocation of Poverty Status",
+    "name": "Poverty Allocation (Brackets)",
     "variables": [
       "Total",
       "Percent of family income allocated for families with income in the past 12 months below poverty level --",
@@ -6638,21 +6638,21 @@
     ]
   },
   "dim_605": {
-    "name": "Age",
+    "name": "Age (15-17 and 18+)",
     "variables": [
       "15 to 17 years",
       "18 years and over"
     ]
   },
   "dim_606": {
-    "name": "Allocation of Earnings",
+    "name": "Earnings Allocation (Summary)",
     "variables": [
       "Total",
       "Percent of earnings allocated --"
     ]
   },
   "dim_607": {
-    "name": "Allocation of Earnings",
+    "name": "Earnings Allocation (Brackets)",
     "variables": [
       "No earnings allocated",
       "Dollar value of zero allocated",
@@ -6725,14 +6725,14 @@
     ]
   },
   "dim_617": {
-    "name": "Detailed Race",
+    "name": "Detailed Race (One vs Multiple)",
     "variables": [
       "Population of one race",
       "Population of two or more races"
     ]
   },
   "dim_618": {
-    "name": "Detailed Race",
+    "name": "Detailed Race (All Categories)",
     "variables": [
       "White alone",
       "Black or African American alone",
@@ -6772,7 +6772,7 @@
     ]
   },
   "dim_621": {
-    "name": "Selected Groups (NHOPI)",
+    "name": "Selected NHOPI Groups (Detailed)",
     "variables": [
       "Chamorro",
       "Native Hawaiian",
@@ -6793,7 +6793,7 @@
     ]
   },
   "dim_623": {
-    "name": "Language Spoken at Home",
+    "name": "Language at Home (Specific)",
     "variables": [
       "Speak only English",
       "Spanish",
@@ -6821,7 +6821,7 @@
     ]
   },
   "dim_625": {
-    "name": "Ratio of Income to Poverty Level",
+    "name": "Income-to-Poverty Ratio (3 Groups)",
     "variables": [
       "Under .50",
       ".50 to .99",
@@ -6841,14 +6841,14 @@
     ]
   },
   "dim_627": {
-    "name": "Employment Status",
+    "name": "Labor Force Status (General)",
     "variables": [
       "In the labor force",
       "Not in labor force"
     ]
   },
   "dim_628": {
-    "name": "Work Experience",
+    "name": "Work Experience (2 Categories)",
     "variables": [
       "Worked full-time, year round",
       "Worked less than full-time, year round",
@@ -6856,14 +6856,14 @@
     ]
   },
   "dim_629": {
-    "name": "Poverty Status",
+    "name": "Poverty Status (Income Level)",
     "variables": [
       "Income in the past 12-months below poverty level",
       "Income in the past 12-months at or above poverty level"
     ]
   },
   "dim_630": {
-    "name": "Ratio of Income to Poverty Level",
+    "name": "Income-to-Poverty Ratio (5 Groups)",
     "variables": [
       "Under .50",
       ".50 to .99",
@@ -6873,7 +6873,7 @@
     ]
   },
   "dim_631": {
-    "name": "Age",
+    "name": "Age (18-64 and 65+)",
     "variables": [
       "18 to 64 years",
       "65 years and over"
@@ -6922,7 +6922,7 @@
     ]
   },
   "dim_638": {
-    "name": "Health Insurance Coverage",
+    "name": "Health Insurance (4 Categories)",
     "variables": [
       "With employer-based health insurance",
       "With direct-purchase health insurance",
@@ -6931,7 +6931,7 @@
     ]
   },
   "dim_639": {
-    "name": "Health Insurance Coverage",
+    "name": "Health Insurance (3 Categories)",
     "variables": [
       "In family households",
       "In non-family households and other living arrangements"
