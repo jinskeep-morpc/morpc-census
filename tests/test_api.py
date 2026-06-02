@@ -2058,7 +2058,7 @@ class TestDimensionTableExport:
     def test_to_wide_flat_drops_all_null_columns(self):
         import numpy as _np
         dt = self._make_dt()
-        wide = dt.wide()
+        wide = dt.wide().astype('float64')
         n_full = len(wide.columns)
         # Null out the first data column entirely
         wide.iloc[:, 0] = _np.nan
@@ -2071,7 +2071,7 @@ class TestDimensionTableExport:
     def test_create_schema_excludes_all_null_columns(self):
         import numpy as _np
         dt = self._make_dt()
-        wide = dt.wide()
+        wide = dt.wide().astype('float64')
         wide.iloc[:, 0] = _np.nan
         dt.wide = lambda: wide
         flat = dt._to_wide_flat()

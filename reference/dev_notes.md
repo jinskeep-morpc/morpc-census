@@ -1,3 +1,15 @@
+## Fix pre-existing CI failures: drop Python 3.10, pandas dtype (issue #109)
+
+CI was latently red on main (surfaced by PR #110). Two pre-existing,
+dec-unrelated issues fixed here so #110 can merge:
+
+- Drop Python 3.10: the save() methods use contextlib.chdir (3.11+), so the
+  package never actually worked on 3.10 despite requires-python ">=3.10".
+  Bumped requires-python to ">=3.11" and removed 3.10 from the CI matrix.
+- pandas dtype: two TestDimensionTableExport tests assigned np.nan into an
+  int64 wide column (FutureWarning on pandas 2.3.0, hard TypeError on newer
+  CI pandas). Cast wide to float64 before nulling a column.
+
 ## Legacy decennial fetch support — suffix-less variable codes (issue #109)
 
 Closes the KNOWN GAP noted below: legacy decennial vintages (dec/sf1,
