@@ -159,7 +159,7 @@
     ]
   },
   "dim_023": {
-    "name": "Race",
+    "name": "Race Category",
     "variables": [
       "Population of two or more races",
       "Population of one race"
@@ -403,7 +403,7 @@
     ]
   },
   "dim_056": {
-    "name": "Race",
+    "name": "Race Category",
     "variables": [
       "Two or More Races",
       "Population of one race"
@@ -919,14 +919,14 @@
     ]
   },
   "dim_117": {
-    "name": "Race",
+    "name": "Race Category",
     "variables": [
       "Population of one race",
       "Two or More Races"
     ]
   },
   "dim_118": {
-    "name": "Race",
+    "name": "Race Category",
     "variables": [
       "Population of one race",
       "Population of two or more races"
@@ -3855,7 +3855,7 @@
     ]
   },
   "dim_221": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Some Other Race alone",
       "Native Hawaiian and Other Pacific Islander alone",
@@ -3871,7 +3871,7 @@
     ]
   },
   "dim_222": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; Some Other Race",
       "Black or African American; Native Hawaiian and Other Pacific Islander",
@@ -4011,7 +4011,7 @@
     ]
   },
   "dim_225": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of three races",
       "Population of four races",
@@ -4027,7 +4027,7 @@
     ]
   },
   "dim_226": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander",
       "White; American Indian and Alaska Native; Asian; Some Other Race",
@@ -4179,7 +4179,7 @@
     ]
   },
   "dim_230": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Native Hawaiian and Other Pacific Islander alone",
       "Some Other Race alone",
@@ -4195,7 +4195,7 @@
     ]
   },
   "dim_231": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; Native Hawaiian and Other Pacific Islander",
       "Black or African American; Some Other Race",
@@ -4335,7 +4335,7 @@
     ]
   },
   "dim_234": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of four races",
       "Population of five races",
@@ -4351,7 +4351,7 @@
     ]
   },
   "dim_235": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Asian; Some Other Race",
       "Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander",
@@ -4647,7 +4647,7 @@
     ]
   },
   "dim_242": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of two races",
       "Population of three races",
@@ -4663,7 +4663,7 @@
     ]
   },
   "dim_243": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Native Hawaiian and Other Pacific Islander; Some other race",
       "White; Black or African American; American Indian and Alaska Native",
@@ -4725,7 +4725,7 @@
     ]
   },
   "dim_244": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Black or African American alone",
       "White alone",
@@ -4741,7 +4741,7 @@
     ]
   },
   "dim_245": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "White; Black or African American",
       "White; Some other race",
@@ -5930,7 +5930,7 @@
     ]
   },
   "dim_293": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of three races",
       "Population of four races",
@@ -5946,7 +5946,7 @@
     ]
   },
   "dim_294": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander",
       "Black or African American; American Indian and Alaska Native; Asian",
@@ -9065,7 +9065,7 @@
     ]
   },
   "dim_392": {
-    "name": "Race",
+    "name": "Race (in Combination)",
     "variables": [
       "Asian alone or in combination with one or more other races",
       "American Indian and Alaska Native alone or in combination with one or more other races",
@@ -9076,7 +9076,7 @@
     ]
   },
   "dim_393": {
-    "name": "Race",
+    "name": "Race (in Combination)",
     "variables": [
       "White alone or in combination with one or more other races",
       "Black or African American alone or in combination with one or more other races",
@@ -9087,7 +9087,7 @@
     ]
   },
   "dim_394": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of six races",
       "Population of four races",
@@ -9103,7 +9103,7 @@
     ]
   },
   "dim_395": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "White; Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race",
       "American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race",
@@ -9480,14 +9480,14 @@
     ]
   },
   "dim_418": {
-    "name": "Race",
+    "name": "Race Category",
     "variables": [
       "Population of one race",
       "Population of Two or More Races"
     ]
   },
   "dim_419": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Asian",
       "American Indian and Alaska Native",
@@ -9662,7 +9662,7 @@
     ]
   },
   "dim_433": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of two races",
       "White alone",
@@ -9678,7 +9678,7 @@
     ]
   },
   "dim_434": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "White; Native Hawaiian and Other Pacific Islander",
       "White; Some Other Race",
@@ -11481,7 +11481,7 @@
     ]
   },
   "dim_553": {
-    "name": "Race",
+    "name": "Race (in Combination)",
     "variables": [
       "Native Hawaiian and Other Pacific Islander alone or in combination with one or more other races",
       "Some Other Race alone or in combination with one or more other races",
@@ -11492,7 +11492,7 @@
     ]
   },
   "dim_554": {
-    "name": "Race",
+    "name": "Race (in Combination)",
     "variables": [
       "Some Other Race alone or in combination with one or more other races",
       "Native Hawaiian and Other Pacific Islander alone or in combination with one or more other races",
@@ -11503,7 +11503,7 @@
     ]
   },
   "dim_555": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of two races",
       "Population of three races",
@@ -11519,7 +11519,7 @@
     ]
   },
   "dim_556": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Asian; Native Hawaiian and Other Pacific Islander",
       "American Indian and Alaska Native; Some Other Race",
@@ -13212,7 +13212,7 @@
     ]
   },
   "dim_678": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of three races",
       "Population of four races",
@@ -13228,7 +13228,7 @@
     ]
   },
   "dim_679": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander",
       "Black or African American; American Indian and Alaska Native; Some other race",
@@ -13446,7 +13446,7 @@
     ]
   },
   "dim_684": {
-    "name": "Race",
+    "name": "Race Detail",
     "variables": [
       "Population of four races",
       "Population of five races",
@@ -13462,7 +13462,7 @@
     ]
   },
   "dim_685": {
-    "name": "Race",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Asian; Some other race",
       "Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander",
@@ -13524,7 +13524,7 @@
     ]
   },
   "dim_686": {
-    "name": "Race",
+    "name": "Race (in Combination)",
     "variables": [
       "Black or African American alone or in combination with one or more other races",
       "American Indian and Alaska Native alone or in combination with one or more other races",
@@ -13628,7 +13628,7 @@
     ]
   },
   "dim_695": {
-    "name": "Race",
+    "name": "Race (in Combination)",
     "variables": [
       "Native Hawaiian and Other Pacific Islander alone or in combination with one or more other races",
       "Some other race alone or in combination with one or more other races",

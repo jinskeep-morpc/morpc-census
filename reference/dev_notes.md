@@ -1,3 +1,14 @@
+## Curate Race dim names — 4 semantically distinct types (main)
+
+All 42 'Race' dims were the same name, collapsing to 'Race', 'Race 2',
+'Race 3' in DimensionTable. Corrected to 4 semantically distinct names:
+- 'Race Category'     — top-level: Population of one race vs Two or More Races
+- 'Race'              — specific single-race categories (White alone, etc.)
+- 'Race Detail'       — mixed: specific races + multirace count categories
+- 'Race (in Combination)' — alone or in combination with other races
+- 'Multirace Combination' — semicolon-separated race pairs/triples
+P1 now resolves to [Total, Race Category, Race Detail, Multirace Combination].
+
 ## Fix legacy dec label stripping — first segment lost (#111)
 
 In _melt_wide_to_long, `split('!!', n=1).str[-1]` is correct for ACS
