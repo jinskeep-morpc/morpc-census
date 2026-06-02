@@ -877,7 +877,7 @@
     ]
   },
   "dim_112": {
-    "name": "Households",
+    "name": "Household Size",
     "variables": [
       "2-or-more person household",
       "1-person household"
@@ -1005,7 +1005,7 @@
     ]
   },
   "dim_127": {
-    "name": "Tenure",
+    "name": "Age of Householder",
     "variables": [
       "Householder 65 years and over",
       "Householder 35 to 64 years",
@@ -3933,7 +3933,7 @@
     ]
   },
   "dim_223": {
-    "name": "Multirace Combination",
+    "name": "Race Count",
     "variables": [
       "Population of five races",
       "Population of six races",
@@ -4089,7 +4089,7 @@
     ]
   },
   "dim_227": {
-    "name": "Multirace Combination",
+    "name": "Race Count",
     "variables": [
       "Population of two races",
       "Population of three races",
@@ -4491,7 +4491,7 @@
     ]
   },
   "dim_238": {
-    "name": "Multirace Combination",
+    "name": "Race Count",
     "variables": [
       "Population of six races",
       "Population of five races",
@@ -4569,7 +4569,7 @@
     ]
   },
   "dim_240": {
-    "name": "Multirace Combination",
+    "name": "Race Detail",
     "variables": [
       "Population of two races",
       "Some other race alone",
@@ -4921,7 +4921,7 @@
     ]
   },
   "dim_252": {
-    "name": "Type",
+    "name": "Partnership Type",
     "variables": [
       "Same-sex unmarried partner households",
       "Same-sex married couple household",
@@ -4930,7 +4930,7 @@
     ]
   },
   "dim_253": {
-    "name": "Type",
+    "name": "Same-Sex Partnership Type",
     "variables": [
       "Male-male unmarried partner households",
       "Female-female unmarried partner household",
@@ -5605,7 +5605,7 @@
     ]
   },
   "dim_277": {
-    "name": "Group Quarters Population",
+    "name": "Group Quarters Type",
     "variables": [
       "Juvenile facilities (201-203)",
       "Correctional facilities for adults (101-106)",
@@ -5617,7 +5617,7 @@
     ]
   },
   "dim_278": {
-    "name": "Group Quarters Population",
+    "name": "Group Quarters Type (Detail)",
     "variables": [
       "Military disciplinary barracks and jails (106)",
       "Correctional residential facilities (105)",
@@ -5898,7 +5898,7 @@
     ]
   },
   "dim_290": {
-    "name": "Tenure",
+    "name": "Family Type",
     "variables": [
       "Other family",
       "Married couple",
@@ -5907,7 +5907,7 @@
     ]
   },
   "dim_291": {
-    "name": "Tenure",
+    "name": "Living Arrangement",
     "variables": [
       "Male householder, no spouse present",
       "Female householder, no spouse present",
@@ -6181,7 +6181,7 @@
     ]
   },
   "dim_302": {
-    "name": "Households",
+    "name": "Partnership Type",
     "variables": [
       "Female householder, no spouse or partner present",
       "Married couple household",
@@ -6190,7 +6190,7 @@
     ]
   },
   "dim_303": {
-    "name": "Households",
+    "name": "Presence of Related Children",
     "variables": [
       "No relatives present",
       "With own children under 18",
@@ -6290,7 +6290,7 @@
     ]
   },
   "dim_312": {
-    "name": "Group Quarters Population",
+    "name": "Age",
     "variables": [
       "10 to 14 years",
       "15 to 19 years",
@@ -9286,7 +9286,7 @@
     ]
   },
   "dim_402": {
-    "name": "Household Type",
+    "name": "Same-Sex Household Type",
     "variables": [
       "In male householder and male partner households",
       "In female householder and female partner households",
@@ -9298,7 +9298,7 @@
     ]
   },
   "dim_403": {
-    "name": "Number of People Under 18 Years",
+    "name": "Family Type",
     "variables": [
       "Husband-wife family",
       "Male householder, no wife present",
@@ -9316,7 +9316,7 @@
     ]
   },
   "dim_405": {
-    "name": "Husband-Wife",
+    "name": "Partnership Type",
     "variables": [
       "Unmarried-partner households",
       "All other households",
@@ -9324,7 +9324,7 @@
     ]
   },
   "dim_406": {
-    "name": "Husband-Wife",
+    "name": "Same-Sex Partnership Type",
     "variables": [
       "Male householder and female partner",
       "Female householder and female partner",
@@ -9487,7 +9487,7 @@
     ]
   },
   "dim_419": {
-    "name": "Multirace Combination",
+    "name": "Race",
     "variables": [
       "Asian",
       "American Indian and Alaska Native",
@@ -9530,7 +9530,7 @@
     ]
   },
   "dim_422": {
-    "name": "Group Quarters Population",
+    "name": "Group Quarters Type",
     "variables": [
       "Other institutional facilities (401-405)",
       "Juvenile facilities (201-203)",
@@ -9542,7 +9542,7 @@
     ]
   },
   "dim_423": {
-    "name": "Group Quarters Population",
+    "name": "Group Quarters Type (Detail)",
     "variables": [
       "Mental (Psychiatric) hospitals and psychiatric units in other hospitals (401)",
       "Hospitals with patients who have no usual home elsewhere (402)",
@@ -9636,7 +9636,7 @@
     ]
   },
   "dim_430": {
-    "name": "Tenure",
+    "name": "Family Type",
     "variables": [
       "Female householder",
       "Male householder",
@@ -9645,7 +9645,7 @@
     ]
   },
   "dim_431": {
-    "name": "Tenure",
+    "name": "Living Arrangement",
     "variables": [
       "Living alone",
       "Not living alone",
@@ -9889,7 +9889,7 @@
     ]
   },
   "dim_444": {
-    "name": "Households",
+    "name": "Household Type",
     "variables": [
       "Husband-wife family",
       "Other family",
@@ -9914,7 +9914,7 @@
     ]
   },
   "dim_447": {
-    "name": "Households",
+    "name": "Family Type",
     "variables": [
       "Male householder",
       "Female householder",
@@ -9946,7 +9946,7 @@
     ]
   },
   "dim_450": {
-    "name": "Households",
+    "name": "Presence of Nonrelatives",
     "variables": [
       "Households with one or more nonrelatives",
       "Households with no nonrelatives"
@@ -10244,7 +10244,7 @@
     ]
   },
   "dim_474": {
-    "name": "Group Quarters Population",
+    "name": "Age",
     "variables": [
       "5 to 9 years",
       "Under 5 years",
@@ -11841,7 +11841,7 @@
     ]
   },
   "dim_575": {
-    "name": "Households",
+    "name": "Presence of Nonrelatives",
     "variables": [
       "Households with no nonrelatives",
       "Households with one or more nonrelatives"
@@ -11993,7 +11993,7 @@
     ]
   },
   "dim_587": {
-    "name": "Presence of Own Children",
+    "name": "Family Type",
     "variables": [
       "Other family",
       "Female householder",
@@ -12009,7 +12009,7 @@
     ]
   },
   "dim_589": {
-    "name": "Households",
+    "name": "Family Type",
     "variables": [
       "Married-couple family",
       "Other family",
@@ -12031,14 +12031,14 @@
     ]
   },
   "dim_591": {
-    "name": "Households",
+    "name": "Age of Householder",
     "variables": [
       "Householder 65 years and over",
       "Householder 15 to 64 years"
     ]
   },
   "dim_592": {
-    "name": "Households",
+    "name": "Household Type",
     "variables": [
       "Householder not living alone",
       "Householder living alone",
@@ -12159,7 +12159,7 @@
     ]
   },
   "dim_604": {
-    "name": "Population Substituted",
+    "name": "Coverage Adjustment",
     "variables": [
       "Noninterview",
       "Coverage improvement adjustment"
@@ -12766,7 +12766,7 @@
     ]
   },
   "dim_654": {
-    "name": "Tenure",
+    "name": "Family Type",
     "variables": [
       "Female householder",
       "Male householder",
@@ -13651,7 +13651,7 @@
     ]
   },
   "dim_697": {
-    "name": "Household Type",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Not living alone",
       "Living alone",

@@ -1,3 +1,21 @@
+## Full dec_dim_names curation — within-group collisions 533 → 128 (main)
+
+Second pass of dec dim name curation targeting 36 more dims across 11 categories.
+Remaining 128 collisions are all same-concept different-orderings; Jaccard handles.
+
+Key corrections:
+- Tenure (6 dims): Age of Householder / Family Type / Living Arrangement
+- Households (7 dims): Household Type / Family Type / Household Size /
+  Age of Householder / Presence of Nonrelatives / Presence of Related Children / Partnership Type
+- Presence of Own Children → Family Type (dim_587 had Other family/householder values)
+- Number of People Under 18 Years → Family Type (dim_403 had family type values)
+- Population Substituted → Coverage Adjustment (dim_604 had noninterview values)
+- Husband-Wife → Partnership Type + Same-Sex Partnership Type
+- Type → Partnership Type + Same-Sex Partnership Type
+- Household Type → Sex and Living Arrangement (dim_697) + Same-Sex Household Type (dim_402)
+- Group Quarters Population → GQ Type + GQ Type (Detail) + Age
+- Multirace Combination → Race Count (dim_227/238) + Race Detail (dim_240) + Race (dim_419)
+
 ## Curate Race dim names — 4 semantically distinct types (main)
 
 All 42 'Race' dims were the same name, collapsing to 'Race', 'Race 2',
