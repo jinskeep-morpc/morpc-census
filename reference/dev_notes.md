@@ -1,3 +1,15 @@
+## Fix legacy dec label stripping — first segment lost (#111)
+
+In _melt_wide_to_long, `split('!!', n=1).str[-1]` is correct for ACS
+('Estimate!!Total:' → 'Total:') and modern dec (' !!Total:' → 'Total:'),
+but strips the real first dimension from legacy dec labels:
+'Total!!Population of one race!!White alone' → 'Population of one race!!White alone'
+causing DimensionTable to produce wrong/unaligned dimensions.
+
+Fix: detect legacy dec codes via ^[A-Z]+\d{3}[A-Z]?\d{3}$ regex and skip
+the split for those rows (use the full label verbatim). Added test that
+verifies 'Total!!Male' is preserved as-is. 203 tests pass.
+
 ## Curate dec_dim_names.json — semantic deduplication (main)
 
 Fixed 193 semantically misnamed dims in dec_dim_names.json via
