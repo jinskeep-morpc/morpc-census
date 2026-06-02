@@ -1,3 +1,28 @@
+## Curate dec_dim_names.json — semantic deduplication (main)
+
+Fixed 193 semantically misnamed dims in dec_dim_names.json via
+scripts/fix_dec_dim_names.py (auto rule-based) plus manual patches. Within-
+group name collisions reduced from 533 to 199 (63% reduction). Remaining
+collisions are legitimate same-concept different-orderings (e.g. Sex with
+Male/Female vs Female/Male) that _match_col_names disambiguates by Jaccard.
+
+Key corrections:
+- 'Hispanic or Latino,' → 'Hispanic or Latino' (fix trailing comma) + 24 dims
+  with race combination values → 'Multirace Combination'
+- 'Sex' (6 dims) → 'Age Group' (had age-bracket values)
+- 'Age' (3 dims) → 'Institutionalization Status'
+- 'Household Type' (71 dims) → Residence Type / Householder Sex / Household
+  Size / Living Arrangement / Nonrelative Type / Relationship to Householder /
+  Family Type / Child Relationship / Age of Own Children
+- 'Relationship' (69 dims) → Residence Type / Living Alone Status / Sex and
+  Living Arrangement / Sex and Age Group / Living Arrangement / Relationship to
+  Householder
+- 'Family Type' (12 dims) → Age of Own Children / Presence of Related Children
+  / Householder Sex / Living Arrangement
+- 'Tenure' (5 dims) → 'Tenure (Detail)' (3-category break-out)
+
+Runtime files (dec_dims.json, dec_group_dims.json) rebuilt. Tests pass.
+
 ## Fix pre-existing CI failures: drop Python 3.10, pandas dtype (issue #109)
 
 CI was latently red on main (surfaced by PR #110). Two pre-existing,

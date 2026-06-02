@@ -34,7 +34,7 @@
     ]
   },
   "dim_005": {
-    "name": "Household Type",
+    "name": "Residence Type",
     "variables": [
       "In households",
       "In group quarters"
@@ -61,14 +61,14 @@
     ]
   },
   "dim_009": {
-    "name": "Family Type",
+    "name": "Householder Sex",
     "variables": [
       "Female householder, no husband present",
       "Male householder, no wife present"
     ]
   },
   "dim_010": {
-    "name": "Family Type",
+    "name": "Householder Sex",
     "variables": [
       "Male householder, no wife present",
       "Female householder, no husband present"
@@ -89,7 +89,7 @@
     ]
   },
   "dim_013": {
-    "name": "Relationship",
+    "name": "Residence Type",
     "variables": [
       "In households",
       "In group quarters",
@@ -97,7 +97,7 @@
     ]
   },
   "dim_014": {
-    "name": "Household Type",
+    "name": "Householder Sex",
     "variables": [
       "Female householder, no spouse present",
       "Male householder, no spouse present"
@@ -144,14 +144,14 @@
     ]
   },
   "dim_021": {
-    "name": "Hispanic or Latino,",
+    "name": "Hispanic or Latino",
     "variables": [
       "Not Hispanic or Latino",
       "Hispanic or Latino"
     ]
   },
   "dim_022": {
-    "name": "Family Type",
+    "name": "Age of Own Children",
     "variables": [
       "Under 6 years only",
       "Under 6 years and 6 to 17 years",
@@ -166,7 +166,7 @@
     ]
   },
   "dim_024": {
-    "name": "Household Type",
+    "name": "Householder Sex",
     "variables": [
       "Male householder, no spouse present",
       "Female householder, no spouse present"
@@ -187,7 +187,7 @@
     ]
   },
   "dim_027": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "In family households",
       "In nonfamily households",
@@ -196,14 +196,14 @@
     ]
   },
   "dim_028": {
-    "name": "Relationship",
+    "name": "Living Alone Status",
     "variables": [
       "Living alone",
       "Not living alone"
     ]
   },
   "dim_029": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "In family households",
       "In nonfamily households",
@@ -212,14 +212,14 @@
     ]
   },
   "dim_030": {
-    "name": "Age",
+    "name": "Institutionalization Status",
     "variables": [
       "Noninstitutionalized population (501, 601-602, 701-702, 704, 706, 801-802, 900-901, 903-904)",
       "Institutionalized population (101-106, 201-203, 301, 401-405)"
     ]
   },
   "dim_031": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Own child",
       "Other relatives"
@@ -246,7 +246,7 @@
     ]
   },
   "dim_035": {
-    "name": "Household Type",
+    "name": "Residence Type",
     "variables": [
       "In group quarters",
       "In households"
@@ -259,7 +259,7 @@
     ]
   },
   "dim_037": {
-    "name": "Family Type",
+    "name": "Age of Own Children",
     "variables": [
       "6 to 17 years only",
       "Under 6 years and 6 to 17 years",
@@ -267,7 +267,7 @@
     ]
   },
   "dim_038": {
-    "name": "Relationship",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Male",
       "Female",
@@ -276,7 +276,7 @@
     ]
   },
   "dim_039": {
-    "name": "Relationship",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Female",
       "Male",
@@ -285,21 +285,21 @@
     ]
   },
   "dim_040": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Other relatives",
       "Own child"
     ]
   },
   "dim_041": {
-    "name": "Age",
+    "name": "Institutionalization Status",
     "variables": [
       "Institutionalized population",
       "Noninstitutionalized population"
     ]
   },
   "dim_042": {
-    "name": "Relationship",
+    "name": "Living Alone Status",
     "variables": [
       "Not living alone",
       "Living alone"
@@ -313,7 +313,7 @@
     ]
   },
   "dim_044": {
-    "name": "Tenure",
+    "name": "Tenure (Detail)",
     "variables": [
       "Owned with a mortgage or a loan",
       "Owned free and clear",
@@ -321,7 +321,7 @@
     ]
   },
   "dim_045": {
-    "name": "Family Type",
+    "name": "Age of Own Children",
     "variables": [
       "6 to 17 years only",
       "Under 6 years only",
@@ -329,7 +329,7 @@
     ]
   },
   "dim_046": {
-    "name": "Family Type",
+    "name": "Age of Own Children",
     "variables": [
       "Under 6 years only",
       "6 to 17 years only",
@@ -337,7 +337,7 @@
     ]
   },
   "dim_047": {
-    "name": "Family Type",
+    "name": "Presence of Related Children",
     "variables": [
       "No related children under 18 years",
       "With related children under 18 years"
@@ -357,7 +357,7 @@
     ]
   },
   "dim_050": {
-    "name": "Tenure",
+    "name": "Tenure (Detail)",
     "variables": [
       "Renter occupied",
       "Owned free and clear",
@@ -395,7 +395,7 @@
     ]
   },
   "dim_055": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "Grandchild",
       "In male householder, no wife present family",
@@ -417,7 +417,7 @@
     ]
   },
   "dim_058": {
-    "name": "Sex",
+    "name": "Age Group",
     "variables": [
       "Under 18 years",
       "18 to 64 years",
@@ -441,7 +441,7 @@
     ]
   },
   "dim_061": {
-    "name": "Tenure",
+    "name": "Tenure (Detail)",
     "variables": [
       "Renter occupied",
       "Owned with a mortgage or a loan",
@@ -455,7 +455,7 @@
     ]
   },
   "dim_063": {
-    "name": "Family Type",
+    "name": "Age of Own Children",
     "variables": [
       "Under 6 years and 6 to 17 years",
       "Under 6 years only",
@@ -463,7 +463,7 @@
     ]
   },
   "dim_064": {
-    "name": "Family Type",
+    "name": "Age of Own Children",
     "variables": [
       "Under 6 years and 6 to 17 years",
       "6 to 17 years only",
@@ -519,14 +519,14 @@
     ]
   },
   "dim_071": {
-    "name": "Household Type",
+    "name": "Household Size",
     "variables": [
       "2-or-more-person household",
       "1-person household"
     ]
   },
   "dim_072": {
-    "name": "Sex",
+    "name": "Age Group",
     "variables": [
       "Under 18 years",
       "65 years and over",
@@ -534,7 +534,7 @@
     ]
   },
   "dim_073": {
-    "name": "Tenure",
+    "name": "Tenure (Detail)",
     "variables": [
       "Owned free and clear",
       "Owned with a mortgage or a loan",
@@ -542,7 +542,7 @@
     ]
   },
   "dim_074": {
-    "name": "Tenure",
+    "name": "Tenure (Detail)",
     "variables": [
       "Owned with a mortgage or a loan",
       "Renter occupied",
@@ -576,7 +576,7 @@
     ]
   },
   "dim_078": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "Other relatives",
       "In husband-wife family",
@@ -584,7 +584,7 @@
     ]
   },
   "dim_079": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "Institutionalized population",
       "Noninstitutionalized population",
@@ -593,7 +593,7 @@
     ]
   },
   "dim_080": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "In other family",
       "In married-couple family",
@@ -601,7 +601,7 @@
     ]
   },
   "dim_081": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "Female householder, no husband present",
       "Male householder, no wife present",
@@ -609,14 +609,14 @@
     ]
   },
   "dim_082": {
-    "name": "Age",
+    "name": "Institutionalization Status",
     "variables": [
       "Noninstitutionalized population",
       "Institutionalized population"
     ]
   },
   "dim_083": {
-    "name": "Relationship",
+    "name": "Sex and Age Group",
     "variables": [
       "Under 18 years",
       "Male",
@@ -639,7 +639,7 @@
     ]
   },
   "dim_086": {
-    "name": "Sex",
+    "name": "Age Group",
     "variables": [
       "65 years and over",
       "18 to 64 years",
@@ -654,7 +654,7 @@
     ]
   },
   "dim_088": {
-    "name": "Sex",
+    "name": "Age Group",
     "variables": [
       "18 to 64 years",
       "Under 18 years",
@@ -705,7 +705,7 @@
     ]
   },
   "dim_095": {
-    "name": "Relationship",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Female",
       "Male",
@@ -714,7 +714,7 @@
     ]
   },
   "dim_096": {
-    "name": "Relationship",
+    "name": "Residence Type",
     "variables": [
       "Coverage improvement adjustment",
       "In group quarters",
@@ -722,7 +722,7 @@
     ]
   },
   "dim_097": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "In married-couple family",
       "In other family",
@@ -730,7 +730,7 @@
     ]
   },
   "dim_098": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "Male householder, no wife present",
       "Female householder, no husband present",
@@ -738,7 +738,7 @@
     ]
   },
   "dim_099": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Related child",
       "Householder or spouse",
@@ -792,7 +792,7 @@
     ]
   },
   "dim_105": {
-    "name": "Sex",
+    "name": "Age Group",
     "variables": [
       "18 to 64 years",
       "65 years and over",
@@ -800,7 +800,7 @@
     ]
   },
   "dim_106": {
-    "name": "Household Type",
+    "name": "Household Size",
     "variables": [
       "1-person household",
       "2-or-more-person household"
@@ -869,7 +869,7 @@
     ]
   },
   "dim_111": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "Other relatives",
       "In other family",
@@ -884,7 +884,7 @@
     ]
   },
   "dim_113": {
-    "name": "Relationship",
+    "name": "Residence Type",
     "variables": [
       "In households",
       "Coverage improvement adjustment",
@@ -892,7 +892,7 @@
     ]
   },
   "dim_114": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Male",
       "Female",
@@ -933,7 +933,7 @@
     ]
   },
   "dim_119": {
-    "name": "Relationship",
+    "name": "Sex and Age Group",
     "variables": [
       "Female",
       "Male",
@@ -1031,7 +1031,7 @@
     ]
   },
   "dim_131": {
-    "name": "Relationship",
+    "name": "Sex and Age Group",
     "variables": [
       "Under 18 years",
       "Female",
@@ -1601,7 +1601,7 @@
     ]
   },
   "dim_162": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Adopted child",
       "Biological child",
@@ -1620,7 +1620,7 @@
     ]
   },
   "dim_163": {
-    "name": "Relationship",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Living alone",
       "Not living alone",
@@ -1629,7 +1629,7 @@
     ]
   },
   "dim_164": {
-    "name": "Sex",
+    "name": "Age Group",
     "variables": [
       "65 years and over",
       "Under 18 years",
@@ -1672,7 +1672,7 @@
     ]
   },
   "dim_169": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Other nonrelatives",
       "Unmarried partner",
@@ -1681,7 +1681,7 @@
     ]
   },
   "dim_170": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Housemate or roommate",
       "Roomer or boarder",
@@ -1790,7 +1790,7 @@
     ]
   },
   "dim_178": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "In other family",
       "In husband-wife family",
@@ -1798,7 +1798,7 @@
     ]
   },
   "dim_179": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "In female householder, no husband present family",
       "In male householder, no wife present family",
@@ -1914,7 +1914,7 @@
     ]
   },
   "dim_181": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "Noninstitutionalized population",
       "Institutionalized population",
@@ -1923,7 +1923,7 @@
     ]
   },
   "dim_182": {
-    "name": "Relationship",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Male",
       "Female",
@@ -1932,7 +1932,7 @@
     ]
   },
   "dim_183": {
-    "name": "Relationship",
+    "name": "Sex and Living Arrangement",
     "variables": [
       "Not living alone",
       "Living alone",
@@ -3740,7 +3740,7 @@
     ]
   },
   "dim_209": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "In nonfamily households",
       "Noninstitutionalized population",
@@ -3761,7 +3761,7 @@
     ]
   },
   "dim_211": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder or spouse",
       "Related child",
@@ -3783,7 +3783,7 @@
     ]
   },
   "dim_213": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Female",
       "Male",
@@ -3838,7 +3838,7 @@
     ]
   },
   "dim_219": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "In nonfamily households",
       "In family households",
@@ -3847,7 +3847,7 @@
     ]
   },
   "dim_220": {
-    "name": "Relationship",
+    "name": "Residence Type",
     "variables": [
       "In group quarters",
       "Coverage improvement adjustment",
@@ -3933,7 +3933,7 @@
     ]
   },
   "dim_223": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of five races",
       "Population of six races",
@@ -3949,7 +3949,7 @@
     ]
   },
   "dim_224": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race",
       "Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race",
@@ -4089,7 +4089,7 @@
     ]
   },
   "dim_227": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of two races",
       "Population of three races",
@@ -4105,7 +4105,7 @@
     ]
   },
   "dim_228": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; Asian",
       "Native Hawaiian and Other Pacific Islander; Some Other Race",
@@ -4257,7 +4257,7 @@
     ]
   },
   "dim_232": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of three races",
       "Population of four races",
@@ -4273,7 +4273,7 @@
     ]
   },
   "dim_233": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Asian; Native Hawaiian and Other Pacific Islander; Some Other Race",
       "American Indian and Alaska Native; Asian; Some Other Race",
@@ -4413,7 +4413,7 @@
     ]
   },
   "dim_236": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of four races",
       "Population of five races",
@@ -4429,7 +4429,7 @@
     ]
   },
   "dim_237": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Asian; Some Other Race",
       "Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander",
@@ -4491,7 +4491,7 @@
     ]
   },
   "dim_238": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of six races",
       "Population of five races",
@@ -4507,7 +4507,7 @@
     ]
   },
   "dim_239": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some other race",
       "White; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander; Some other race",
@@ -4569,7 +4569,7 @@
     ]
   },
   "dim_240": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of two races",
       "Some other race alone",
@@ -4585,7 +4585,7 @@
     ]
   },
   "dim_241": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; Black or African American",
       "White; American Indian and Alaska Native",
@@ -4803,7 +4803,7 @@
     ]
   },
   "dim_246": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Same-sex unmarried partner",
@@ -4854,7 +4854,7 @@
     ]
   },
   "dim_248": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Biological child",
@@ -4877,7 +4877,7 @@
     ]
   },
   "dim_249": {
-    "name": "Relationship",
+    "name": "Sex and Age Group",
     "variables": [
       "Male",
       "Under 18 years",
@@ -5023,7 +5023,7 @@
     ]
   },
   "dim_257": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Foster child",
@@ -5182,7 +5182,7 @@
     ]
   },
   "dim_260": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Noninstitutionalized population",
       "Institutionalized population",
@@ -5243,7 +5243,7 @@
     ]
   },
   "dim_263": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Foster child",
       "Other nonrelatives",
@@ -5322,7 +5322,7 @@
     ]
   },
   "dim_266": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Noninstitutionalized population",
       "Householder",
@@ -5345,7 +5345,7 @@
     ]
   },
   "dim_267": {
-    "name": "Relationship",
+    "name": "Sex and Age Group",
     "variables": [
       "Male",
       "Female",
@@ -6036,7 +6036,7 @@
     ]
   },
   "dim_296": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of four races",
       "Population of five races",
@@ -6052,7 +6052,7 @@
     ]
   },
   "dim_297": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander; Some Other Race",
       "Black or African American; Asian; Native Hawaiian and Other Pacific Islander; Some Other Race",
@@ -6151,7 +6151,7 @@
     ]
   },
   "dim_300": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Stepchild",
       "Biological child",
@@ -6384,7 +6384,7 @@
     ]
   },
   "dim_317": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Institutionalized population",
       "Noninstitutionalized population",
@@ -6435,7 +6435,7 @@
     ]
   },
   "dim_320": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Institutionalized population",
       "Noninstitutionalized population",
@@ -6458,7 +6458,7 @@
     ]
   },
   "dim_321": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Noninstitutionalized population",
       "Institutionalized population",
@@ -6625,7 +6625,7 @@
     ]
   },
   "dim_332": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse or partner",
@@ -6637,7 +6637,7 @@
     ]
   },
   "dim_333": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Noninstitutionalized population",
       "Institutionalized population",
@@ -6649,7 +6649,7 @@
     ]
   },
   "dim_334": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Spouse or partner",
       "Parent or parent-in-law",
@@ -6661,7 +6661,7 @@
     ]
   },
   "dim_335": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Noninstitutionalized population",
@@ -6673,7 +6673,7 @@
     ]
   },
   "dim_336": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse or partner",
@@ -6685,7 +6685,7 @@
     ]
   },
   "dim_337": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Noninstitutionalized population",
       "Institutionalized population",
@@ -6697,7 +6697,7 @@
     ]
   },
   "dim_338": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse or partner",
@@ -6709,7 +6709,7 @@
     ]
   },
   "dim_339": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Other relatives",
       "Parent or parent-in-law",
@@ -6721,7 +6721,7 @@
     ]
   },
   "dim_340": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Parent or parent-in-law",
@@ -7356,7 +7356,7 @@
     ]
   },
   "dim_357": {
-    "name": "Age",
+    "name": "Relationship to Householder",
     "variables": [
       "Other children",
       "Institutionalized population",
@@ -8385,7 +8385,7 @@
     ]
   },
   "dim_371": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Other relatives",
       "Parent or parent-in-law",
@@ -9177,7 +9177,7 @@
     ]
   },
   "dim_397": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of three races",
       "Population of two races",
@@ -9193,7 +9193,7 @@
     ]
   },
   "dim_398": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; Black or African American; Asian",
       "American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander",
@@ -9409,7 +9409,7 @@
     ]
   },
   "dim_413": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Unmarried partner",
       "Other nonrelatives",
@@ -9457,7 +9457,7 @@
     ]
   },
   "dim_416": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "In family households",
       "Institutionalized population",
@@ -9466,7 +9466,7 @@
     ]
   },
   "dim_417": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Parent-in-law",
       "Other relatives",
@@ -9754,7 +9754,7 @@
     ]
   },
   "dim_436": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of three races",
       "Population of four races",
@@ -9770,7 +9770,7 @@
     ]
   },
   "dim_437": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Native Hawaiian and Other Pacific Islander",
       "Black or African American; American Indian and Alaska Native; Some Other Race",
@@ -9962,7 +9962,7 @@
     ]
   },
   "dim_452": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Adopted child",
       "Spouse",
@@ -9990,7 +9990,7 @@
     ]
   },
   "dim_454": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Other nonrelatives",
       "Roomer or boarder",
@@ -9999,7 +9999,7 @@
     ]
   },
   "dim_455": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Adopted child",
       "Spouse",
@@ -10018,7 +10018,7 @@
     ]
   },
   "dim_456": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Adopted child",
       "Biological child",
@@ -10037,7 +10037,7 @@
     ]
   },
   "dim_457": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Biological child",
       "Adopted child",
@@ -10056,7 +10056,7 @@
     ]
   },
   "dim_458": {
-    "name": "Household Type",
+    "name": "Family Type",
     "variables": [
       "In husband-wife family",
       "In other family",
@@ -10065,7 +10065,7 @@
     ]
   },
   "dim_459": {
-    "name": "Household Type",
+    "name": "Family Type",
     "variables": [
       "In male householder, no wife present family",
       "In female householder, no husband present family",
@@ -10074,7 +10074,7 @@
     ]
   },
   "dim_460": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Biological child",
       "Spouse",
@@ -10093,7 +10093,7 @@
     ]
   },
   "dim_461": {
-    "name": "Household Type",
+    "name": "Age of Own Children",
     "variables": [
       "15 to 17 years",
       "Under 3 years",
@@ -10105,7 +10105,7 @@
     ]
   },
   "dim_462": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -10124,7 +10124,7 @@
     ]
   },
   "dim_463": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -10137,21 +10137,21 @@
     ]
   },
   "dim_464": {
-    "name": "Household Type",
+    "name": "Family Type",
     "variables": [
       "In husband-wife family",
       "In other family"
     ]
   },
   "dim_465": {
-    "name": "Household Type",
+    "name": "Family Type",
     "variables": [
       "In male householder, no wife present family",
       "In female householder, no husband present family"
     ]
   },
   "dim_466": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Stepchild",
       "Grandchild",
@@ -10170,7 +10170,7 @@
     ]
   },
   "dim_467": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "In nonfamily households",
       "Institutionalized population",
@@ -10179,7 +10179,7 @@
     ]
   },
   "dim_468": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Male householder",
       "Female householder",
@@ -10451,7 +10451,7 @@
     ]
   },
   "dim_483": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Other nonrelatives",
       "Housemate or roommate",
@@ -10460,7 +10460,7 @@
     ]
   },
   "dim_484": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Roomer or boarder",
       "Unmarried partner",
@@ -10469,7 +10469,7 @@
     ]
   },
   "dim_485": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Roomer or boarder",
       "Unmarried partner",
@@ -10478,7 +10478,7 @@
     ]
   },
   "dim_486": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Housemate or roommate",
       "Unmarried partner",
@@ -10812,7 +10812,7 @@
     ]
   },
   "dim_508": {
-    "name": "Relationship",
+    "name": "Living Arrangement",
     "variables": [
       "Grandchild",
       "In female householder, no husband present family",
@@ -10840,7 +10840,7 @@
     ]
   },
   "dim_511": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Parent-in-law",
@@ -10853,7 +10853,7 @@
     ]
   },
   "dim_512": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Parent-in-law",
       "Parent",
@@ -10866,7 +10866,7 @@
     ]
   },
   "dim_513": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Parent-in-law",
@@ -10879,7 +10879,7 @@
     ]
   },
   "dim_514": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Parent",
@@ -10892,7 +10892,7 @@
     ]
   },
   "dim_515": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Nonrelatives",
       "Other relatives",
@@ -10905,7 +10905,7 @@
     ]
   },
   "dim_516": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Parent-in-law",
       "Parent",
@@ -10918,7 +10918,7 @@
     ]
   },
   "dim_517": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Spouse",
       "Parent",
@@ -10931,7 +10931,7 @@
     ]
   },
   "dim_518": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -10944,7 +10944,7 @@
     ]
   },
   "dim_519": {
-    "name": "Relationship",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -11581,7 +11581,7 @@
     ]
   },
   "dim_557": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Native Hawaiian and Other Pacific Islander alone",
       "American Indian and Alaska Native alone",
@@ -11597,7 +11597,7 @@
     ]
   },
   "dim_558": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; American Indian and Alaska Native",
       "White; Asian",
@@ -11767,7 +11767,7 @@
     ]
   },
   "dim_568": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Nonrelatives",
       "Female householder",
@@ -11782,7 +11782,7 @@
     ]
   },
   "dim_569": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Not living alone",
       "Living alone",
@@ -11793,7 +11793,7 @@
     ]
   },
   "dim_570": {
-    "name": "Age",
+    "name": "Relationship to Householder",
     "variables": [
       "Related child",
       "Householder or spouse",
@@ -11815,7 +11815,7 @@
     ]
   },
   "dim_572": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Nonrelatives",
       "Noninstitutionalized population",
@@ -11825,7 +11825,7 @@
     ]
   },
   "dim_573": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "Other relatives",
       "In other family",
@@ -11833,7 +11833,7 @@
     ]
   },
   "dim_574": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "Grandchild",
       "Female householder, no husband present",
@@ -11974,7 +11974,7 @@
     ]
   },
   "dim_585": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -12047,7 +12047,7 @@
     ]
   },
   "dim_593": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Roomer or boarder",
       "Housemate or roommate",
@@ -12057,7 +12057,7 @@
     ]
   },
   "dim_594": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Roomer or boarder",
       "Housemate or roommate",
@@ -12067,7 +12067,7 @@
     ]
   },
   "dim_595": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Roomer or boarder",
       "Housemate or roommate",
@@ -12077,7 +12077,7 @@
     ]
   },
   "dim_596": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Foster child",
       "Other nonrelatives",
@@ -12087,7 +12087,7 @@
     ]
   },
   "dim_597": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Housemate or roommate",
       "Roomer or boarder",
@@ -12097,7 +12097,7 @@
     ]
   },
   "dim_598": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Other nonrelatives",
       "Foster child",
@@ -12107,7 +12107,7 @@
     ]
   },
   "dim_599": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Unmarried partner",
       "Foster child",
@@ -12117,7 +12117,7 @@
     ]
   },
   "dim_600": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Housemate or roommate",
       "Roomer or boarder",
@@ -12127,7 +12127,7 @@
     ]
   },
   "dim_601": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Roomer or boarder",
       "Housemate or roommate",
@@ -12183,7 +12183,7 @@
     ]
   },
   "dim_607": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Related child",
       "Householder or spouse",
@@ -12193,7 +12193,7 @@
     ]
   },
   "dim_608": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Related child",
       "Householder or spouse",
@@ -12275,7 +12275,7 @@
     ]
   },
   "dim_615": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Child",
       "Householder",
@@ -12290,7 +12290,7 @@
     ]
   },
   "dim_616": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Natural-born or adopted",
       "Male",
@@ -12325,7 +12325,7 @@
     ]
   },
   "dim_619": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Female householder",
       "Nonrelatives",
@@ -12340,7 +12340,7 @@
     ]
   },
   "dim_620": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Not living alone",
       "Living alone",
@@ -12351,7 +12351,7 @@
     ]
   },
   "dim_621": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -12366,7 +12366,7 @@
     ]
   },
   "dim_622": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Female",
       "Male",
@@ -12377,7 +12377,7 @@
     ]
   },
   "dim_623": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Child",
@@ -12392,7 +12392,7 @@
     ]
   },
   "dim_624": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Child",
@@ -12407,7 +12407,7 @@
     ]
   },
   "dim_625": {
-    "name": "Household Type",
+    "name": "Child Relationship",
     "variables": [
       "Male",
       "Natural-born or adopted",
@@ -12418,7 +12418,7 @@
     ]
   },
   "dim_626": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Child",
@@ -12433,7 +12433,7 @@
     ]
   },
   "dim_627": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -12448,7 +12448,7 @@
     ]
   },
   "dim_628": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Child",
@@ -12463,7 +12463,7 @@
     ]
   },
   "dim_629": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -13063,7 +13063,7 @@
     ]
   },
   "dim_669": {
-    "name": "Household Type",
+    "name": "Nonrelative Type",
     "variables": [
       "Housemate or roommate",
       "Unmarried partner",
@@ -13290,7 +13290,7 @@
     ]
   },
   "dim_680": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Population of four races",
       "Population of five races",
@@ -13306,7 +13306,7 @@
     ]
   },
   "dim_681": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American; American Indian and Alaska Native; Asian; Some other race",
       "Black or African American; American Indian and Alaska Native; Asian; Native Hawaiian and Other Pacific Islander",
@@ -13368,7 +13368,7 @@
     ]
   },
   "dim_682": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "Black or African American alone",
       "American Indian and Alaska Native alone",
@@ -13384,7 +13384,7 @@
     ]
   },
   "dim_683": {
-    "name": "Hispanic or Latino,",
+    "name": "Multirace Combination",
     "variables": [
       "White; Some other race",
       "Black or African American; American Indian and Alaska Native",
@@ -13535,7 +13535,7 @@
     ]
   },
   "dim_687": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Parent",
       "Other relatives",
@@ -13547,7 +13547,7 @@
     ]
   },
   "dim_688": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Nonrelatives",
       "Female householder",
@@ -13559,7 +13559,7 @@
     ]
   },
   "dim_689": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Parent",
       "Other relatives",
@@ -13571,7 +13571,7 @@
     ]
   },
   "dim_690": {
-    "name": "Household Type",
+    "name": "Living Arrangement",
     "variables": [
       "In nonfamily households",
       "In family households",
@@ -13580,7 +13580,7 @@
     ]
   },
   "dim_691": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Male householder",
       "Nonrelatives",
@@ -13592,7 +13592,7 @@
     ]
   },
   "dim_692": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Spouse",
       "Householder",
@@ -13604,7 +13604,7 @@
     ]
   },
   "dim_693": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Parent",
       "Spouse",
@@ -13616,7 +13616,7 @@
     ]
   },
   "dim_694": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Householder",
       "Spouse",
@@ -13639,7 +13639,7 @@
     ]
   },
   "dim_696": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Nonrelatives",
       "Male householder",
@@ -13660,7 +13660,7 @@
     ]
   },
   "dim_698": {
-    "name": "Household Type",
+    "name": "Relationship to Householder",
     "variables": [
       "Other relatives",
       "Parent",
