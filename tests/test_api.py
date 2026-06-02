@@ -1244,6 +1244,13 @@ class TestLegacyDecennialMelt:
         long = self._make().melt()
         assert 'P012001ERR' not in set(long['variable'])
 
+    def test_legacy_label_retains_first_segment(self):
+        # 'Total!!Male' must NOT have 'Total' stripped — it is a real dimension,
+        # not a non-data prefix like ACS 'Estimate!!' or modern dec ' !!'.
+        long = self._make().melt()
+        label = long.loc[long['variable'] == 'P012002', 'variable_label'].iloc[0]
+        assert label == 'Total!!Male', f"Expected 'Total!!Male', got {label!r}"
+
 
 # ---------------------------------------------------------------------------
 # TestGetApiKey

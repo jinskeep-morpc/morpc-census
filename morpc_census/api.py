@@ -980,9 +980,17 @@ class CensusAPI:
         )
         # Drop non-data columns (state/county/annotation codes)
         long = long.loc[long['variable'].isin(self.vars)]
-        # Human-readable label — strip leading "Estimate!!" prefix
+        # Human-readable label.
+        # ACS labels start with "Estimate!!" and modern dec labels start with
+        # " !!" — in both cases split(n=1)[-1] strips that non-data prefix.
+        # Legacy dec labels (codes matching ^[A-Z]+\d{3}[A-Z]?\d{3}$) start
+        # with the real first dimension value ("Total!!..."), so stripping the
+        # first segment would destroy data.  Use the label verbatim for those.
         labels = long['variable'].map(lambda v: self.vars.get(v, {}).get('label', v))
-        long['variable_label'] = labels.str.split('!!', n=1).str[-1]
+        is_legacy_dec = long['variable'].str.match(r'^[A-Z]+\d{3}[A-Z]?\d{3}$')
+        long['variable_label'] = labels.str.split('!!', n=1).str[-1].where(
+            ~is_legacy_dec, labels
+        )
         # Parse base code and value type: B01001_001E → base='B01001_001', type='E'
         parsed = long['variable'].str.extract(r'^([A-Z0-9_]+[0-9]+)([A-Z]{1,2})$')
         long['variable'] = parsed[0].fillna(long['variable'])
